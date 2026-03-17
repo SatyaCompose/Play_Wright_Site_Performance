@@ -1,0 +1,1102 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>⚡ Site Audit</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap"
+        rel="stylesheet">
+    <style>
+        :root {
+            --bg: #09090c;
+            --s1: #111216;
+            --s2: #18191f;
+            --s3: #22242c;
+            --border: #2a2d38;
+            --text: #e2e4f0;
+            --muted: #5a5f75;
+            --accent: #7c6dff;
+            --good: #22c76e;
+            --warn: #f5a623;
+            --poor: #f0435a;
+            --running: #38bdf8;
+            --mono: 'JetBrains Mono', monospace;
+            --sans: 'Syne', sans-serif;
+        }
+
+        *,
+        *::before,
+        *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--sans);
+            font-size: 13px;
+            height: 100vh;
+            display: grid;
+            grid-template-rows: 56px 1fr;
+            overflow: hidden;
+        }
+
+        /* ── Top bar ── */
+        header {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            padding: 0 24px;
+            border-bottom: 1px solid var(--border);
+            background: var(--s1);
+            flex-shrink: 0;
+        }
+
+        .logo {
+            font-size: 17px;
+            font-weight: 800;
+            letter-spacing: -0.5px;
+            color: var(--text);
+        }
+
+        .logo span {
+            color: var(--accent);
+        }
+
+        .header-stats {
+            display: flex;
+            gap: 16px;
+            margin-left: auto;
+            align-items: center;
+        }
+
+        .stat-pill {
+            font-family: var(--mono);
+            font-size: 11px;
+            padding: 3px 10px;
+            border-radius: 20px;
+            border: 1px solid var(--border);
+            color: var(--muted);
+        }
+
+        .stat-pill.good {
+            border-color: rgba(34, 199, 110, 0.3);
+            color: var(--good);
+            background: rgba(34, 199, 110, 0.07);
+        }
+
+        .stat-pill.warn {
+            border-color: rgba(240, 67, 90, 0.3);
+            color: var(--poor);
+            background: rgba(240, 67, 90, 0.07);
+        }
+
+        .stat-pill.run {
+            border-color: rgba(56, 189, 248, 0.3);
+            color: var(--running);
+            background: rgba(56, 189, 248, 0.07);
+        }
+
+        /* Progress bar */
+        .progress-wrap {
+            width: 180px;
+            height: 4px;
+            background: var(--s3);
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: var(--accent);
+            border-radius: 4px;
+            transition: width 0.3s ease;
+        }
+
+        /* ── Main layout: sidebar + detail ── */
+        .layout {
+            display: grid;
+            grid-template-columns: 420px 1fr;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        /* ── Sidebar: URL list ── */
+        .sidebar {
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-toolbar {
+            display: flex;
+            gap: 8px;
+            padding: 10px 12px;
+            border-bottom: 1px solid var(--border);
+            background: var(--s1);
+            flex-shrink: 0;
+        }
+
+        .sidebar-toolbar input {
+            flex: 1;
+            background: var(--s2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 11px;
+            padding: 5px 10px;
+            outline: none;
+        }
+
+        .sidebar-toolbar input:focus {
+            border-color: var(--accent);
+        }
+
+        .filter-btn {
+            background: var(--s2);
+            border: 1px solid var(--border);
+            color: var(--muted);
+            font-family: var(--sans);
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 6px;
+            cursor: pointer;
+            white-space: nowrap;
+        }
+
+        .filter-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .filter-btn.active {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(124, 109, 255, 0.1);
+        }
+
+        .url-list {
+            flex: 1;
+            overflow-y: auto;
+        }
+
+        .url-list::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .url-list::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .url-list::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        .url-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 8px 14px;
+            border-bottom: 1px solid rgba(42, 45, 56, 0.5);
+            cursor: pointer;
+            transition: background 0.1s;
+        }
+
+        .url-row:hover {
+            background: var(--s2);
+        }
+
+        .url-row.selected {
+            background: rgba(124, 109, 255, 0.1);
+            border-right: 2px solid var(--accent);
+        }
+
+        .url-row.running {
+            border-left: 2px solid var(--running);
+            padding-left: 12px;
+        }
+
+        .url-row.failed {
+            border-left: 2px solid var(--poor);
+            padding-left: 12px;
+        }
+
+        .url-status-dot {
+            width: 7px;
+            height: 7px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .dot-pending {
+            background: var(--border);
+        }
+
+        .dot-running {
+            background: var(--running);
+            animation: pulse 1.2s ease-in-out infinite;
+        }
+
+        .dot-done {
+            background: var(--good);
+        }
+
+        .dot-failed {
+            background: var(--poor);
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: scale(1);
+            }
+
+            50% {
+                opacity: 0.5;
+                transform: scale(0.7);
+            }
+        }
+
+        .url-path {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--text);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+
+        .url-row.failed .url-path {
+            color: var(--poor);
+        }
+
+        .url-row.running .url-path {
+            color: var(--running);
+        }
+
+        .url-lcp {
+            font-family: var(--mono);
+            font-size: 10px;
+            flex-shrink: 0;
+            min-width: 56px;
+            text-align: right;
+        }
+
+        /* ── Detail panel ── */
+        .detail {
+            overflow-y: auto;
+            padding: 24px;
+            background: var(--bg);
+        }
+
+        .detail::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .detail::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        .detail-empty {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--muted);
+            font-size: 14px;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .detail-empty .big {
+            font-size: 32px;
+        }
+
+        .detail-url {
+            font-family: var(--mono);
+            font-size: 12px;
+            color: var(--accent);
+            margin-bottom: 20px;
+            word-break: break-all;
+        }
+
+        .detail-url a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .detail-url a:hover {
+            text-decoration: underline;
+        }
+
+        /* Vitals grid */
+        .vitals-grid {
+            display: grid;
+            grid-template-columns: repeat(5, 1fr);
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .vital-card {
+            background: var(--s1);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 12px;
+        }
+
+        .vital-label {
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--muted);
+            margin-bottom: 6px;
+        }
+
+        .vital-value {
+            font-family: var(--mono);
+            font-size: 22px;
+            font-weight: 600;
+            line-height: 1;
+        }
+
+        .vital-unit {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--muted);
+            margin-top: 4px;
+        }
+
+        .vital-grade {
+            font-size: 10px;
+            font-weight: 600;
+            margin-top: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .grade-good {
+            color: var(--good);
+        }
+
+        .grade-warn {
+            color: var(--warn);
+        }
+
+        .grade-poor {
+            color: var(--poor);
+        }
+
+        /* Section */
+        .section {
+            margin-bottom: 20px;
+        }
+
+        .section-hd {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 14px;
+            background: var(--s2);
+            border: 1px solid var(--border);
+            border-radius: 8px 8px 0 0;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .section-hd .meta {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--muted);
+            font-weight: 400;
+        }
+
+        /* API table */
+        .api-table-wrap {
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            overflow: hidden;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        table {
+            table-layout: fixed;
+        }
+
+        th {
+            background: var(--s2);
+            padding: 7px 12px;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.07em;
+            color: var(--muted);
+            text-align: left;
+        }
+
+        td {
+            padding: 7px 12px;
+            border-bottom: 1px solid rgba(42, 45, 56, 0.6);
+            font-size: 11px;
+            vertical-align: middle;
+            overflow: hidden;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        tr:hover td {
+            background: rgba(255, 255, 255, 0.02);
+        }
+
+        /* Fixed column widths: type | url (flex) | status | time | server-timing */
+        .col-type {
+            width: 52px;
+        }
+
+        .col-url {
+            width: auto;
+        }
+
+        .col-status {
+            width: 68px;
+            text-align: center;
+        }
+
+        .col-time {
+            width: 80px;
+            text-align: right;
+        }
+
+        .col-st {
+            width: 200px;
+        }
+
+        .td-url {
+            font-family: var(--mono);
+            font-size: 10px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .td-dur {
+            font-family: var(--mono);
+            text-align: right;
+        }
+
+        .tag {
+            font-size: 9px;
+            font-weight: 700;
+            letter-spacing: 0.05em;
+            padding: 2px 6px;
+            border-radius: 3px;
+        }
+
+        .tag-ssr {
+            background: rgba(124, 109, 255, 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(124, 109, 255, 0.3);
+        }
+
+        .tag-csr {
+            background: rgba(245, 166, 35, 0.1);
+            color: var(--warn);
+            border: 1px solid rgba(245, 166, 35, 0.25);
+        }
+
+        .status-ok {
+            color: var(--good);
+            font-family: var(--mono);
+            font-size: 10px;
+        }
+
+        .status-err {
+            color: var(--poor);
+            font-family: var(--mono);
+            font-size: 10px;
+        }
+
+        .server-timing {
+            font-size: 9px;
+            color: var(--muted);
+            font-family: var(--mono);
+        }
+
+        /* Errors */
+        .error-list {
+            border: 1px solid rgba(240, 67, 90, 0.3);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+        }
+
+        .error-item {
+            padding: 7px 14px;
+            border-bottom: 1px solid rgba(240, 67, 90, 0.1);
+            font-family: var(--mono);
+            font-size: 10px;
+            color: #ff8080;
+        }
+
+        .error-item:last-child {
+            border-bottom: none;
+        }
+
+        /* Error banner in detail */
+        .error-banner {
+            background: rgba(240, 67, 90, 0.08);
+            border: 1px solid rgba(240, 67, 90, 0.25);
+            border-radius: 8px;
+            padding: 10px 14px;
+            color: var(--poor);
+            font-size: 12px;
+            margin-bottom: 20px;
+            font-family: var(--mono);
+        }
+
+        /* Video */
+        .video-wrap {
+            border: 1px solid var(--border);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            padding: 12px;
+        }
+
+        video {
+            width: 100%;
+            border-radius: 6px;
+            background: #000;
+        }
+
+        /* Done banner */
+        .done-banner {
+            background: rgba(34, 199, 110, 0.08);
+            border: 1px solid rgba(34, 199, 110, 0.25);
+            border-radius: 8px;
+            padding: 10px 16px;
+            color: var(--good);
+            font-size: 12px;
+            margin-bottom: 12px;
+            display: none;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .done-banner.show {
+            display: flex;
+        }
+
+        .done-banner a {
+            color: var(--good);
+        }
+
+        /* Live screenshot preview */
+        .live-preview {
+            position: relative;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            border: 1px solid var(--border);
+            margin-bottom: 20px;
+        }
+
+        .live-preview img {
+            width: 100%;
+            display: block;
+            border-radius: 10px;
+            transition: opacity 0.15s ease;
+        }
+
+        .live-badge {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(240, 67, 90, 0.9);
+            color: #fff;
+            font-size: 10px;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            padding: 3px 8px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .live-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #fff;
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        .live-url-label {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
+            padding: 24px 14px 10px;
+            font-family: var(--mono);
+            font-size: 10px;
+            color: rgba(255, 255, 255, 0.7);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* http status badge */
+        .http-ok {
+            background: rgba(34, 199, 110, 0.1);
+            color: var(--good);
+            border: 1px solid rgba(34, 199, 110, 0.25);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: var(--mono);
+            font-size: 10px;
+        }
+
+        .http-err {
+            background: rgba(240, 67, 90, 0.1);
+            color: var(--poor);
+            border: 1px solid rgba(240, 67, 90, 0.25);
+            padding: 1px 6px;
+            border-radius: 4px;
+            font-family: var(--mono);
+            font-size: 10px;
+        }
+    </style>
+</head>
+
+<body>
+
+    <header>
+        <div class="logo">⚡ <span>Site</span> Audit</div>
+        <div class="header-stats">
+            <span class="stat-pill run" id="hd-running">0 running</span>
+            <span class="stat-pill good" id="hd-done">0 done</span>
+            <span class="stat-pill warn" id="hd-failed">0 failed</span>
+            <div class="progress-wrap">
+                <div class="progress-fill" id="progress-bar" style="width:0%"></div>
+            </div>
+            <span class="stat-pill" id="hd-total" style="min-width:72px;text-align:center">0 / 0</span>
+        </div>
+    </header>
+
+    <div class="layout">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-toolbar">
+                <input id="search" type="text" placeholder="Filter URLs…" oninput="applyFilter()">
+                <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+                <button class="filter-btn" onclick="setFilter('running',this)">Running</button>
+                <button class="filter-btn" onclick="setFilter('poor',this)">Poor</button>
+                <button class="filter-btn" onclick="setFilter('failed',this)">Failed</button>
+            </div>
+            <div class="url-list" id="url-list"></div>
+        </div>
+
+        <!-- Detail panel -->
+        <div class="detail" id="detail">
+            <div class="detail-empty">
+                <div class="big">📡</div>
+                <div>Waiting for audit to start…</div>
+                <div id="connecting-msg" style="color:var(--muted);font-size:11px">Connecting to server</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ── State ─────────────────────────────────────────────────────────────────
+        const state = new Map();   // url → AuditProgress
+        let selectedUrl = null;
+        let filterMode = 'all';
+        let searchQuery = '';
+        let totalUrls = 0;
+
+        // ── WebSocket ─────────────────────────────────────────────────────────────
+        function updateLiveVitals(v) {
+            const el = document.getElementById('live-vitals');
+            if (!el) return;
+            const items = [
+                { label: 'LCP', val: v.lcp, fmt: ms => ms ? ms.toLocaleString() + 'ms' : '…', good: 2500, warn: 4000 },
+                { label: 'CLS', val: v.cls, fmt: v => v !== undefined ? v.toFixed(3) : '…', good: 0.1, warn: 0.25 },
+                { label: 'FCP', val: v.fcp, fmt: ms => ms ? ms.toLocaleString() + 'ms' : '…', good: 1800, warn: 3000 },
+                { label: 'TTFB', val: v.ttfb, fmt: ms => ms ? ms.toLocaleString() + 'ms' : '…', good: 800, warn: 1800 },
+            ];
+            el.innerHTML = items.map(it => {
+                const color = it.val === undefined ? 'var(--muted)'
+                    : it.val <= it.good ? 'var(--good)'
+                        : it.val <= it.warn ? 'var(--warn)'
+                            : 'var(--poor)';
+                return `<div style="background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:100px">
+      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted)">${it.label}</div>
+      <div style="font-family:var(--mono);font-size:18px;font-weight:600;color:${color};margin-top:4px">${it.fmt(it.val)}</div>
+    </div>`;
+            }).join('');
+        }
+
+        function connect() {
+            const ws = new WebSocket(`ws://${location.host}`);
+
+            ws.onopen = () => {
+                document.getElementById('connecting-msg').textContent = 'Connected — waiting for audit';
+            };
+
+            ws.onmessage = (e) => {
+                const msg = JSON.parse(e.data);
+
+                if (msg.type === 'urls') {
+                    totalUrls = msg.urls.length;
+                    for (const url of msg.urls) {
+                        state.set(url, { url, status: 'pending' });
+                    }
+                    renderAll();
+                }
+
+                if (msg.type === 'init') {
+                    for (const p of msg.progress) {
+                        state.set(p.url, p);
+                    }
+                    if (state.size) renderAll();
+                }
+
+                if (msg.type === 'progress') {
+                    const p = msg.progress;
+                    state.set(p.url, p);
+                    updateRow(p.url);
+                    updateHeader();
+                    if (selectedUrl === p.url) renderDetail(p.url);
+                }
+
+                if (msg.type === 'screenshot') {
+                    // Only update if this URL is currently selected and still running
+                    if (selectedUrl === msg.url) {
+                        const img = document.getElementById('live-img');
+                        if (img) {
+                            img.src = 'data:image/jpeg;base64,' + msg.png;
+                            img.style.opacity = '1';
+                        }
+                        // Show any vitals that have arrived so far
+                        const p = state.get(msg.url);
+                        if (p?.result?.vitals) updateLiveVitals(p.result.vitals);
+                    }
+                }
+
+                if (msg.type === 'done') {
+                    updateHeader();
+                    // Show done banner in detail if nothing selected
+                    if (!selectedUrl) {
+                        document.getElementById('detail').innerHTML = `
+          <div style="padding:24px">
+            <div class="done-banner show">
+              ✅ Audit complete — ${msg.total} pages processed.
+              <a href="/report.html" target="_blank" style="margin-left:auto">Open full report →</a>
+            </div>
+          </div>`;
+                    }
+                }
+            };
+
+            ws.onclose = () => {
+                setTimeout(connect, 2000);
+            };
+        }
+        connect();
+
+        // ── Rendering helpers ─────────────────────────────────────────────────────
+        function lcpColor(ms) {
+            if (!ms) return 'var(--muted)';
+            return ms <= 2500 ? 'var(--good)' : ms <= 4000 ? 'var(--warn)' : 'var(--poor)';
+        }
+        function lcpGrade(ms) {
+            if (!ms) return '';
+            return ms <= 2500 ? 'good' : ms <= 4000 ? 'needs work' : 'poor';
+        }
+        function gradeClass(g) {
+            return g === 'good' ? 'grade-good' : g === 'needs work' ? 'grade-warn' : 'grade-poor';
+        }
+        function vitalGrade(val, good, warn) {
+            if (val === undefined || val === null) return '';
+            return val <= good ? 'good' : val <= warn ? 'needs work' : 'poor';
+        }
+
+        function pathOf(url) {
+            try { return new URL(url).pathname || '/'; } catch { return url; }
+        }
+        function fmtMs(ms) {
+            if (!ms && ms !== 0) return '–';
+            return ms.toLocaleString() + 'ms';
+        }
+        function fmtCLS(v) {
+            if (v === undefined || v === null) return '–';
+            return v.toFixed(3);
+        }
+
+        function makeRow(p) {
+            const lcp = p.result?.vitals?.lcp;
+            const path = pathOf(p.url);
+            const lcpStr = lcp ? fmtMs(lcp) : '';
+            return `
+    <div class="url-row ${p.status}" data-url="${p.url}" onclick="selectUrl('${CSS.escape(p.url)}')">
+      <span class="url-status-dot dot-${p.status}"></span>
+      <span class="url-path" title="${p.url}">${path}</span>
+      ${lcp ? `<span class="url-lcp" style="color:${lcpColor(lcp)}">${lcpStr}</span>` : ''}
+    </div>`;
+        }
+
+        function renderAll() {
+            const list = document.getElementById('url-list');
+            list.innerHTML = [...state.values()].map(makeRow).join('');
+            applyFilter();
+            updateHeader();
+            if (state.size && !selectedUrl) {
+                document.getElementById('detail').innerHTML = `
+      <div class="detail-empty">
+        <div class="big">📡</div>
+        <div style="color:var(--text)">Audit running — click any URL to inspect</div>
+      </div>`;
+            }
+        }
+
+        function updateRow(url) {
+            const p = state.get(url);
+            if (!p) return;
+            const existing = document.querySelector(`.url-row[data-url="${CSS.escape(url)}"]`);
+            const newHtml = makeRow(p);
+            if (existing) {
+                const tmp = document.createElement('div');
+                tmp.innerHTML = newHtml;
+                const newRow = tmp.firstElementChild;
+                if (selectedUrl === url) newRow.classList.add('selected');
+                existing.replaceWith(newRow);
+                newRow.addEventListener('click', () => selectUrl(url));
+            } else {
+                // Append if not yet in list
+                const list = document.getElementById('url-list');
+                const tmp = document.createElement('div');
+                tmp.innerHTML = newHtml;
+                list.appendChild(tmp.firstElementChild);
+            }
+            applyFilter();
+        }
+
+        function updateHeader() {
+            const vals = [...state.values()];
+            const done = vals.filter(p => p.status === 'done').length;
+            const failed = vals.filter(p => p.status === 'failed').length;
+            const running = vals.filter(p => p.status === 'running').length;
+            const total = totalUrls || state.size;
+            const pct = total ? ((done + failed) / total * 100).toFixed(1) : 0;
+
+            document.getElementById('hd-done').textContent = `${done} done`;
+            document.getElementById('hd-failed').textContent = `${failed} failed`;
+            document.getElementById('hd-running').textContent = `${running} running`;
+            document.getElementById('hd-total').textContent = `${done + failed} / ${total}`;
+            document.getElementById('progress-bar').style.width = pct + '%';
+        }
+
+        // ── Filter / search ───────────────────────────────────────────────────────
+        function setFilter(mode, btn) {
+            filterMode = mode;
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            applyFilter();
+        }
+
+        function applyFilter() {
+            searchQuery = document.getElementById('search').value.toLowerCase();
+            document.querySelectorAll('.url-row').forEach(row => {
+                const url = row.dataset.url;
+                const p = state.get(url);
+                if (!p) return;
+
+                const matchSearch = !searchQuery || url.toLowerCase().includes(searchQuery);
+                let matchFilter = true;
+
+                if (filterMode === 'running') matchFilter = p.status === 'running';
+                if (filterMode === 'failed') matchFilter = p.status === 'failed';
+                if (filterMode === 'poor') {
+                    const lcp = p.result?.vitals?.lcp;
+                    matchFilter = (lcp && lcp > 4000) || p.status === 'failed';
+                }
+
+                row.style.display = matchSearch && matchFilter ? '' : 'none';
+            });
+        }
+
+        // ── Detail panel ──────────────────────────────────────────────────────────
+        function selectUrl(url) {
+            selectedUrl = url;
+            document.querySelectorAll('.url-row').forEach(r => r.classList.remove('selected'));
+            const row = document.querySelector(`.url-row[data-url="${CSS.escape(url)}"]`);
+            if (row) row.classList.add('selected');
+            renderDetail(url);
+        }
+
+        function renderDetail(url) {
+            const p = state.get(url);
+            if (!p) return;
+            const detail = document.getElementById('detail');
+
+            if (p.status === 'pending') {
+                detail.innerHTML = `
+      <div class="detail-empty">
+        <div class="big">⏳</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">${url}</div>
+        <div>Queued — waiting to start</div>
+      </div>`;
+                return;
+            }
+
+            if (p.status === 'running') {
+                detail.innerHTML = `
+      <div class="detail-url" style="margin-bottom:14px">
+        <a href="${url}" target="_blank" rel="noopener">${url}</a>
+      </div>
+      <div class="live-preview" id="live-preview-wrap">
+        <img id="live-img" src="" alt="" style="opacity:0;min-height:200px">
+        <div class="live-badge"><span class="live-dot"></span> LIVE</div>
+        <div class="live-url-label" id="live-url-label">${url}</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px" id="live-vitals"></div>
+      <div style="color:var(--muted);font-size:12px;font-family:var(--mono);text-align:center;padding:8px 0">
+        ⏳ Capturing screenshots every 800ms…
+      </div>`;
+                return;
+            }
+
+            const r = p.result;
+            if (!r) return;
+            const v = r.vitals ?? {};
+
+            // Vitals
+            const vitals = [
+                { label: 'LCP', val: v.lcp, fmt: fmtMs, good: 2500, warn: 4000, unit: 'Largest Contentful Paint' },
+                { label: 'CLS', val: v.cls, fmt: fmtCLS, good: 0.1, warn: 0.25, unit: 'Cumulative Layout Shift' },
+                { label: 'FCP', val: v.fcp, fmt: fmtMs, good: 1800, warn: 3000, unit: 'First Contentful Paint' },
+                { label: 'TTFB', val: v.ttfb, fmt: fmtMs, good: 800, warn: 1800, unit: 'Time To First Byte' },
+                { label: 'Load', val: v.totalTime, fmt: fmtMs, good: 3000, warn: 6000, unit: 'Total Load Time' },
+            ];
+
+            const vitalsHtml = vitals.map(vt => {
+                const grade = vt.val !== undefined ? vitalGrade(vt.val, vt.good, vt.warn) : '';
+                const color = grade === 'good' ? 'var(--good)' : grade === 'needs work' ? 'var(--warn)' : grade === 'poor' ? 'var(--poor)' : 'var(--muted)';
+                return `
+      <div class="vital-card">
+        <div class="vital-label">${vt.label}</div>
+        <div class="vital-value" style="color:${color}">${vt.fmt(vt.val)}</div>
+        <div class="vital-unit">${vt.unit}</div>
+        ${grade ? `<div class="vital-grade ${gradeClass(grade)}">${grade}</div>` : ''}
+      </div>`;
+            }).join('');
+
+            // API table
+            const apis = r.apiCalls ?? [];
+            const ssrCount = apis.filter(a => a.type === 'ssr').length;
+            const csrCount = apis.filter(a => a.type === 'csr').length;
+
+            const apiRows = apis.map(a => {
+                const tag = a.type === 'ssr'
+                    ? '<span class="tag tag-ssr">SSR</span>'
+                    : '<span class="tag tag-csr">CSR</span>';
+                const st = a.status
+                    ? `<span class="${a.status >= 400 ? 'status-err' : 'status-ok'}">${a.status}</span>`
+                    : '<span style="color:var(--muted);font-family:var(--mono);font-size:11px">–</span>';
+                const msColor = a.duration <= 300 ? 'var(--good)' : a.duration <= 1000 ? 'var(--warn)' : 'var(--poor)';
+                const timing = a.serverTiming ? `<span class="server-timing">${a.serverTiming}</span>` : '';
+                return `
+      <tr>
+        <td class="col-type">${tag}</td>
+        <td class="col-url td-url" title="${a.url}">${a.url}</td>
+        <td class="col-status" style="text-align:center">${st}</td>
+        <td class="col-time td-dur" style="color:${msColor}">${fmtMs(a.duration)}</td>
+        <td class="col-st">${timing}</td>
+      </tr>`;
+            }).join('');
+
+            // Errors
+            const errorsHtml = r.errors?.length ? `
+    <div class="section">
+      <div class="section-hd" style="border-color:rgba(240,67,90,0.3)">
+        Console errors
+        <span class="meta">${r.errors.length}</span>
+      </div>
+      <div class="error-list">
+        ${r.errors.map(e => `<div class="error-item">${e}</div>`).join('')}
+      </div>
+    </div>` : '';
+
+            // Video
+            const videoHtml = r.videoPath ? `
+    <div class="section">
+      <div class="section-hd">Page recording</div>
+      <div class="video-wrap">
+        <video controls preload="metadata">
+          <source src="/videos/${encodeURIComponent(r.videoPath.split(/[/\\]/).pop())}" type="video/webm">
+        </video>
+      </div>
+    </div>` : '';
+
+            const httpBadge = r.status
+                ? `<span class="${r.status >= 400 ? 'http-err' : 'http-ok'}">${r.status}</span>`
+                : '';
+
+            detail.innerHTML = `
+    <div class="detail-url">
+      <a href="${r.url}" target="_blank" rel="noopener">${r.url}</a>
+      ${httpBadge}
+    </div>
+
+    ${r.error ? `<div class="error-banner">⚠ ${r.error}</div>` : ''}
+
+    <div class="vitals-grid">${vitalsHtml}</div>
+
+    ${apis.length ? `
+    <div class="section">
+      <div class="section-hd">
+        API calls
+        <span class="meta">
+          ${ssrCount ? `SSR: ${ssrCount}` : ''}
+          ${ssrCount && csrCount ? ' · ' : ''}
+          ${csrCount ? `CSR: ${csrCount}` : ''}
+        </span>
+      </div>
+      <div class="api-table-wrap">
+        <table>
+          <thead><tr>
+            <th class="col-type">Type</th>
+            <th class="col-url">URL</th>
+            <th class="col-status">Status</th>
+            <th class="col-time">Time</th>
+            <th class="col-st">Server-Timing</th>
+          </tr></thead>
+          <tbody>${apiRows}</tbody>
+        </table>
+      </div>
+    </div>` : ''}
+
+    ${errorsHtml}
+    ${videoHtml}`;
+        }
+    </script>
+</body>
+
+</html>
