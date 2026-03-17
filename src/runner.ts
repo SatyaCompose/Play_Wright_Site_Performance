@@ -171,16 +171,39 @@ async function auditPage(
     }
 
     // ── Network interception ──────────────────────────────────────────
+    // Capture ALL responses at the network level so we can:
+    //   • identify SSR calls (api/graphql/next-data) with real status codes
+    //   • provide status codes for CSR fetch/XHR calls via cross-reference
     const ssrApiCalls: ApiCall[] = [];
     const reqStart = new Map<string, number>();
+    // url → { status, serverTiming, duration } — used to enrich CSR entries
+    const networkIndex = new Map<
+      string,
+      { status: number; serverTiming?: string; duration: number }
+    >();
+
     page.on("request", (req) => reqStart.set(req.url(), Date.now()));
+
     page.on("response", async (res) => {
       const resUrl = res.url();
       const duration = Date.now() - (reqStart.get(resUrl) ?? Date.now());
+
       let serverTiming: string | undefined;
       try {
         serverTiming = res.headers()["server-timing"] ?? undefined;
       } catch {}
+
+      // Index every fetch/XHR for CSR status enrichment
+      const reqType = res.request().resourceType();
+      if (reqType === "fetch" || reqType === "xhr") {
+        networkIndex.set(resUrl, {
+          status: res.status(),
+          serverTiming,
+          duration,
+        });
+      }
+
+      // SSR calls: api / graphql / next-data intercepted during initial page load
       if (
         resUrl.includes("/api/") ||
         resUrl.includes("/graphql") ||
@@ -271,11 +294,22 @@ async function auditPage(
         }))
     );
 
+    // Enrich CSR entries: cross-reference Resource Timing with network responses
+    // to get real HTTP status codes (Resource Timing API exposes no status codes).
     const ssrUrls = new Set(ssrApiCalls.map((a) => a.url));
-    const apiCalls = [
-      ...ssrApiCalls,
-      ...csrRaw.filter((c) => !ssrUrls.has(c.url)),
-    ];
+    const csrEnriched = csrRaw
+      .filter((c) => !ssrUrls.has(c.url))
+      .map((c) => {
+        const net = networkIndex.get(c.url);
+        return {
+          ...c,
+          status: net?.status ?? 0,
+          serverTiming: net?.serverTiming ?? undefined,
+          // Use network-measured duration when available (more accurate than Resource Timing)
+          duration: net?.duration ?? c.duration,
+        };
+      });
+    const apiCalls = [...ssrApiCalls, ...csrEnriched];
     const vitals: WebVitals = {
       ttfb: navTiming.ttfb || undefined,
       totalTime: navTiming.totalTime || undefined,
@@ -297,23 +331,28 @@ async function auditPage(
 
     if (video) {
       try {
-        // savePath() is available in Playwright ≥1.22 and waits for the file
-        // to be fully flushed. Falls back to path() for older versions.
         const raw: string =
           typeof (video as any).savePath === "function"
             ? await (video as any).savePath()
             : await video.path();
 
         if (raw && fs.existsSync(raw)) {
+          const ext = raw.endsWith(".mp4") ? ".mp4" : ".webm";
+
+          // Clean slug from URL path: /product/wolstead-glass-lid → product-wolstead-glass-lid
           const slug =
             new URL(url).pathname
-              .replace(/\//g, "_")
-              .replace(/[^a-zA-Z0-9_-]/g, "") || "root";
-          const ext = raw.endsWith(".mp4") ? ".mp4" : ".webm";
-          const newName = path.join(
-            videosDir,
-            `${slug}_${profile.id}_${Date.now()}${ext}`
-          );
+              .replace(/^\//, "") // strip leading slash
+              .replace(/\//g, "-") // slashes → hyphens
+              .replace(/[^a-zA-Z0-9-]/g, "") // strip anything else
+              .slice(0, 80) || // cap length
+            "root";
+
+          // Format: <slug>-<profile-id>.ext  e.g. product-wolstead-glass-lid-28cm-mobile-ios.mp4
+          const newName = path.join(videosDir, `${slug}-${profile.id}${ext}`);
+
+          // Overwrite any previous recording for this URL+profile combination
+          if (fs.existsSync(newName)) fs.unlinkSync(newName);
           fs.renameSync(raw, newName);
           videoPath = newName;
         }

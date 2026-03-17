@@ -1401,10 +1401,277 @@
         .durl a:hover {
             text-decoration: underline;
         }
+
+        /* ── Config panel ── */
+        .cfg-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 100;
+            background: rgba(0, 0, 0, .75);
+            backdrop-filter: blur(6px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .cfg-panel {
+            background: var(--s1);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            width: 620px;
+            max-width: 96vw;
+            padding: 0;
+            overflow: hidden;
+            box-shadow: 0 32px 80px rgba(0, 0, 0, .6);
+        }
+
+        .cfg-head {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 24px 16px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .cfg-head h2 {
+            font-size: 16px;
+            font-weight: 800;
+            letter-spacing: -.3px;
+        }
+
+        .cfg-head .sub {
+            font-size: 11px;
+            color: var(--muted);
+            font-family: var(--mono);
+            margin-top: 2px;
+        }
+
+        .cfg-body {
+            padding: 20px 24px;
+        }
+
+        .cfg-section {
+            margin-bottom: 20px;
+        }
+
+        .cfg-label {
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: .08em;
+            color: var(--muted);
+            margin-bottom: 10px;
+        }
+
+        /* URL count chips */
+        .url-chips {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .url-chip {
+            font-family: var(--mono);
+            font-size: 11px;
+            padding: 5px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border);
+            color: var(--muted);
+            background: var(--s2);
+            cursor: pointer;
+            transition: all .15s;
+        }
+
+        .url-chip:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .url-chip.active {
+            border-color: var(--accent);
+            color: var(--accent);
+            background: rgba(124, 109, 255, .15);
+            font-weight: 600;
+        }
+
+        .url-chip.disabled {
+            opacity: .3;
+            cursor: not-allowed;
+        }
+
+        /* Device cards */
+        .dev-cards {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+        }
+
+        .dev-card {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            border-radius: 8px;
+            border: 1px solid var(--border);
+            background: var(--s2);
+            cursor: pointer;
+            transition: all .15s;
+            user-select: none;
+        }
+
+        .dev-card:hover {
+            border-color: var(--accent);
+        }
+
+        .dev-card.active {
+            border-color: var(--accent);
+            background: rgba(124, 109, 255, .1);
+        }
+
+        .dev-card.active .dc-check {
+            background: var(--accent);
+            border-color: var(--accent);
+        }
+
+        .dev-card.active .dc-check::after {
+            opacity: 1;
+        }
+
+        .dc-check {
+            width: 16px;
+            height: 16px;
+            border-radius: 4px;
+            border: 1.5px solid var(--border);
+            background: var(--s3);
+            flex-shrink: 0;
+            position: relative;
+            transition: all .15s;
+        }
+
+        .dc-check::after {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 4l3 3 5-6' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") center/10px no-repeat;
+            opacity: 0;
+            transition: opacity .1s;
+        }
+
+        .dc-icon {
+            font-size: 18px;
+        }
+
+        .dc-name {
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .dc-eng {
+            font-size: 9px;
+            font-family: var(--mono);
+            color: var(--muted);
+            background: var(--s3);
+            padding: 1px 5px;
+            border-radius: 3px;
+            margin-top: 2px;
+            display: inline-block;
+        }
+
+        /* Summary row */
+        .cfg-summary {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 14px 16px;
+            background: var(--s2);
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 12px;
+        }
+
+        .cfg-summary strong {
+            color: var(--accent);
+        }
+
+        .cfg-summary .sep {
+            color: var(--border);
+            margin: 0 2px;
+        }
+
+        /* Run button */
+        .run-btn {
+            width: 100%;
+            padding: 13px;
+            border-radius: 8px;
+            border: none;
+            background: var(--accent);
+            color: #fff;
+            font-family: var(--sans);
+            font-size: 14px;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background .15s;
+            letter-spacing: -.2px;
+        }
+
+        .run-btn:hover {
+            background: #6458e8;
+        }
+
+        .run-btn:disabled {
+            background: var(--s3);
+            color: var(--muted);
+            cursor: not-allowed;
+        }
+
+        .run-btn .run-count {
+            font-size: 11px;
+            font-weight: 400;
+            opacity: .8;
+            margin-left: 6px;
+        }
     </style>
 </head>
 
 <body>
+
+    <!-- ── Config overlay (shown before audit starts) ── -->
+    <div class="cfg-overlay" id="cfg-overlay">
+        <div class="cfg-panel">
+            <div class="cfg-head">
+                <div>
+                    <h2>⚡ Site Audit</h2>
+                    <div class="sub" id="cfg-sitemap">Loading sitemap…</div>
+                </div>
+            </div>
+            <div class="cfg-body">
+
+                <div class="cfg-section">
+                    <div class="cfg-label">URLs to audit</div>
+                    <div class="url-chips" id="url-chips">
+                        <span class="url-chip disabled">Loading…</span>
+                    </div>
+                </div>
+
+                <div class="cfg-section">
+                    <div class="cfg-label">Devices</div>
+                    <div class="dev-cards" id="dev-cards">
+                        <!-- injected by JS once profiles arrive -->
+                    </div>
+                </div>
+
+                <div class="cfg-summary" id="cfg-summary">
+                    Waiting for sitemap…
+                </div>
+
+                <button class="run-btn" id="run-btn" disabled onclick="startAudit()">
+                    Run Audit
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ── Main dashboard (hidden until audit starts) ── -->
     <header>
         <div class="logo">⚡ <span>Site</span> Audit</div>
         <div class="hstats">
@@ -1415,6 +1682,7 @@
                 <div class="pf" id="pb" style="width:0%"></div>
             </div>
             <span class="pill" id="ht" style="min-width:60px;text-align:center">0/0</span>
+            <button class="fb" onclick="showConfig()" style="margin-left:8px" title="New run">⚙ Config</button>
         </div>
     </header>
     <div class="layout">
@@ -1437,13 +1705,17 @@
     </div>
     <script>
         // ── State ─────────────────────────────────────────────────────────────────
-        const S = new Map();   // url → AuditProgress
-        const shots = new Map();   // url → { profileId: base64 }
+        const S = new Map();
+        const shots = new Map();
         let selUrl = null;
         let selTab = null;
         let filterMode = 'all';
         let totalUrls = 0;
         let profiles = [];
+        let allUrls = [];        // full sitemap URL list
+        let selectedProfileIds = [];  // currently selected in config UI
+        let selectedUrlCount = 0;   // currently selected chip value
+        let ws = null;
 
         // ── Utils ─────────────────────────────────────────────────────────────────
         const pathOf = url => { try { return new URL(url).pathname || '/'; } catch { return url; } };
@@ -1454,31 +1726,156 @@
         const lcpG = ms => !ms ? 'poor' : ms <= 2500 ? 'good' : ms <= 4000 ? 'warn' : 'poor';
         const bestLcp = p => { const l = (p.results ?? []).map(r => r.vitals?.lcp).filter(Boolean); return l.length ? Math.min(...l) : undefined; };
 
+        // ── Config panel ──────────────────────────────────────────────────────────
+        const URL_STEPS = [1, 10, 25, 50, 100, 500, 1000, 5000, 10000, 15000];
+
+        function showConfig() {
+            document.getElementById('cfg-overlay').style.display = 'flex';
+        }
+        function hideConfig() {
+            document.getElementById('cfg-overlay').style.display = 'none';
+        }
+
+        function buildConfigUI() {
+            // ── Device cards ──
+            const dc = document.getElementById('dev-cards');
+            dc.innerHTML = profiles.map(pr => `
+    <div class="dev-card active" id="dc-${pr.id}" onclick="toggleDevice('${pr.id}')">
+      <div class="dc-check" id="dck-${pr.id}"></div>
+      <div class="dc-icon">${pr.icon}</div>
+      <div class="dc-info">
+        <div class="dc-name">${pr.label}</div>
+        <span class="dc-eng">${pr.engine ?? 'chromium'}</span>
+      </div>
+    </div>`).join('');
+            selectedProfileIds = profiles.map(p => p.id);
+
+            // ── URL chips ──
+            const total = allUrls.length;
+            const chips = document.getElementById('url-chips');
+            const available = URL_STEPS.filter(n => n <= total);
+            // Always add "All" at end if last step < total
+            if (!available.includes(total)) available.push(total);
+
+            chips.innerHTML = available.map(n => {
+                const label = n === total ? `All (${total.toLocaleString()})` : n.toLocaleString();
+                return `<span class="url-chip" data-count="${n}" onclick="selectUrlCount(${n})">${label}</span>`;
+            }).join('');
+
+            // Default: select All
+            selectUrlCount(total);
+
+            document.getElementById('cfg-sitemap').textContent = `${total.toLocaleString()} URLs found`;
+            updateConfigSummary();
+        }
+
+        function selectUrlCount(n) {
+            selectedUrlCount = n;
+            document.querySelectorAll('.url-chip').forEach(el => {
+                el.classList.toggle('active', parseInt(el.dataset.count) === n);
+            });
+            updateConfigSummary();
+        }
+
+        function toggleDevice(id) {
+            const card = document.getElementById(`dc-${id}`);
+            if (selectedProfileIds.includes(id)) {
+                // Don't allow deselecting the last one
+                if (selectedProfileIds.length === 1) return;
+                selectedProfileIds = selectedProfileIds.filter(x => x !== id);
+                card.classList.remove('active');
+            } else {
+                selectedProfileIds.push(id);
+                card.classList.add('active');
+            }
+            updateConfigSummary();
+        }
+
+        function updateConfigSummary() {
+            const urlN = selectedUrlCount || allUrls.length;
+            const devN = selectedProfileIds.length;
+            const total = urlN * devN;
+            const devNames = profiles.filter(p => selectedProfileIds.includes(p.id)).map(p => p.icon + ' ' + p.label).join(', ');
+            document.getElementById('cfg-summary').innerHTML =
+                `<strong>${urlN.toLocaleString()}</strong> URLs <span class="sep">×</span>
+     <strong>${devN}</strong> device${devN === 1 ? '' : 's'}
+     <span class="sep">→</span>
+     <strong>${total.toLocaleString()}</strong> page audits
+     <span style="margin-left:auto;color:var(--muted);font-size:10px">${devNames}</span>`;
+
+            const btn = document.getElementById('run-btn');
+            btn.disabled = devN === 0 || urlN === 0;
+            btn.innerHTML = `Run Audit <span class="run-count">(${total.toLocaleString()} pages)</span>`;
+        }
+
+        function startAudit() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            const urlCount = selectedUrlCount || allUrls.length;
+            ws.send(JSON.stringify({
+                type: 'start',
+                profileIds: selectedProfileIds,
+                urlCount,
+            }));
+            hideConfig();
+            // Clear previous run state
+            S.clear(); shots.clear(); selUrl = null; selTab = null;
+            document.getElementById('ul').innerHTML = '';
+            document.getElementById('detail').innerHTML = '<div class="de"><div class="big">🚀</div><div>Audit starting…</div></div>';
+        }
+
         // ── WebSocket ─────────────────────────────────────────────────────────────
         function connect() {
-            const ws = new WebSocket(`ws://${location.host}`);
-            ws.onopen = () => document.getElementById('cm').textContent = 'Connected — waiting for audit';
+            ws = new WebSocket(`ws://${location.host}`);
+
+            ws.onopen = () => {
+                document.getElementById('cm').textContent = 'Connected';
+            };
+
             ws.onmessage = e => {
                 const m = JSON.parse(e.data);
-                if (m.type === 'init' || m.type === 'urls') {
+
+                // ── Init / URLs loaded ──
+                if (m.type === 'init' || m.type === 'urls_loaded') {
+                    if (m.profiles?.length) {
+                        profiles = m.profiles;
+                        // Inject engine label from profile id heuristic if missing
+                        profiles.forEach(p => { if (!p.engine) p.engine = p.id.includes('safari') || p.id.includes('ios') ? 'webkit' : 'chromium'; });
+                    }
+                    if (m.urls?.length) allUrls = m.urls;
+                    buildConfigUI();
+
+                    // If server says audit already running (reconnect), hide config
+                    if (m.running) {
+                        hideConfig();
+                        if (m.progress) { m.progress.forEach(p => S.set(p.url, p)); renderAll(); }
+                    } else if (!m.done) {
+                        showConfig();
+                    } else {
+                        hideConfig();
+                        if (m.progress) { m.progress.forEach(p => S.set(p.url, p)); renderAll(); }
+                    }
+                }
+
+                // ── Audit kicked off ──
+                if (m.type === 'start') {
                     if (m.profiles) profiles = m.profiles;
-                    if (m.urls) { totalUrls = m.urls.length; m.urls.forEach(u => S.set(u, { url: u, status: 'pending' })); }
-                    if (m.progress) m.progress.forEach(p => S.set(p.url, p));
+                    totalUrls = m.urls?.length ?? 0;
+                    m.urls?.forEach(u => S.set(u, { url: u, status: 'pending' }));
                     renderAll();
                 }
+
+                // ── Per-page progress ──
                 if (m.type === 'progress') {
                     const prog = m.progress;
                     S.set(prog.url, prog);
                     updateRow(prog.url);
                     updateHdr();
                     if (selUrl === prog.url) {
-                        // If page just finished and we were showing LIVE, swap to video smoothly
                         if ((prog.status === 'done' || prog.status === 'failed') && prog.results?.length) {
                             const activeId2 = selTab ?? profiles[0]?.id;
                             const finishedResult = prog.results.find(r => r.profile?.id === activeId2);
                             if (finishedResult?.videoPath) {
                                 trySwapLiveToVideo(prog.url, finishedResult);
-                                // Then re-render rest of detail (vitals, API table) without touching the frame
                                 setTimeout(() => renderDetail(selUrl), 350);
                             } else {
                                 renderDetail(selUrl);
@@ -1488,6 +1885,8 @@
                         }
                     }
                 }
+
+                // ── Screenshot stream ──
                 if (m.type === 'screenshot') {
                     const ex = shots.get(m.url) ?? {}; ex[m.profileId] = m.png; shots.set(m.url, ex);
                     if (selUrl === m.url && selTab === m.profileId) {
@@ -1495,8 +1894,17 @@
                         if (img) { img.src = 'data:image/jpeg;base64,' + m.png; img.style.opacity = '1'; }
                     }
                 }
-                if (m.type === 'done') { updateHdr(); if (!selUrl) document.getElementById('detail').innerHTML = '<div class="de"><div class="big">✅</div><div>Audit complete</div></div>'; }
+
+                // ── Done ──
+                if (m.type === 'done') {
+                    updateHdr();
+                    if (!selUrl) {
+                        document.getElementById('detail').innerHTML =
+                            `<div class="de"><div class="big">✅</div><div>Audit complete — ${m.total} pages</div></div>`;
+                    }
+                }
             };
+
             ws.onclose = () => setTimeout(connect, 2000);
         }
         connect();
