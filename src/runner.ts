@@ -204,13 +204,24 @@ async function auditPage(
 
     await page.addInitScript(VITALS_SCRIPT);
 
-    const response = await page.goto(url, {
-      waitUntil: "load",
-      timeout: 60000,
-    });
+    // "networkidle" waits for no network activity for 500ms after load —
+    // catches React/Next.js hydration API calls that fire after DOMContentLoaded.
+    // Falls back to "load" if networkidle times out (e.g. long-polling pages).
+    let response;
+    try {
+      response = await page.goto(url, {
+        waitUntil: "networkidle",
+        timeout: 60000,
+      });
+    } catch {
+      response = await page.goto(url, { waitUntil: "load", timeout: 60000 });
+    }
     if (!response) throw new Error("No response received");
 
-    await page.waitForTimeout(2500);
+    // Give mobile browsers extra time: WebKit paints later than Chromium,
+    // and CSR frameworks (React, Vue) fire data fetches after initial paint.
+    const settlems = engineForProfile(profile) === "webkit" ? 4000 : 2500;
+    await page.waitForTimeout(settlems);
 
     // Final screenshot
     if (onScreenshot) {
@@ -273,34 +284,43 @@ async function auditPage(
       fcp: observed.fcp || undefined,
     };
 
+    // ── Save video ───────────────────────────────────────────────────────
+    // Must call page.video().path() BEFORE closing page/context — Playwright
+    // finalises the file only after context.close(), but the path is locked in
+    // at page creation time. Calling it after close() returns undefined.
+    let videoPath: string | undefined;
+    const video = page.video();
+
     await page.close();
+    // context.close() blocks until Playwright finishes writing the video file
     await context.close();
 
-    // Rename video file
-    let videoPath: string | undefined;
-    try {
-      const files = fs
-        .readdirSync(videosDir)
-        .filter((f) => f.endsWith(".webm") || f.endsWith(".mp4"))
-        .map((f) => ({
-          name: f,
-          mtime: fs.statSync(path.join(videosDir, f)).mtimeMs,
-        }))
-        .sort((a, b) => b.mtime - a.mtime);
-      if (files.length) {
-        const slug =
-          new URL(url).pathname
-            .replace(/\//g, "_")
-            .replace(/[^a-zA-Z0-9_-]/g, "") || "root";
-        const ext = files[0].name.endsWith(".mp4") ? ".mp4" : ".webm";
-        const newName = `${slug}_${profile.id}_${Date.now()}${ext}`;
-        fs.renameSync(
-          path.join(videosDir, files[0].name),
-          path.join(videosDir, newName)
-        );
-        videoPath = path.join(videosDir, newName);
+    if (video) {
+      try {
+        // savePath() is available in Playwright ≥1.22 and waits for the file
+        // to be fully flushed. Falls back to path() for older versions.
+        const raw: string =
+          typeof (video as any).savePath === "function"
+            ? await (video as any).savePath()
+            : await video.path();
+
+        if (raw && fs.existsSync(raw)) {
+          const slug =
+            new URL(url).pathname
+              .replace(/\//g, "_")
+              .replace(/[^a-zA-Z0-9_-]/g, "") || "root";
+          const ext = raw.endsWith(".mp4") ? ".mp4" : ".webm";
+          const newName = path.join(
+            videosDir,
+            `${slug}_${profile.id}_${Date.now()}${ext}`
+          );
+          fs.renameSync(raw, newName);
+          videoPath = newName;
+        }
+      } catch (e) {
+        console.warn("  ⚠ video save failed:", (e as any).message);
       }
-    } catch {}
+    }
 
     return {
       url,
@@ -314,6 +334,7 @@ async function auditPage(
       auditedAt: new Date().toISOString(),
     };
   } catch (err: any) {
+    // Still close context so Playwright flushes the partial video
     try {
       await context?.close();
     } catch {}

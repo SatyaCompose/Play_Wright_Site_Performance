@@ -501,16 +501,243 @@
             flex-shrink: 0;
         }
 
-        /* ── Device frame container ── */
+        /* ═══════════════════════════════════════════════════════════
+   DEVICE FRAMES
+═══════════════════════════════════════════════════════════ */
+
+        /* ── Shared frame area ── */
         .frame-area {
             display: flex;
             justify-content: center;
             align-items: flex-start;
-            padding: 16px 0 20px;
-            margin-bottom: 18px;
+            padding: 20px 0 24px;
+            margin-bottom: 16px;
+            background: radial-gradient(ellipse at 50% 30%, rgba(124, 109, 255, .10) 0%, rgba(56, 189, 248, .04) 40%, transparent 75%);
+            min-height: 500px;
         }
 
-        /* ── Desktop Chrome (Windows) frame ── */
+        /* ════════════════════════════
+   iPhone 15 Pro
+════════════════════════════ */
+        .iphone-body {
+            width: 320px;
+            background: linear-gradient(160deg, #3a3a3f 0%, #1c1c1e 40%, #2a2a2e 100%);
+            border-radius: 44px;
+            border: 1px solid rgba(255, 255, 255, .12);
+            outline: 1px solid rgba(0, 0, 0, .6);
+            padding: 0;
+            box-shadow:
+                0 0 0 1.5px #111,
+                0 0 0 2.5px rgba(255, 255, 255, .08),
+                inset 0 1px 0 rgba(255, 255, 255, .15),
+                0 32px 80px rgba(0, 0, 0, .7),
+                0 8px 24px rgba(0, 0, 0, .5);
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            overflow: hidden;
+        }
+
+        .iphone-notch {
+            display: flex;
+            justify-content: center;
+            flex-shrink: 0;
+            background: transparent;
+            padding-top: 8px;
+        }
+
+        .iphone-statusbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 2px 14px 0;
+            font-family: var(--mono);
+            color: rgba(255, 255, 255, .8);
+            font-size: 7px;
+            flex-shrink: 0;
+        }
+
+        .iphone-screen {
+            margin: 4px 8px;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #000;
+            aspect-ratio: 393/659;
+            flex-shrink: 0;
+            position: relative;
+            /* contain absolute video/img children */
+            width: calc(100% - 16px);
+            /* explicit width so aspect-ratio computes height */
+        }
+
+        .iphone-screen img,
+        .iphone-screen video {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top;
+            display: block;
+        }
+
+        .iphone-homearea {
+            display: flex;
+            justify-content: center;
+            padding: 8px 0 10px;
+            flex-shrink: 0;
+        }
+
+        .iphone-bar {
+            width: 80px;
+            height: 4px;
+            background: rgba(255, 255, 255, .3);
+            border-radius: 2px;
+        }
+
+        /* Side buttons */
+        .iphone-btn-right {
+            position: absolute;
+            background: linear-gradient(to right, #2a2a2e, #3a3a3f);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: 2px;
+        }
+
+        .iphone-btn-right.top {
+            right: -4px;
+            top: 184px;
+            width: 4px;
+            height: 48px;
+        }
+
+        .iphone-btn-right.mid {
+            right: -4px;
+            top: 252px;
+            width: 4px;
+            height: 86px;
+        }
+
+        .iphone-btn-left {
+            position: absolute;
+            background: linear-gradient(to left, #2a2a2e, #3a3a3f);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: 2px;
+        }
+
+        .iphone-btn-left.mute {
+            left: -4px;
+            top: 153px;
+            width: 4px;
+            height: 34px;
+        }
+
+        .iphone-btn-left.vol1 {
+            left: -4px;
+            top: 214px;
+            width: 4px;
+            height: 55px;
+        }
+
+        .iphone-btn-left.vol2 {
+            left: -4px;
+            top: 284px;
+            width: 4px;
+            height: 55px;
+        }
+
+        /* ════════════════════════════
+   Pixel 7 Android
+════════════════════════════ */
+        .android-body {
+            width: 300px;
+            background: linear-gradient(160deg, #263238 0%, #1a2428 60%, #0f1a1e 100%);
+            border-radius: 36px;
+            border: 1px solid rgba(255, 255, 255, .08);
+            outline: 1px solid rgba(0, 0, 0, .5);
+            padding: 0;
+            box-shadow:
+                0 0 0 1.5px #0a0f12,
+                0 0 0 2.5px rgba(255, 255, 255, .05),
+                inset 0 1px 0 rgba(255, 255, 255, .08),
+                0 32px 80px rgba(0, 0, 0, .7);
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            overflow: hidden;
+        }
+
+        .android-topbar {
+            display: flex;
+            align-items: center;
+            padding: 10px 14px 4px;
+            flex-shrink: 0;
+        }
+
+        .android-cam {
+            width: 10px;
+            height: 10px;
+            background: radial-gradient(circle at 40% 35%, #1a2428, #0a0f12);
+            border-radius: 50%;
+            border: 1.5px solid rgba(255, 255, 255, .1);
+            box-shadow: 0 0 0 1.5px rgba(56, 189, 248, .15);
+            flex-shrink: 0;
+        }
+
+        .android-screen {
+            margin: 0 8px;
+            border-radius: 4px;
+            overflow: hidden;
+            background: #000;
+            aspect-ratio: 412/839;
+            flex-shrink: 0;
+            position: relative;
+            width: calc(100% - 16px);
+        }
+
+        .android-screen img,
+        .android-screen video {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top;
+            display: block;
+        }
+
+        .android-nav {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 28px;
+            padding: 10px 0 12px;
+            flex-shrink: 0;
+        }
+
+        .android-btn-right {
+            position: absolute;
+            background: linear-gradient(to right, #1a2428, #263238);
+            border: 1px solid rgba(255, 255, 255, .08);
+            border-radius: 2px;
+        }
+
+        .android-btn-right.pwr {
+            right: -4px;
+            top: 168px;
+            width: 4px;
+            height: 67px;
+        }
+
+        .android-btn-right.vol {
+            right: -4px;
+            top: 252px;
+            width: 4px;
+            height: 92px;
+        }
+
+        /* ════════════════════════════
+   macOS Safari
+════════════════════════════ */
         .frame-desktop {
             display: flex;
             flex-direction: column;
@@ -518,40 +745,244 @@
             width: 100%;
         }
 
-        .frame-desktop .browser-chrome {
+        .mac-chrome {
+            width: 100%;
+            background: linear-gradient(to bottom, #3a3c3f, #2d2f32);
+            border-radius: 10px 10px 0 0;
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-bottom: none;
+        }
+
+        .mac-titlebar {
+            display: flex;
+            align-items: center;
+            padding: 8px 12px 0;
+            gap: 8px;
+        }
+
+        .mac-dots {
+            display: flex;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .d-close {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #ff5f57;
+            border: 1px solid rgba(0, 0, 0, .2);
+            box-shadow: 0 0 0 0.5px rgba(0, 0, 0, .3);
+        }
+
+        .d-min {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #febc2e;
+            border: 1px solid rgba(0, 0, 0, .2);
+            box-shadow: 0 0 0 0.5px rgba(0, 0, 0, .3);
+        }
+
+        .d-max {
+            width: 11px;
+            height: 11px;
+            border-radius: 50%;
+            background: #28c840;
+            border: 1px solid rgba(0, 0, 0, .2);
+            box-shadow: 0 0 0 0.5px rgba(0, 0, 0, .3);
+        }
+
+        .mac-tabs {
+            flex: 1;
+            display: flex;
+            align-items: flex-end;
+            gap: 0;
+            overflow: hidden;
+        }
+
+        .mac-tab {
+            background: rgba(255, 255, 255, .08);
+            border-radius: 6px 6px 0 0;
+            padding: 5px 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 120px;
+            max-width: 180px;
+            border: 1px solid rgba(255, 255, 255, .06);
+            border-bottom: none;
+        }
+
+        .mac-tab.active {
+            background: #2d2f32;
+            border-color: rgba(255, 255, 255, .1);
+        }
+
+        .mac-tab-title {
+            font-size: 10px;
+            color: rgba(255, 255, 255, .8);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+
+        .mac-tab-close {
+            font-size: 9px;
+            color: rgba(255, 255, 255, .3);
+        }
+
+        .mac-new-tab {
+            font-size: 14px;
+            color: rgba(255, 255, 255, .3);
+            padding: 0 8px;
+        }
+
+        .mac-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px 8px;
+            background: #2d2f32;
+            border-top: 1px solid rgba(255, 255, 255, .06);
+        }
+
+        .mac-navbtns {
+            display: flex;
+            gap: 2px;
+        }
+
+        .mac-navbtns span {
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: rgba(255, 255, 255, .4);
+            border-radius: 5px;
+            cursor: default;
+        }
+
+        .mac-navbtns span:hover {
+            background: rgba(255, 255, 255, .08);
+        }
+
+        .mac-urlbar {
+            flex: 1;
+            background: rgba(0, 0, 0, .25);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: 7px;
+            font-family: var(--mono);
+            font-size: 10px;
+            padding: 4px 10px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: rgba(255, 255, 255, .7);
+        }
+
+        .mac-actions {
+            display: flex;
+            gap: 2px;
+        }
+
+        .mac-actions span {
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: rgba(255, 255, 255, .3);
+            border-radius: 5px;
+        }
+
+        .browser-screen {
+            width: 100%;
+            background: #000;
+            border: 1px solid rgba(255, 255, 255, .06);
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            aspect-ratio: 16/10;
+            overflow: hidden;
+        }
+
+        .browser-screen img,
+        .browser-screen video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top;
+            display: block;
+        }
+
+        .mac-stand-neck {
+            width: 80px;
+            height: 20px;
+            background: linear-gradient(to bottom, #2a2c2f, #1e2022);
+            border-left: 1px solid rgba(255, 255, 255, .05);
+            border-right: 1px solid rgba(255, 255, 255, .05);
+        }
+
+        .mac-stand-base {
+            width: 160px;
+            height: 8px;
+            background: linear-gradient(to bottom, #1e2022, #171a1c);
+            border-radius: 0 0 6px 6px;
+            border: 1px solid rgba(255, 255, 255, .05);
+            border-top: none;
+        }
+
+        /* ════════════════════════════
+   Windows Chrome
+════════════════════════════ */
+        .win-chrome {
             width: 100%;
             background: #202124;
             border-radius: 8px 8px 0 0;
-            border: 1.5px solid #3a3d4a;
+            border: 1px solid #3a3d4a;
             border-bottom: none;
-            padding: 0;
         }
 
-        /* Windows tab bar */
-        .win-tabbar {
+        .win-titlebar {
+            display: flex;
+            align-items: stretch;
+            height: 32px;
+        }
+
+        .win-tabstrip {
+            flex: 1;
             display: flex;
             align-items: flex-end;
-            padding: 6px 8px 0;
+            padding: 0 4px;
             gap: 0;
             background: #202124;
-            border-radius: 8px 8px 0 0;
+            border-radius: 8px 0 0 0;
         }
 
         .win-tab {
             background: #2d2f31;
             border-radius: 6px 6px 0 0;
-            padding: 4px 12px 4px 10px;
+            padding: 0 10px;
+            height: 26px;
             display: flex;
             align-items: center;
             gap: 6px;
-            min-width: 140px;
-            max-width: 200px;
-            font-size: 9px;
-            color: rgba(255, 255, 255, .7);
-            font-family: var(--sans);
+            min-width: 130px;
+            max-width: 180px;
+            font-size: 10px;
+            color: rgba(255, 255, 255, .75);
+            border: 1px solid rgba(255, 255, 255, .06);
+            border-bottom: none;
         }
 
-        .win-tab-favicon {
+        .win-tab.active {
+            background: #35363a;
+        }
+
+        .win-favicon {
             width: 12px;
             height: 12px;
             background: var(--accent);
@@ -566,258 +997,148 @@
             flex: 1;
         }
 
-        .win-tab-close {
-            width: 12px;
-            height: 12px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+        .win-tab-x {
             font-size: 9px;
-            color: rgba(255, 255, 255, .4);
+            color: rgba(255, 255, 255, .35);
             flex-shrink: 0;
         }
 
-        /* Windows toolbar */
-        .win-toolbar {
+        .win-newtab {
+            font-size: 16px;
+            color: rgba(255, 255, 255, .3);
+            padding: 0 8px;
             display: flex;
             align-items: center;
-            gap: 6px;
-            padding: 5px 10px;
-            background: #2d2f31;
-            border-top: 1px solid #3a3d4a;
+            align-self: center;
         }
 
-        .win-navbtns {
+        .win-winctrls {
             display: flex;
-            gap: 3px;
+            flex-shrink: 0;
+            border-radius: 0 8px 0 0;
+            overflow: hidden;
         }
 
-        .win-navbtns span {
-            width: 20px;
-            height: 20px;
+        .wc-btn {
+            width: 40px;
+            height: 32px;
             display: flex;
             align-items: center;
             justify-content: center;
             font-size: 11px;
             color: rgba(255, 255, 255, .5);
+        }
+
+        .wc-btn:hover {
+            background: rgba(255, 255, 255, .1);
+        }
+
+        .wc-btn.close:hover {
+            background: #c42b1c;
+            color: #fff;
+        }
+
+        .win-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 4px 10px;
+            background: #35363a;
+            border-top: 1px solid rgba(255, 255, 255, .05);
+        }
+
+        .win-navbtns {
+            display: flex;
+            gap: 2px;
+        }
+
+        .nb {
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 13px;
+            color: rgba(255, 255, 255, .45);
             border-radius: 50%;
             cursor: default;
         }
 
-        .win-navbtns span:hover {
+        .nb:hover {
             background: rgba(255, 255, 255, .08);
         }
 
         .win-urlbar {
             flex: 1;
-            background: #1a1b1e;
-            border: 1px solid #3a3d4a;
-            border-radius: 16px;
+            background: rgba(0, 0, 0, .3);
+            border: 1px solid rgba(255, 255, 255, .1);
+            border-radius: 18px;
             font-family: var(--mono);
-            font-size: 9px;
-            color: rgba(255, 255, 255, .6);
-            padding: 3px 10px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .win-urlbar-lock {
-            font-size: 9px;
-            color: rgba(255, 255, 255, .3);
-        }
-
-        .win-actions {
-            display: flex;
-            gap: 2px;
-        }
-
-        .win-actions span {
-            width: 28px;
-            height: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             font-size: 10px;
-            color: rgba(255, 255, 255, .4);
-        }
-
-        .win-actions .wclose:hover {
-            background: #c42b1c;
-            color: #fff;
-            border-radius: 0 6px 0 0;
-        }
-
-        .win-actions span:hover {
-            background: rgba(255, 255, 255, .08);
-        }
-
-        .frame-desktop .screen {
-            width: 100%;
-            border: 1.5px solid #3a3d4a;
-            border-top: none;
-            border-radius: 0 0 6px 6px;
-            overflow: hidden;
-            background: #000;
-            aspect-ratio: 16/10;
-            position: relative;
-        }
-
-        .frame-desktop .screen img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: top;
-            display: block;
-        }
-
-        /* MacBook stand */
-        .frame-desktop .stand {
-            width: 60px;
-            height: 12px;
-            background: #1e2028;
-            border: 1.5px solid #3a3d4a;
-            border-top: none;
-            border-radius: 0 0 4px 4px;
-            margin: 0 auto;
-        }
-
-        /* ── iPhone frame ── */
-        .frame-phone {
-            position: relative;
-            flex-shrink: 0;
-        }
-
-        .iphone-body {
-            width: 200px;
-            background: linear-gradient(145deg, #2a2a2e, #1a1a1e);
-            border-radius: 36px;
-            border: 1.5px solid #3a3a3f;
-            padding: 14px 8px;
-            box-shadow: 0 0 0 1px rgba(255, 255, 255, .06) inset, 0 20px 60px rgba(0, 0, 0, .6);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0;
-        }
-
-        .iphone-notch {
-            width: 70px;
-            height: 20px;
-            background: #0a0a0c;
-            border-radius: 0 0 14px 14px;
-            margin-bottom: 6px;
+            padding: 4px 12px;
             display: flex;
             align-items: center;
-            justify-content: center;
             gap: 6px;
-            flex-shrink: 0;
         }
 
-        .iphone-cam {
-            width: 7px;
-            height: 7px;
-            background: #1a1a1e;
-            border-radius: 50%;
-            border: 1px solid #2a2a2e;
+        .win-extbtns {
+            display: flex;
+            gap: 1px;
         }
 
-        .iphone-screen {
-            width: 100%;
-            border-radius: 8px;
-            overflow: hidden;
-            background: #000;
-            aspect-ratio: 393/659;
-            position: relative;
+        .win-extbtns span {
+            width: 22px;
+            height: 22px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            color: rgba(255, 255, 255, .4);
+            border-radius: 5px;
         }
 
-        .iphone-screen img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: top;
-            display: block;
-        }
-
-        .iphone-bar {
-            width: 40px;
-            height: 4px;
-            background: #3a3a3f;
-            border-radius: 2px;
-            margin-top: 8px;
-            flex-shrink: 0;
-        }
-
-        .iphone-side-btn {
+        /* ── LIVE overlay (mobile only — desktop frames have their own chrome) ── */
+        .live-badge {
             position: absolute;
-            right: -3px;
-            top: 70px;
-            width: 3px;
-            height: 40px;
-            background: #2a2a2e;
-            border-radius: 2px;
-        }
-
-        /* ── Android frame ── */
-        .android-body {
-            width: 190px;
-            background: linear-gradient(145deg, #1e2a2e, #141e22);
-            border-radius: 32px;
-            border: 1.5px solid #2a3a40;
-            padding: 14px 8px 18px;
-            box-shadow: 0 0 0 1px rgba(255, 255, 255, .04) inset, 0 20px 60px rgba(0, 0, 0, .6);
+            top: 6px;
+            left: 6px;
+            z-index: 10;
+            background: rgba(240, 67, 90, .92);
+            color: #fff;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: .08em;
+            padding: 2px 6px;
+            border-radius: 3px;
             display: flex;
-            flex-direction: column;
             align-items: center;
-            gap: 0;
+            gap: 3px;
         }
 
-        .android-cam {
-            width: 9px;
-            height: 9px;
-            background: #0e1a1e;
+        .live-dot {
+            width: 5px;
+            height: 5px;
             border-radius: 50%;
-            border: 1px solid #2a3a40;
-            margin-bottom: 7px;
-            flex-shrink: 0;
+            background: #fff;
+            animation: blink 1s ease-in-out infinite;
         }
 
-        .android-screen {
-            width: 100%;
-            border-radius: 6px;
-            overflow: hidden;
-            background: #000;
-            aspect-ratio: 412/839;
-            position: relative;
+        .loading-shimmer {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .04), transparent);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
         }
 
-        .android-screen img {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            object-position: top;
-            display: block;
-        }
+        @keyframes shimmer {
+            0% {
+                background-position: 200% 0;
+            }
 
-        .android-nav {
-            display: flex;
-            justify-content: center;
-            gap: 20px;
-            margin-top: 10px;
-            flex-shrink: 0;
-        }
-
-        .android-nav span {
-            width: 14px;
-            height: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: rgba(255, 255, 255, .35);
-            font-size: 10px;
+            100% {
+                background-position: -200% 0;
+            }
         }
 
         /* ── LIVE badge overlay ── */
@@ -1145,7 +1466,28 @@
                     if (m.progress) m.progress.forEach(p => S.set(p.url, p));
                     renderAll();
                 }
-                if (m.type === 'progress') { S.set(m.progress.url, m.progress); updateRow(m.progress.url); updateHdr(); if (selUrl === m.progress.url) renderDetail(selUrl); }
+                if (m.type === 'progress') {
+                    const prog = m.progress;
+                    S.set(prog.url, prog);
+                    updateRow(prog.url);
+                    updateHdr();
+                    if (selUrl === prog.url) {
+                        // If page just finished and we were showing LIVE, swap to video smoothly
+                        if ((prog.status === 'done' || prog.status === 'failed') && prog.results?.length) {
+                            const activeId2 = selTab ?? profiles[0]?.id;
+                            const finishedResult = prog.results.find(r => r.profile?.id === activeId2);
+                            if (finishedResult?.videoPath) {
+                                trySwapLiveToVideo(prog.url, finishedResult);
+                                // Then re-render rest of detail (vitals, API table) without touching the frame
+                                setTimeout(() => renderDetail(selUrl), 350);
+                            } else {
+                                renderDetail(selUrl);
+                            }
+                        } else {
+                            renderDetail(selUrl);
+                        }
+                    }
+                }
                 if (m.type === 'screenshot') {
                     const ex = shots.get(m.url) ?? {}; ex[m.profileId] = m.png; shots.set(m.url, ex);
                     if (selUrl === m.url && selTab === m.profileId) {
@@ -1231,108 +1573,222 @@
         function selTab2(id) { selTab = id; renderDetail(selUrl); }
 
         // ── Device frame builders ─────────────────────────────────────────────────
-        function frameHtml(profile, imgId, hasShot, url) {
+        // ── frameHtml: renders screenshot OR video inside device frame ───────────
+        // mode: 'live' (screenshot stream) | 'video' (final recording)
+        function frameHtml(profile, url, opts = {}) {
             const ft = profile.frameType ?? 'desktop';
-            const imgSrc = hasShot ? `data:image/jpeg;base64,${hasShot}` : '';
-            const imgOpacity = hasShot ? '1' : '0';
-            const shimmer = !hasShot ? '<div class="loading-shimmer"></div>' : '';
-            const liveBadge = `<div class="live-overlay"><div class="live-badge"><span class="live-dot"></span>LIVE</div>${shimmer}</div>`;
+            const { mode = 'live', shot = null, vidSrc = null, vidMime = 'video/webm', liveId = null } = opts;
 
+            const shortUrl = url.replace(/^https?:\/\//, '').slice(0, 58);
+            const domain = (() => { try { return new URL(url).hostname; } catch { return url; } })();
+
+            // ── Inner screen content ─────────────────────────────────────────────
+            let screenContent;
+            if (mode === 'video' && vidSrc) {
+                // Final video playback — fills the screen slot
+                screenContent = `
+      <video id="frame-video" controls preload="metadata" style="background:#000">
+        <source src="${vidSrc}" type="${vidMime}">
+      </video>`;
+            } else {
+                // Live screenshot or static final shot
+                const src = shot ? `data:image/jpeg;base64,${shot}` : '';
+                const opacity = shot ? '1' : '0';
+                const shimmer = !shot ? '<div class="loading-shimmer"></div>' : '';
+                const liveBadge = mode === 'live'
+                    ? `<div class="live-badge"><span class="live-dot"></span>LIVE</div>${shimmer}`
+                    : '';
+                screenContent = `
+      <img ${liveId ? `id="${liveId}"` : ''} src="${src}"
+        style="opacity:${opacity};transition:opacity .2s;">
+      ${liveBadge}`;
+            }
+
+            // ── iPhone frame ─────────────────────────────────────────────────────
             if (ft === 'iphone') {
                 return `
     <div class="frame-area">
-      <div class="frame-phone">
+      <div style="position:relative;flex-shrink:0">
         <div class="iphone-body">
-          <div class="iphone-notch"><div class="iphone-cam"></div></div>
-          <div class="iphone-screen" style="position:relative">
-            <img id="${imgId}" src="${imgSrc}" style="opacity:${imgOpacity}">
-            ${liveBadge}
+          <div class="iphone-notch">
+            <div style="width:52px;height:14px;background:#0a0a0c;border-radius:0 0 10px 10px;
+              display:flex;align-items:center;justify-content:center;gap:5px">
+              <div style="width:9px;height:9px;background:#1a1a1e;border-radius:50%;border:1.5px solid #2a2a2e"></div>
+            </div>
           </div>
-          <div class="iphone-bar"></div>
+          <div class="iphone-statusbar">
+            <span style="font-size:8px;font-weight:600">9:41</span>
+            <div style="display:flex;gap:3px;align-items:center">
+              <span style="font-size:7px">●●●●</span>
+              <span style="font-size:7px">WiFi</span>
+              <span style="font-size:8px">⬛</span>
+            </div>
+          </div>
+          <div class="iphone-screen">
+            ${screenContent}
+          </div>
+          <div class="iphone-homearea">
+            <div class="iphone-bar"></div>
+          </div>
         </div>
-        <div class="iphone-side-btn"></div>
+        <div class="iphone-btn-right top"></div>
+        <div class="iphone-btn-right mid"></div>
+        <div class="iphone-btn-left vol1"></div>
+        <div class="iphone-btn-left vol2"></div>
+        <div class="iphone-btn-left mute"></div>
       </div>
     </div>`;
             }
 
+            // ── Android (Pixel) frame ─────────────────────────────────────────────
             if (ft === 'android') {
                 return `
     <div class="frame-area">
-      <div class="frame-phone">
+      <div style="position:relative;flex-shrink:0">
         <div class="android-body">
-          <div class="android-cam"></div>
-          <div class="android-screen" style="position:relative">
-            <img id="${imgId}" src="${imgSrc}" style="opacity:${imgOpacity}">
-            ${liveBadge}
+          <div class="android-topbar">
+            <div class="android-cam"></div>
+            <div style="display:flex;gap:3px;align-items:center;margin-left:auto">
+              <span style="font-size:7px;color:rgba(255,255,255,.5)">●●●●</span>
+              <span style="font-size:7px;color:rgba(255,255,255,.5)">WiFi</span>
+              <span style="font-size:8px;color:rgba(255,255,255,.5)">9:41</span>
+            </div>
+          </div>
+          <div class="android-screen">
+            ${screenContent}
           </div>
           <div class="android-nav">
-            <span>◀</span><span>⏺</span><span>▮▮</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,.4)" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
+            <div style="width:12px;height:12px;border-radius:50%;border:1.5px solid rgba(255,255,255,.4)"></div>
+            <div style="width:10px;height:8px;border:1.5px solid rgba(255,255,255,.4);border-radius:2px"></div>
           </div>
         </div>
+        <div class="android-btn-right pwr"></div>
+        <div class="android-btn-right vol"></div>
       </div>
     </div>`;
             }
 
-            // desktop / macbook — Windows Chrome style
-            const shortUrl = url.replace(/^https?:\/\//, '').slice(0, 55);
-            const domain = (() => { try { return new URL(url).hostname; } catch { return url; } })();
-            const isMac = ft === 'macbook';
-            if (isMac) {
-                // macOS Safari — keep traffic lights but use Safari toolbar
+            // ── macOS Safari frame ────────────────────────────────────────────────
+            if (ft === 'macbook') {
                 return `
-    <div class="frame-desktop">
-      <div class="browser-chrome" style="background:#1e2028;padding:0">
-        <div style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-bottom:1px solid #3a3d4a">
-          <div style="display:flex;gap:5px">
-            <span style="width:10px;height:10px;border-radius:50%;background:#ff5f57;display:block"></span>
-            <span style="width:10px;height:10px;border-radius:50%;background:#febc2e;display:block"></span>
-            <span style="width:10px;height:10px;border-radius:50%;background:#28c840;display:block"></span>
+    <div class="frame-desktop mac">
+      <div class="mac-chrome">
+        <div class="mac-titlebar">
+          <div class="mac-dots">
+            <span class="d-close"></span><span class="d-min"></span><span class="d-max"></span>
           </div>
-          <div style="flex:1;background:#2a2d38;border-radius:5px;font-family:var(--mono);font-size:9px;
-            color:rgba(255,255,255,.5);padding:3px 10px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
-            🔒 ${shortUrl}
+          <div class="mac-tabs">
+            <div class="mac-tab active">
+              <span class="mac-tab-title">${domain}</span>
+              <span class="mac-tab-close">✕</span>
+            </div>
+            <span class="mac-new-tab">+</span>
+          </div>
+          <div style="width:60px"></div>
+        </div>
+        <div class="mac-toolbar">
+          <div class="mac-navbtns"><span>‹</span><span>›</span></div>
+          <div class="mac-urlbar">
+            <span style="font-size:9px;color:rgba(255,255,255,.3)">🔒</span>
+            <span style="flex:1;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${shortUrl}</span>
+            <span style="font-size:9px;color:rgba(255,255,255,.2);cursor:pointer">↺</span>
+          </div>
+          <div class="mac-actions">
+            <span>⤡</span><span>⊕</span>
           </div>
         </div>
       </div>
-      <div class="screen" style="position:relative">
-        <img id="${imgId}" src="${imgSrc}" style="opacity:${imgOpacity}">
-        ${liveBadge}
+      <div class="browser-screen" style="position:relative;overflow:hidden">
+        ${screenContent}
       </div>
-      <div class="stand"></div>
+      <div class="mac-stand-neck"></div>
+      <div class="mac-stand-base"></div>
     </div>`;
             }
-            // Windows Chrome
+
+            // ── Windows Chrome frame ──────────────────────────────────────────────
             return `
-    <div class="frame-desktop">
-      <div class="browser-chrome">
-        <div class="win-tabbar">
-          <div class="win-tab">
-            <div class="win-tab-favicon"></div>
-            <span class="win-tab-title">${domain}</span>
-            <span class="win-tab-close">✕</span>
+    <div class="frame-desktop win">
+      <div class="win-chrome">
+        <div class="win-titlebar">
+          <div class="win-tabstrip">
+            <div class="win-tab active">
+              <div class="win-favicon"></div>
+              <span class="win-tab-title">${domain}</span>
+              <span class="win-tab-x">✕</span>
+            </div>
+            <span class="win-newtab">+</span>
           </div>
-          <div style="flex:1"></div>
-          <div style="display:flex;gap:0;margin-bottom:0">
-            <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;color:rgba(255,255,255,.4)">─</span>
-            <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.4)">⬜</span>
-            <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;color:rgba(255,255,255,.4);border-radius:0 6px 0 0">✕</span>
+          <div class="win-winctrls">
+            <span class="wc-btn">&#x2015;</span>
+            <span class="wc-btn">&#x2610;</span>
+            <span class="wc-btn close">&#x2715;</span>
           </div>
         </div>
         <div class="win-toolbar">
           <div class="win-navbtns">
-            <span>‹</span><span>›</span><span style="font-size:9px">↻</span>
+            <span class="nb">‹</span><span class="nb">›</span><span class="nb" style="font-size:10px">↻</span>
           </div>
           <div class="win-urlbar">
-            <span class="win-urlbar-lock">🔒</span>
-            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${shortUrl}</span>
+            <span style="font-size:9px;color:rgba(255,255,255,.3);flex-shrink:0">🔒</span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;font-size:10px;color:rgba(255,255,255,.65)">${shortUrl}</span>
+            <span style="font-size:9px;color:rgba(255,255,255,.2);flex-shrink:0">★</span>
+          </div>
+          <div class="win-extbtns">
+            <span>⋮</span>
           </div>
         </div>
       </div>
-      <div class="screen" style="position:relative">
-        <img id="${imgId}" src="${imgSrc}" style="opacity:${imgOpacity}">
-        ${liveBadge}
+      <div class="browser-screen" style="position:relative;overflow:hidden">
+        ${screenContent}
       </div>
     </div>`;
+        }
+
+        // ── Seamlessly swap LIVE screenshot → video when page finishes ───────────
+        // Called from the progress handler when status flips to 'done' and a
+        // videoPath is now present — avoids full re-render flicker.
+        function trySwapLiveToVideo(url, result) {
+            if (selUrl !== url) return;         // user is looking at a different URL
+            const frameVideo = document.getElementById('frame-video');
+            const liveImg = document.getElementById('live-img');
+            if (!result?.videoPath || (!liveImg && !frameVideo)) return;
+
+            const vidFile = result.videoPath.split(/[/\\]/).pop();
+            const vidMime = vidFile.endsWith('.mp4') ? 'video/mp4' : 'video/webm';
+            const vidSrc = `/videos/${encodeURIComponent(vidFile)}`;
+
+            // If video element already injected, just update src
+            if (frameVideo) {
+                frameVideo.querySelector('source').src = vidSrc;
+                frameVideo.load();
+                return;
+            }
+
+            // Replace the live <img> with a <video> in-place
+            if (liveImg) {
+                const screen = liveImg.parentElement;
+                // Fade out img
+                liveImg.style.transition = 'opacity .3s';
+                liveImg.style.opacity = '0';
+                setTimeout(() => {
+                    // Remove LIVE badge and shimmer
+                    screen.querySelectorAll('.live-badge,.loading-shimmer').forEach(el => el.remove());
+                    // Insert video
+                    const vid = document.createElement('video');
+                    vid.id = 'frame-video';
+                    vid.controls = true;
+                    vid.autoplay = false;
+                    vid.style.cssText = 'width:100%;height:100%;object-fit:cover;display:block;background:#000;opacity:0;transition:opacity .3s';
+                    const src = document.createElement('source');
+                    src.src = vidSrc;
+                    src.type = vidMime;
+                    vid.appendChild(src);
+                    screen.replaceChild(vid, liveImg);
+                    requestAnimationFrame(() => { vid.style.opacity = '1'; });
+                }, 300);
+            }
         }
 
         // ── Render detail ─────────────────────────────────────────────────────────
@@ -1381,19 +1837,36 @@
             const curShot = urlShots[activeId];
 
             let frameSection = '';
-            if (activeProfile && (isLive || (activeResult && curShot))) {
-                frameSection = frameHtml(activeProfile, 'live-img', curShot || null, url);
+            if (activeProfile && isLive) {
+                frameSection = frameHtml(activeProfile, url, { mode: 'live', shot: curShot || null, liveId: 'live-img' });
             }
 
             let tabContent = '';
 
             if (isLive) {
+                // Show partial vitals if this profile already has some results (mid-run)
+                const partialResult = p.results?.find(r => r.profile?.id === activeId);
+                const pv = partialResult?.vitals ?? {};
+                const liveVitals = [
+                    { l: 'LCP', v: pv.lcp, f: fmtMs, g: 2500, w: 4000 },
+                    { l: 'CLS', v: pv.cls, f: fmtCls, g: .1, w: .25 },
+                    { l: 'FCP', v: pv.fcp, f: fmtMs, g: 1800, w: 3000 },
+                    { l: 'TTFB', v: pv.ttfb, f: fmtMs, g: 800, w: 1800 },
+                ];
+                const liveVHtml = liveVitals.map(it => {
+                    const gr = it.v !== undefined ? vgrade(it.v, it.g, it.w) : '';
+                    const co = gcol(gr);
+                    const val = it.v !== undefined ? it.f(it.v) : '<span style="color:var(--muted);font-size:14px">…</span>';
+                    return `<div class="vc"><div class="vl">${it.l}</div><div class="vv" style="color:${co}">${val}</div></div>`;
+                }).join('');
                 tabContent = `
       ${frameSection}
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:14px">
-        ${['LCP', 'CLS', 'FCP', 'TTFB'].map(l => `<div class="vc"><div class="vl">${l}</div><div class="vv" style="color:var(--muted)">…</div></div>`).join('')}
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:14px" id="live-vitals-grid">
+        ${liveVHtml}
       </div>
-      <div style="color:var(--muted);font-size:10px;font-family:var(--mono);text-align:center;padding:6px">Capturing every 800ms…</div>`;
+      <div style="color:var(--muted);font-size:10px;font-family:var(--mono);text-align:center;padding:4px 0 8px">
+        📡 Live capture · screenshots every 800ms
+      </div>`;
 
             } else if (activeResult) {
                 const v = activeResult.vitals ?? {};
@@ -1427,23 +1900,28 @@
 
                 const vidFile = activeResult.videoPath ? activeResult.videoPath.split(/[/\\]/).pop() : null;
                 const vidMime = vidFile?.endsWith('.mp4') ? 'video/mp4' : 'video/webm';
-                const vidHtml = vidFile ? `
-      <div class="sec"><div class="sechd">Page recording <span class="meta">${vidMime}</span></div>
-      <div class="vwrap"><video controls preload="metadata">
-        <source src="/videos/${encodeURIComponent(vidFile)}" type="${vidMime}">
-        Your browser does not support this video format.
-      </video></div></div>` : '';
+                const vidSrc = vidFile ? `/videos/${encodeURIComponent(vidFile)}` : null;
+
+                // Video goes INSIDE the device frame — pass vidSrc to frameHtml
+                const recordingFrame = (activeProfile && vidSrc)
+                    ? frameHtml(activeProfile, url, { mode: 'video', vidSrc, vidMime })
+                    : '';
+
+                // Final screenshot frame (static, no live badge)
+                const finalShotFrame = (activeProfile && curShot && !vidSrc)
+                    ? frameHtml(activeProfile, url, { mode: 'static', shot: curShot })
+                    : '';
 
                 const hb = activeResult.status ? `<span class="${activeResult.status >= 400 ? 'herr' : 'hok'}">${activeResult.status}</span>` : '';
 
                 tabContent = `
       ${activeResult.error ? `<div class="errb">⚠ ${activeResult.error}</div>` : ''}
-      ${frameSection}
+      ${recordingFrame || finalShotFrame}
       <div class="vg">${vhtml}</div>
       ${apis.length ? `<div class="sec"><div class="sechd">API calls<span class="meta">SSR:${ssrN} · CSR:${csrN}</span></div>
       <div class="tbwrap"><table><thead><tr><th class="ct">Type</th><th class="cu">URL</th><th class="cs">Status</th><th class="cm">Time</th><th class="cst">Server-Timing</th></tr></thead>
       <tbody>${arows}</tbody></table></div></div>` : ''}
-      ${errHtml}${vidHtml}`;
+      ${errHtml}`;
             } else {
                 tabContent = `<div style="color:var(--muted);text-align:center;padding:40px;font-size:11px">No data yet</div>`;
             }
