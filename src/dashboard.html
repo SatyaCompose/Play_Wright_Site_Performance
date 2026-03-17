@@ -3,11 +3,10 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>⚡ Site Audit</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
     <link
-        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Syne:wght@400;600;700;800&display=swap"
+        href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap"
         rel="stylesheet">
     <style>
         :root {
@@ -42,91 +41,89 @@
             font-size: 13px;
             height: 100vh;
             display: grid;
-            grid-template-rows: 56px 1fr;
+            grid-template-rows: 52px 1fr;
             overflow: hidden;
         }
 
-        /* ── Top bar ── */
+        /* ── Header ── */
         header {
             display: flex;
             align-items: center;
-            gap: 20px;
-            padding: 0 24px;
+            gap: 14px;
+            padding: 0 18px;
             border-bottom: 1px solid var(--border);
             background: var(--s1);
             flex-shrink: 0;
         }
 
         .logo {
-            font-size: 17px;
+            font-size: 16px;
             font-weight: 800;
-            letter-spacing: -0.5px;
-            color: var(--text);
+            letter-spacing: -.5px;
         }
 
         .logo span {
             color: var(--accent);
         }
 
-        .header-stats {
+        .hstats {
             display: flex;
-            gap: 16px;
+            gap: 8px;
             margin-left: auto;
             align-items: center;
         }
 
-        .stat-pill {
+        .pill {
             font-family: var(--mono);
-            font-size: 11px;
-            padding: 3px 10px;
+            font-size: 10px;
+            padding: 2px 9px;
             border-radius: 20px;
             border: 1px solid var(--border);
             color: var(--muted);
         }
 
-        .stat-pill.good {
-            border-color: rgba(34, 199, 110, 0.3);
+        .pill.g {
+            border-color: rgba(34, 199, 110, .3);
             color: var(--good);
-            background: rgba(34, 199, 110, 0.07);
+            background: rgba(34, 199, 110, .07);
         }
 
-        .stat-pill.warn {
-            border-color: rgba(240, 67, 90, 0.3);
+        .pill.b {
+            border-color: rgba(240, 67, 90, .3);
             color: var(--poor);
-            background: rgba(240, 67, 90, 0.07);
+            background: rgba(240, 67, 90, .07);
         }
 
-        .stat-pill.run {
-            border-color: rgba(56, 189, 248, 0.3);
+        .pill.r {
+            border-color: rgba(56, 189, 248, .3);
             color: var(--running);
-            background: rgba(56, 189, 248, 0.07);
+            background: rgba(56, 189, 248, .07);
         }
 
-        /* Progress bar */
-        .progress-wrap {
-            width: 180px;
-            height: 4px;
+        .pw {
+            width: 140px;
+            height: 3px;
             background: var(--s3);
-            border-radius: 4px;
+            border-radius: 3px;
             overflow: hidden;
         }
 
-        .progress-fill {
+        .pf {
             height: 100%;
             background: var(--accent);
-            border-radius: 4px;
-            transition: width 0.3s ease;
+            border-radius: 3px;
+            transition: width .3s;
         }
 
-        /* ── Main layout: sidebar + detail ── */
+        /* ── Layout ── */
         .layout {
             display: grid;
-            grid-template-columns: 420px 1fr;
+            grid-template-columns: 340px 1fr;
             height: 100%;
             overflow: hidden;
         }
 
-        /* ── Sidebar: URL list ── */
+        /* ── Sidebar ── */
         .sidebar {
             border-right: 1px solid var(--border);
             display: flex;
@@ -134,126 +131,118 @@
             overflow: hidden;
         }
 
-        .sidebar-toolbar {
+        .sbt {
             display: flex;
-            gap: 8px;
-            padding: 10px 12px;
+            gap: 5px;
+            padding: 7px 9px;
             border-bottom: 1px solid var(--border);
             background: var(--s1);
             flex-shrink: 0;
+            flex-wrap: wrap;
         }
 
-        .sidebar-toolbar input {
+        .sbt input {
             flex: 1;
+            min-width: 110px;
             background: var(--s2);
             border: 1px solid var(--border);
-            border-radius: 6px;
+            border-radius: 5px;
             color: var(--text);
             font-family: var(--mono);
-            font-size: 11px;
-            padding: 5px 10px;
+            font-size: 10px;
+            padding: 4px 8px;
             outline: none;
         }
 
-        .sidebar-toolbar input:focus {
+        .sbt input:focus {
             border-color: var(--accent);
         }
 
-        .filter-btn {
+        .fb {
             background: var(--s2);
             border: 1px solid var(--border);
             color: var(--muted);
-            font-family: var(--sans);
-            font-size: 11px;
-            padding: 4px 10px;
-            border-radius: 6px;
+            font-size: 10px;
+            padding: 3px 7px;
+            border-radius: 5px;
             cursor: pointer;
-            white-space: nowrap;
         }
 
-        .filter-btn:hover {
+        .fb:hover,
+        .fb.active {
             border-color: var(--accent);
             color: var(--accent);
+            background: rgba(124, 109, 255, .1);
         }
 
-        .filter-btn.active {
-            border-color: var(--accent);
-            color: var(--accent);
-            background: rgba(124, 109, 255, 0.1);
-        }
-
-        .url-list {
+        .ul {
             flex: 1;
             overflow-y: auto;
         }
 
-        .url-list::-webkit-scrollbar {
-            width: 4px;
+        .ul::-webkit-scrollbar {
+            width: 3px;
         }
 
-        .url-list::-webkit-scrollbar-track {
-            background: transparent;
-        }
-
-        .url-list::-webkit-scrollbar-thumb {
+        .ul::-webkit-scrollbar-thumb {
             background: var(--border);
-            border-radius: 4px;
+            border-radius: 3px;
         }
 
-        .url-row {
+        .ur {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 8px 14px;
-            border-bottom: 1px solid rgba(42, 45, 56, 0.5);
+            gap: 7px;
+            padding: 6px 11px;
+            border-bottom: 1px solid rgba(42, 45, 56, .4);
             cursor: pointer;
-            transition: background 0.1s;
+            transition: background .1s;
         }
 
-        .url-row:hover {
+        .ur:hover {
             background: var(--s2);
         }
 
-        .url-row.selected {
-            background: rgba(124, 109, 255, 0.1);
+        .ur.selected {
+            background: rgba(124, 109, 255, .1);
             border-right: 2px solid var(--accent);
         }
 
-        .url-row.running {
+        .ur.running {
             border-left: 2px solid var(--running);
-            padding-left: 12px;
+            padding-left: 9px;
         }
 
-        .url-row.failed {
+        .ur.failed {
             border-left: 2px solid var(--poor);
-            padding-left: 12px;
+            padding-left: 9px;
         }
 
-        .url-status-dot {
-            width: 7px;
-            height: 7px;
+        .sd {
+            width: 6px;
+            height: 6px;
             border-radius: 50%;
             flex-shrink: 0;
         }
 
-        .dot-pending {
+        .sd.pending {
             background: var(--border);
         }
 
-        .dot-running {
+        .sd.running {
             background: var(--running);
-            animation: pulse 1.2s ease-in-out infinite;
+            animation: blink 1.2s ease-in-out infinite;
         }
 
-        .dot-done {
+        .sd.done {
             background: var(--good);
         }
 
-        .dot-failed {
+        .sd.failed {
             background: var(--poor);
         }
 
-        @keyframes pulse {
+        @keyframes blink {
 
             0%,
             100% {
@@ -262,197 +251,678 @@
             }
 
             50% {
-                opacity: 0.5;
-                transform: scale(0.7);
+                opacity: .4;
+                transform: scale(.6);
             }
         }
 
-        .url-path {
+        .up {
             font-family: var(--mono);
-            font-size: 11px;
-            color: var(--text);
+            font-size: 10px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
             flex: 1;
         }
 
-        .url-row.failed .url-path {
+        .ur.failed .up {
             color: var(--poor);
         }
 
-        .url-row.running .url-path {
+        .ur.running .up {
             color: var(--running);
         }
 
-        .url-lcp {
-            font-family: var(--mono);
-            font-size: 10px;
+        .rp {
+            display: flex;
+            gap: 2px;
             flex-shrink: 0;
-            min-width: 56px;
-            text-align: right;
+        }
+
+        .rd {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--border);
+        }
+
+        .rd.good {
+            background: var(--good);
+        }
+
+        .rd.warn {
+            background: var(--warn);
+        }
+
+        .rd.poor {
+            background: var(--poor);
+        }
+
+        .rd.running {
+            background: var(--running);
+            animation: blink 1s ease-in-out infinite;
         }
 
         /* ── Detail panel ── */
         .detail {
             overflow-y: auto;
-            padding: 24px;
             background: var(--bg);
         }
 
         .detail::-webkit-scrollbar {
-            width: 4px;
+            width: 3px;
         }
 
         .detail::-webkit-scrollbar-thumb {
             background: var(--border);
-            border-radius: 4px;
+            border-radius: 3px;
         }
 
-        .detail-empty {
+        .di {
+            padding: 18px 20px;
+        }
+
+        .de {
             height: 100%;
             display: flex;
             align-items: center;
             justify-content: center;
             color: var(--muted);
-            font-size: 14px;
             flex-direction: column;
             gap: 8px;
         }
 
-        .detail-empty .big {
-            font-size: 32px;
+        .de .big {
+            font-size: 28px;
         }
 
-        .detail-url {
-            font-family: var(--mono);
-            font-size: 12px;
+        /* ── Device tabs ── */
+        .dtabs {
+            display: flex;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 18px;
+            overflow-x: auto;
+        }
+
+        .dtab {
+            padding: 8px 14px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            color: var(--muted);
+            white-space: nowrap;
+            transition: color .15s;
+        }
+
+        .dtab:hover {
+            color: var(--text);
+        }
+
+        .dtab.active {
             color: var(--accent);
-            margin-bottom: 20px;
-            word-break: break-all;
+            border-bottom-color: var(--accent);
         }
 
-        .detail-url a {
-            color: inherit;
-            text-decoration: none;
+        .dtab-eng {
+            font-size: 8px;
+            font-family: var(--mono);
+            color: var(--muted);
+            background: var(--s3);
+            padding: 1px 4px;
+            border-radius: 2px;
+            margin-left: 4px;
         }
 
-        .detail-url a:hover {
-            text-decoration: underline;
+        .dtab-dot {
+            display: inline-block;
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: var(--border);
+            vertical-align: middle;
+            margin-left: 5px;
         }
 
-        /* Vitals grid */
-        .vitals-grid {
+        .dtab-dot.good {
+            background: var(--good);
+        }
+
+        .dtab-dot.warn {
+            background: var(--warn);
+        }
+
+        .dtab-dot.poor {
+            background: var(--poor);
+        }
+
+        .dtab-dot.running {
+            background: var(--running);
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        /* ── Vitals row ── */
+        .vg {
             display: grid;
             grid-template-columns: repeat(5, 1fr);
-            gap: 10px;
-            margin-bottom: 24px;
+            gap: 7px;
+            margin-bottom: 18px;
         }
 
-        .vital-card {
+        .vc {
             background: var(--s1);
             border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 14px 12px;
+            border-radius: 9px;
+            padding: 11px 9px;
         }
 
-        .vital-label {
-            font-size: 10px;
+        .vl {
+            font-size: 9px;
             text-transform: uppercase;
-            letter-spacing: 0.1em;
+            letter-spacing: .1em;
             color: var(--muted);
-            margin-bottom: 6px;
+            margin-bottom: 3px;
         }
 
-        .vital-value {
+        .vv {
             font-family: var(--mono);
-            font-size: 22px;
+            font-size: 19px;
             font-weight: 600;
             line-height: 1;
         }
 
-        .vital-unit {
-            font-family: var(--mono);
-            font-size: 11px;
+        .vs {
+            font-size: 9px;
             color: var(--muted);
-            margin-top: 4px;
+            margin-top: 2px;
         }
 
-        .vital-grade {
-            font-size: 10px;
+        .vgrade {
+            font-size: 9px;
             font-weight: 600;
-            margin-top: 6px;
+            margin-top: 4px;
             text-transform: uppercase;
-            letter-spacing: 0.05em;
+            letter-spacing: .05em;
         }
 
-        .grade-good {
+        .gg {
             color: var(--good);
         }
 
-        .grade-warn {
+        .gw {
             color: var(--warn);
         }
 
-        .grade-poor {
+        .gp {
             color: var(--poor);
         }
 
-        /* Section */
-        .section {
-            margin-bottom: 20px;
+        /* ── Compare bar ── */
+        .cmpbar {
+            margin-bottom: 16px;
         }
 
-        .section-hd {
+        .cmprow {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 5px;
+        }
+
+        .cmplbl {
+            font-size: 10px;
+            color: var(--muted);
+            width: 140px;
+            flex-shrink: 0;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .cmptrack {
+            flex: 1;
+            height: 6px;
+            background: var(--s3);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+
+        .cmpfill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width .4s;
+        }
+
+        .cmpval {
+            font-family: var(--mono);
+            font-size: 10px;
+            width: 60px;
+            text-align: right;
+            flex-shrink: 0;
+        }
+
+        /* ── Device frame container ── */
+        .frame-area {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            padding: 16px 0 20px;
+            margin-bottom: 18px;
+        }
+
+        /* ── Desktop Chrome (Windows) frame ── */
+        .frame-desktop {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+        }
+
+        .frame-desktop .browser-chrome {
+            width: 100%;
+            background: #202124;
+            border-radius: 8px 8px 0 0;
+            border: 1.5px solid #3a3d4a;
+            border-bottom: none;
+            padding: 0;
+        }
+
+        /* Windows tab bar */
+        .win-tabbar {
+            display: flex;
+            align-items: flex-end;
+            padding: 6px 8px 0;
+            gap: 0;
+            background: #202124;
+            border-radius: 8px 8px 0 0;
+        }
+
+        .win-tab {
+            background: #2d2f31;
+            border-radius: 6px 6px 0 0;
+            padding: 4px 12px 4px 10px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-width: 140px;
+            max-width: 200px;
+            font-size: 9px;
+            color: rgba(255, 255, 255, .7);
+            font-family: var(--sans);
+        }
+
+        .win-tab-favicon {
+            width: 12px;
+            height: 12px;
+            background: var(--accent);
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        .win-tab-title {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            flex: 1;
+        }
+
+        .win-tab-close {
+            width: 12px;
+            height: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 9px;
+            color: rgba(255, 255, 255, .4);
+            flex-shrink: 0;
+        }
+
+        /* Windows toolbar */
+        .win-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 5px 10px;
+            background: #2d2f31;
+            border-top: 1px solid #3a3d4a;
+        }
+
+        .win-navbtns {
+            display: flex;
+            gap: 3px;
+        }
+
+        .win-navbtns span {
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            color: rgba(255, 255, 255, .5);
+            border-radius: 50%;
+            cursor: default;
+        }
+
+        .win-navbtns span:hover {
+            background: rgba(255, 255, 255, .08);
+        }
+
+        .win-urlbar {
+            flex: 1;
+            background: #1a1b1e;
+            border: 1px solid #3a3d4a;
+            border-radius: 16px;
+            font-family: var(--mono);
+            font-size: 9px;
+            color: rgba(255, 255, 255, .6);
+            padding: 3px 10px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .win-urlbar-lock {
+            font-size: 9px;
+            color: rgba(255, 255, 255, .3);
+        }
+
+        .win-actions {
+            display: flex;
+            gap: 2px;
+        }
+
+        .win-actions span {
+            width: 28px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 10px;
+            color: rgba(255, 255, 255, .4);
+        }
+
+        .win-actions .wclose:hover {
+            background: #c42b1c;
+            color: #fff;
+            border-radius: 0 6px 0 0;
+        }
+
+        .win-actions span:hover {
+            background: rgba(255, 255, 255, .08);
+        }
+
+        .frame-desktop .screen {
+            width: 100%;
+            border: 1.5px solid #3a3d4a;
+            border-top: none;
+            border-radius: 0 0 6px 6px;
+            overflow: hidden;
+            background: #000;
+            aspect-ratio: 16/10;
+            position: relative;
+        }
+
+        .frame-desktop .screen img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top;
+            display: block;
+        }
+
+        /* MacBook stand */
+        .frame-desktop .stand {
+            width: 60px;
+            height: 12px;
+            background: #1e2028;
+            border: 1.5px solid #3a3d4a;
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            margin: 0 auto;
+        }
+
+        /* ── iPhone frame ── */
+        .frame-phone {
+            position: relative;
+            flex-shrink: 0;
+        }
+
+        .iphone-body {
+            width: 200px;
+            background: linear-gradient(145deg, #2a2a2e, #1a1a1e);
+            border-radius: 36px;
+            border: 1.5px solid #3a3a3f;
+            padding: 14px 8px;
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, .06) inset, 0 20px 60px rgba(0, 0, 0, .6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+        }
+
+        .iphone-notch {
+            width: 70px;
+            height: 20px;
+            background: #0a0a0c;
+            border-radius: 0 0 14px 14px;
+            margin-bottom: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+
+        .iphone-cam {
+            width: 7px;
+            height: 7px;
+            background: #1a1a1e;
+            border-radius: 50%;
+            border: 1px solid #2a2a2e;
+        }
+
+        .iphone-screen {
+            width: 100%;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #000;
+            aspect-ratio: 393/659;
+            position: relative;
+        }
+
+        .iphone-screen img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top;
+            display: block;
+        }
+
+        .iphone-bar {
+            width: 40px;
+            height: 4px;
+            background: #3a3a3f;
+            border-radius: 2px;
+            margin-top: 8px;
+            flex-shrink: 0;
+        }
+
+        .iphone-side-btn {
+            position: absolute;
+            right: -3px;
+            top: 70px;
+            width: 3px;
+            height: 40px;
+            background: #2a2a2e;
+            border-radius: 2px;
+        }
+
+        /* ── Android frame ── */
+        .android-body {
+            width: 190px;
+            background: linear-gradient(145deg, #1e2a2e, #141e22);
+            border-radius: 32px;
+            border: 1.5px solid #2a3a40;
+            padding: 14px 8px 18px;
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, .04) inset, 0 20px 60px rgba(0, 0, 0, .6);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0;
+        }
+
+        .android-cam {
+            width: 9px;
+            height: 9px;
+            background: #0e1a1e;
+            border-radius: 50%;
+            border: 1px solid #2a3a40;
+            margin-bottom: 7px;
+            flex-shrink: 0;
+        }
+
+        .android-screen {
+            width: 100%;
+            border-radius: 6px;
+            overflow: hidden;
+            background: #000;
+            aspect-ratio: 412/839;
+            position: relative;
+        }
+
+        .android-screen img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            object-position: top;
+            display: block;
+        }
+
+        .android-nav {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 10px;
+            flex-shrink: 0;
+        }
+
+        .android-nav span {
+            width: 14px;
+            height: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: rgba(255, 255, 255, .35);
+            font-size: 10px;
+        }
+
+        /* ── LIVE badge overlay ── */
+        .live-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+        }
+
+        .live-badge {
+            position: absolute;
+            top: 6px;
+            left: 6px;
+            background: rgba(240, 67, 90, .92);
+            color: #fff;
+            font-size: 8px;
+            font-weight: 700;
+            letter-spacing: .08em;
+            padding: 2px 6px;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            gap: 3px;
+        }
+
+        .live-dot {
+            width: 5px;
+            height: 5px;
+            border-radius: 50%;
+            background: #fff;
+            animation: blink 1s ease-in-out infinite;
+        }
+
+        .loading-shimmer {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, .04) 50%, transparent 100%);
+            background-size: 200% 100%;
+            animation: shimmer 1.5s infinite;
+        }
+
+        @keyframes shimmer {
+            0% {
+                background-position: 200% 0;
+            }
+
+            100% {
+                background-position: -200% 0;
+            }
+        }
+
+        /* ── Section / table ── */
+        .sec {
+            margin-bottom: 16px;
+        }
+
+        .sechd {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 8px 14px;
+            padding: 6px 11px;
             background: var(--s2);
             border: 1px solid var(--border);
-            border-radius: 8px 8px 0 0;
-            font-size: 12px;
+            border-radius: 7px 7px 0 0;
+            font-size: 11px;
             font-weight: 600;
         }
 
-        .section-hd .meta {
+        .sechd .meta {
             font-family: var(--mono);
-            font-size: 11px;
+            font-size: 10px;
             color: var(--muted);
             font-weight: 400;
         }
 
-        /* API table */
-        .api-table-wrap {
+        .tbwrap {
             border: 1px solid var(--border);
             border-top: none;
-            border-radius: 0 0 8px 8px;
+            border-radius: 0 0 7px 7px;
             overflow: hidden;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-        }
-
-        table {
             table-layout: fixed;
         }
 
         th {
             background: var(--s2);
-            padding: 7px 12px;
-            font-size: 10px;
+            padding: 5px 9px;
+            font-size: 9px;
             text-transform: uppercase;
-            letter-spacing: 0.07em;
+            letter-spacing: .07em;
             color: var(--muted);
             text-align: left;
         }
 
         td {
-            padding: 7px 12px;
-            border-bottom: 1px solid rgba(42, 45, 56, 0.6);
-            font-size: 11px;
+            padding: 5px 9px;
+            border-bottom: 1px solid rgba(42, 45, 56, .6);
+            font-size: 10px;
             vertical-align: middle;
             overflow: hidden;
         }
@@ -462,639 +932,532 @@
         }
 
         tr:hover td {
-            background: rgba(255, 255, 255, 0.02);
+            background: rgba(255, 255, 255, .02);
         }
 
-        /* Fixed column widths: type | url (flex) | status | time | server-timing */
-        .col-type {
-            width: 52px;
+        .ct {
+            width: 46px;
         }
 
-        .col-url {
+        .cu {
             width: auto;
         }
 
-        .col-status {
-            width: 68px;
+        .cs {
+            width: 58px;
             text-align: center;
         }
 
-        .col-time {
-            width: 80px;
+        .cm {
+            width: 68px;
             text-align: right;
         }
 
-        .col-st {
-            width: 200px;
+        .cst {
+            width: 160px;
         }
 
-        .td-url {
+        .tdu {
             font-family: var(--mono);
-            font-size: 10px;
+            font-size: 9px;
             overflow: hidden;
             text-overflow: ellipsis;
             white-space: nowrap;
         }
 
-        .td-dur {
-            font-family: var(--mono);
-            text-align: right;
-        }
-
         .tag {
-            font-size: 9px;
+            font-size: 8px;
             font-weight: 700;
-            letter-spacing: 0.05em;
-            padding: 2px 6px;
-            border-radius: 3px;
+            padding: 1px 5px;
+            border-radius: 2px;
         }
 
-        .tag-ssr {
-            background: rgba(124, 109, 255, 0.15);
+        .ssr {
+            background: rgba(124, 109, 255, .15);
             color: var(--accent);
-            border: 1px solid rgba(124, 109, 255, 0.3);
+            border: 1px solid rgba(124, 109, 255, .3);
         }
 
-        .tag-csr {
-            background: rgba(245, 166, 35, 0.1);
+        .csr {
+            background: rgba(245, 166, 35, .1);
             color: var(--warn);
-            border: 1px solid rgba(245, 166, 35, 0.25);
+            border: 1px solid rgba(245, 166, 35, .25);
         }
 
-        .status-ok {
+        .sok {
             color: var(--good);
             font-family: var(--mono);
-            font-size: 10px;
+            font-size: 9px;
         }
 
-        .status-err {
+        .serr {
             color: var(--poor);
             font-family: var(--mono);
-            font-size: 10px;
+            font-size: 9px;
         }
 
-        .server-timing {
-            font-size: 9px;
+        .stxt {
+            font-size: 8px;
             color: var(--muted);
             font-family: var(--mono);
         }
 
-        /* Errors */
-        .error-list {
-            border: 1px solid rgba(240, 67, 90, 0.3);
+        .erl {
+            border: 1px solid rgba(240, 67, 90, .3);
             border-top: none;
-            border-radius: 0 0 8px 8px;
+            border-radius: 0 0 7px 7px;
         }
 
-        .error-item {
-            padding: 7px 14px;
-            border-bottom: 1px solid rgba(240, 67, 90, 0.1);
+        .eri {
+            padding: 5px 11px;
+            border-bottom: 1px solid rgba(240, 67, 90, .1);
             font-family: var(--mono);
-            font-size: 10px;
+            font-size: 9px;
             color: #ff8080;
         }
 
-        .error-item:last-child {
+        .eri:last-child {
             border-bottom: none;
         }
 
-        /* Error banner in detail */
-        .error-banner {
-            background: rgba(240, 67, 90, 0.08);
-            border: 1px solid rgba(240, 67, 90, 0.25);
-            border-radius: 8px;
-            padding: 10px 14px;
+        .errb {
+            background: rgba(240, 67, 90, .08);
+            border: 1px solid rgba(240, 67, 90, .25);
+            border-radius: 7px;
+            padding: 9px 11px;
             color: var(--poor);
-            font-size: 12px;
-            margin-bottom: 20px;
+            font-size: 11px;
+            margin-bottom: 14px;
             font-family: var(--mono);
         }
 
-        /* Video */
-        .video-wrap {
+        .vwrap {
             border: 1px solid var(--border);
             border-top: none;
-            border-radius: 0 0 8px 8px;
-            padding: 12px;
+            border-radius: 0 0 7px 7px;
+            padding: 8px;
         }
 
         video {
             width: 100%;
-            border-radius: 6px;
+            border-radius: 5px;
             background: #000;
         }
 
-        /* Done banner */
-        .done-banner {
-            background: rgba(34, 199, 110, 0.08);
-            border: 1px solid rgba(34, 199, 110, 0.25);
-            border-radius: 8px;
-            padding: 10px 16px;
+        .hok {
+            background: rgba(34, 199, 110, .1);
             color: var(--good);
-            font-size: 12px;
-            margin-bottom: 12px;
-            display: none;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .done-banner.show {
-            display: flex;
-        }
-
-        .done-banner a {
-            color: var(--good);
-        }
-
-        /* Live screenshot preview */
-        .live-preview {
-            position: relative;
-            background: #000;
-            border-radius: 10px;
-            overflow: hidden;
-            border: 1px solid var(--border);
-            margin-bottom: 20px;
-        }
-
-        .live-preview img {
-            width: 100%;
-            display: block;
-            border-radius: 10px;
-            transition: opacity 0.15s ease;
-        }
-
-        .live-badge {
-            position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(240, 67, 90, 0.9);
-            color: #fff;
-            font-size: 10px;
-            font-weight: 700;
-            letter-spacing: 0.1em;
-            padding: 3px 8px;
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
-
-        .live-dot {
-            width: 6px;
-            height: 6px;
-            border-radius: 50%;
-            background: #fff;
-            animation: pulse 1s ease-in-out infinite;
-        }
-
-        .live-url-label {
-            position: absolute;
-            bottom: 0;
-            left: 0;
-            right: 0;
-            background: linear-gradient(transparent, rgba(0, 0, 0, 0.7));
-            padding: 24px 14px 10px;
+            border: 1px solid rgba(34, 199, 110, .25);
+            padding: 1px 5px;
+            border-radius: 3px;
             font-family: var(--mono);
-            font-size: 10px;
-            color: rgba(255, 255, 255, 0.7);
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+            font-size: 9px;
         }
 
-        /* http status badge */
-        .http-ok {
-            background: rgba(34, 199, 110, 0.1);
-            color: var(--good);
-            border: 1px solid rgba(34, 199, 110, 0.25);
-            padding: 1px 6px;
-            border-radius: 4px;
-            font-family: var(--mono);
-            font-size: 10px;
-        }
-
-        .http-err {
-            background: rgba(240, 67, 90, 0.1);
+        .herr {
+            background: rgba(240, 67, 90, .1);
             color: var(--poor);
-            border: 1px solid rgba(240, 67, 90, 0.25);
-            padding: 1px 6px;
-            border-radius: 4px;
+            border: 1px solid rgba(240, 67, 90, .25);
+            padding: 1px 5px;
+            border-radius: 3px;
             font-family: var(--mono);
-            font-size: 10px;
+            font-size: 9px;
+        }
+
+        .durl {
+            font-family: var(--mono);
+            font-size: 11px;
+            color: var(--accent);
+            margin-bottom: 14px;
+            word-break: break-all;
+        }
+
+        .durl a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .durl a:hover {
+            text-decoration: underline;
         }
     </style>
 </head>
 
 <body>
-
     <header>
         <div class="logo">⚡ <span>Site</span> Audit</div>
-        <div class="header-stats">
-            <span class="stat-pill run" id="hd-running">0 running</span>
-            <span class="stat-pill good" id="hd-done">0 done</span>
-            <span class="stat-pill warn" id="hd-failed">0 failed</span>
-            <div class="progress-wrap">
-                <div class="progress-fill" id="progress-bar" style="width:0%"></div>
+        <div class="hstats">
+            <span class="pill r" id="hr">0 running</span>
+            <span class="pill g" id="hd">0 done</span>
+            <span class="pill b" id="hf">0 failed</span>
+            <div class="pw">
+                <div class="pf" id="pb" style="width:0%"></div>
             </div>
-            <span class="stat-pill" id="hd-total" style="min-width:72px;text-align:center">0 / 0</span>
+            <span class="pill" id="ht" style="min-width:60px;text-align:center">0/0</span>
         </div>
     </header>
-
     <div class="layout">
-        <!-- Sidebar -->
         <div class="sidebar">
-            <div class="sidebar-toolbar">
+            <div class="sbt">
                 <input id="search" type="text" placeholder="Filter URLs…" oninput="applyFilter()">
-                <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
-                <button class="filter-btn" onclick="setFilter('running',this)">Running</button>
-                <button class="filter-btn" onclick="setFilter('poor',this)">Poor</button>
-                <button class="filter-btn" onclick="setFilter('failed',this)">Failed</button>
+                <button class="fb active" onclick="setFilter('all',this)">All</button>
+                <button class="fb" onclick="setFilter('running',this)">Live</button>
+                <button class="fb" onclick="setFilter('poor',this)">Poor</button>
+                <button class="fb" onclick="setFilter('failed',this)">Failed</button>
             </div>
-            <div class="url-list" id="url-list"></div>
+            <div class="ul" id="ul"></div>
         </div>
-
-        <!-- Detail panel -->
         <div class="detail" id="detail">
-            <div class="detail-empty">
+            <div class="de">
                 <div class="big">📡</div>
-                <div>Waiting for audit to start…</div>
-                <div id="connecting-msg" style="color:var(--muted);font-size:11px">Connecting to server</div>
+                <div id="cm">Connecting…</div>
             </div>
         </div>
     </div>
-
     <script>
         // ── State ─────────────────────────────────────────────────────────────────
-        const state = new Map();   // url → AuditProgress
-        let selectedUrl = null;
+        const S = new Map();   // url → AuditProgress
+        const shots = new Map();   // url → { profileId: base64 }
+        let selUrl = null;
+        let selTab = null;
         let filterMode = 'all';
-        let searchQuery = '';
         let totalUrls = 0;
+        let profiles = [];
+
+        // ── Utils ─────────────────────────────────────────────────────────────────
+        const pathOf = url => { try { return new URL(url).pathname || '/'; } catch { return url; } };
+        const fmtMs = ms => ms ? ms.toLocaleString() + 'ms' : '–';
+        const fmtCls = v => (v !== undefined && v !== null) ? v.toFixed(3) : '–';
+        const gcol = g => g === 'good' ? 'var(--good)' : g === 'warn' ? 'var(--warn)' : g === 'poor' ? 'var(--poor)' : 'var(--muted)';
+        const vgrade = (v, good, warn) => v === undefined ? '' : v <= good ? 'good' : v <= warn ? 'warn' : 'poor';
+        const lcpG = ms => !ms ? 'poor' : ms <= 2500 ? 'good' : ms <= 4000 ? 'warn' : 'poor';
+        const bestLcp = p => { const l = (p.results ?? []).map(r => r.vitals?.lcp).filter(Boolean); return l.length ? Math.min(...l) : undefined; };
 
         // ── WebSocket ─────────────────────────────────────────────────────────────
-        function updateLiveVitals(v) {
-            const el = document.getElementById('live-vitals');
-            if (!el) return;
-            const items = [
-                { label: 'LCP', val: v.lcp, fmt: ms => ms ? ms.toLocaleString() + 'ms' : '…', good: 2500, warn: 4000 },
-                { label: 'CLS', val: v.cls, fmt: v => v !== undefined ? v.toFixed(3) : '…', good: 0.1, warn: 0.25 },
-                { label: 'FCP', val: v.fcp, fmt: ms => ms ? ms.toLocaleString() + 'ms' : '…', good: 1800, warn: 3000 },
-                { label: 'TTFB', val: v.ttfb, fmt: ms => ms ? ms.toLocaleString() + 'ms' : '…', good: 800, warn: 1800 },
-            ];
-            el.innerHTML = items.map(it => {
-                const color = it.val === undefined ? 'var(--muted)'
-                    : it.val <= it.good ? 'var(--good)'
-                        : it.val <= it.warn ? 'var(--warn)'
-                            : 'var(--poor)';
-                return `<div style="background:var(--s1);border:1px solid var(--border);border-radius:8px;padding:10px 14px;min-width:100px">
-      <div style="font-size:10px;text-transform:uppercase;letter-spacing:0.1em;color:var(--muted)">${it.label}</div>
-      <div style="font-family:var(--mono);font-size:18px;font-weight:600;color:${color};margin-top:4px">${it.fmt(it.val)}</div>
-    </div>`;
-            }).join('');
-        }
-
         function connect() {
             const ws = new WebSocket(`ws://${location.host}`);
-
-            ws.onopen = () => {
-                document.getElementById('connecting-msg').textContent = 'Connected — waiting for audit';
-            };
-
-            ws.onmessage = (e) => {
-                const msg = JSON.parse(e.data);
-
-                if (msg.type === 'urls') {
-                    totalUrls = msg.urls.length;
-                    for (const url of msg.urls) {
-                        state.set(url, { url, status: 'pending' });
-                    }
+            ws.onopen = () => document.getElementById('cm').textContent = 'Connected — waiting for audit';
+            ws.onmessage = e => {
+                const m = JSON.parse(e.data);
+                if (m.type === 'init' || m.type === 'urls') {
+                    if (m.profiles) profiles = m.profiles;
+                    if (m.urls) { totalUrls = m.urls.length; m.urls.forEach(u => S.set(u, { url: u, status: 'pending' })); }
+                    if (m.progress) m.progress.forEach(p => S.set(p.url, p));
                     renderAll();
                 }
-
-                if (msg.type === 'init') {
-                    for (const p of msg.progress) {
-                        state.set(p.url, p);
-                    }
-                    if (state.size) renderAll();
-                }
-
-                if (msg.type === 'progress') {
-                    const p = msg.progress;
-                    state.set(p.url, p);
-                    updateRow(p.url);
-                    updateHeader();
-                    if (selectedUrl === p.url) renderDetail(p.url);
-                }
-
-                if (msg.type === 'screenshot') {
-                    // Only update if this URL is currently selected and still running
-                    if (selectedUrl === msg.url) {
+                if (m.type === 'progress') { S.set(m.progress.url, m.progress); updateRow(m.progress.url); updateHdr(); if (selUrl === m.progress.url) renderDetail(selUrl); }
+                if (m.type === 'screenshot') {
+                    const ex = shots.get(m.url) ?? {}; ex[m.profileId] = m.png; shots.set(m.url, ex);
+                    if (selUrl === m.url && selTab === m.profileId) {
                         const img = document.getElementById('live-img');
-                        if (img) {
-                            img.src = 'data:image/jpeg;base64,' + msg.png;
-                            img.style.opacity = '1';
-                        }
-                        // Show any vitals that have arrived so far
-                        const p = state.get(msg.url);
-                        if (p?.result?.vitals) updateLiveVitals(p.result.vitals);
+                        if (img) { img.src = 'data:image/jpeg;base64,' + m.png; img.style.opacity = '1'; }
                     }
                 }
-
-                if (msg.type === 'done') {
-                    updateHeader();
-                    // Show done banner in detail if nothing selected
-                    if (!selectedUrl) {
-                        document.getElementById('detail').innerHTML = `
-          <div style="padding:24px">
-            <div class="done-banner show">
-              ✅ Audit complete — ${msg.total} pages processed.
-              <a href="/report.html" target="_blank" style="margin-left:auto">Open full report →</a>
-            </div>
-          </div>`;
-                    }
-                }
+                if (m.type === 'done') { updateHdr(); if (!selUrl) document.getElementById('detail').innerHTML = '<div class="de"><div class="big">✅</div><div>Audit complete</div></div>'; }
             };
-
-            ws.onclose = () => {
-                setTimeout(connect, 2000);
-            };
+            ws.onclose = () => setTimeout(connect, 2000);
         }
         connect();
 
-        // ── Rendering helpers ─────────────────────────────────────────────────────
-        function lcpColor(ms) {
-            if (!ms) return 'var(--muted)';
-            return ms <= 2500 ? 'var(--good)' : ms <= 4000 ? 'var(--warn)' : 'var(--poor)';
+        // ── Sidebar ───────────────────────────────────────────────────────────────
+        function pdots(p) {
+            if (!profiles.length) return '';
+            return '<div class="rp">' + profiles.map(pr => {
+                const r = p.results?.find(r => r.profile?.id === pr.id);
+                const cls = r ? lcpG(r.vitals?.lcp) : (p.status === 'running' ? 'running' : '');
+                return `<span class="rd ${cls}" title="${pr.label}"></span>`;
+            }).join('') + '</div>';
         }
-        function lcpGrade(ms) {
-            if (!ms) return '';
-            return ms <= 2500 ? 'good' : ms <= 4000 ? 'needs work' : 'poor';
+        function mkRow(p) {
+            const lcp = bestLcp(p);
+            const lc = lcp ? gcol(lcpG(lcp)) : 'var(--muted)';
+            return `<div class="ur ${p.status}" data-url="${p.url}" onclick="sel(this.dataset.url)">
+    <span class="sd ${p.status}"></span>
+    <span class="up" title="${p.url}">${pathOf(p.url)}</span>
+    ${pdots(p)}
+    ${lcp ? `<span style="font-family:var(--mono);font-size:9px;color:${lc};flex-shrink:0">${fmtMs(lcp)}</span>` : ''}
+  </div>`;
         }
-        function gradeClass(g) {
-            return g === 'good' ? 'grade-good' : g === 'needs work' ? 'grade-warn' : 'grade-poor';
-        }
-        function vitalGrade(val, good, warn) {
-            if (val === undefined || val === null) return '';
-            return val <= good ? 'good' : val <= warn ? 'needs work' : 'poor';
-        }
-
-        function pathOf(url) {
-            try { return new URL(url).pathname || '/'; } catch { return url; }
-        }
-        function fmtMs(ms) {
-            if (!ms && ms !== 0) return '–';
-            return ms.toLocaleString() + 'ms';
-        }
-        function fmtCLS(v) {
-            if (v === undefined || v === null) return '–';
-            return v.toFixed(3);
-        }
-
-        function makeRow(p) {
-            const lcp = p.result?.vitals?.lcp;
-            const path = pathOf(p.url);
-            const lcpStr = lcp ? fmtMs(lcp) : '';
-            return `
-    <div class="url-row ${p.status}" data-url="${p.url}" onclick="selectUrl('${CSS.escape(p.url)}')">
-      <span class="url-status-dot dot-${p.status}"></span>
-      <span class="url-path" title="${p.url}">${path}</span>
-      ${lcp ? `<span class="url-lcp" style="color:${lcpColor(lcp)}">${lcpStr}</span>` : ''}
-    </div>`;
-        }
-
         function renderAll() {
-            const list = document.getElementById('url-list');
-            list.innerHTML = [...state.values()].map(makeRow).join('');
-            applyFilter();
-            updateHeader();
-            if (state.size && !selectedUrl) {
-                document.getElementById('detail').innerHTML = `
-      <div class="detail-empty">
-        <div class="big">📡</div>
-        <div style="color:var(--text)">Audit running — click any URL to inspect</div>
-      </div>`;
-            }
+            document.getElementById('ul').innerHTML = [...S.values()].map(mkRow).join('');
+            applyFilter(); updateHdr();
+            if (S.size && !selUrl) document.getElementById('detail').innerHTML = '<div class="de"><div class="big">📡</div><div style="color:var(--text)">Click any URL to inspect</div></div>';
         }
-
         function updateRow(url) {
-            const p = state.get(url);
-            if (!p) return;
-            const existing = document.querySelector(`.url-row[data-url="${CSS.escape(url)}"]`);
-            const newHtml = makeRow(p);
-            if (existing) {
-                const tmp = document.createElement('div');
-                tmp.innerHTML = newHtml;
-                const newRow = tmp.firstElementChild;
-                if (selectedUrl === url) newRow.classList.add('selected');
-                existing.replaceWith(newRow);
-                newRow.addEventListener('click', () => selectUrl(url));
-            } else {
-                // Append if not yet in list
-                const list = document.getElementById('url-list');
-                const tmp = document.createElement('div');
-                tmp.innerHTML = newHtml;
-                list.appendChild(tmp.firstElementChild);
-            }
-            applyFilter();
+            const p = S.get(url);
+            const el = document.querySelector(`.ur[data-url="${CSS.escape(url)}"]`);
+            if (!el) { document.getElementById('ul').insertAdjacentHTML('beforeend', mkRow(p)); return; }
+            const t = document.createElement('div'); t.innerHTML = mkRow(p);
+            const nr = t.firstElementChild;
+            if (selUrl === url) nr.classList.add('selected');
+            el.replaceWith(nr); applyFilter();
         }
-
-        function updateHeader() {
-            const vals = [...state.values()];
-            const done = vals.filter(p => p.status === 'done').length;
-            const failed = vals.filter(p => p.status === 'failed').length;
-            const running = vals.filter(p => p.status === 'running').length;
-            const total = totalUrls || state.size;
-            const pct = total ? ((done + failed) / total * 100).toFixed(1) : 0;
-
-            document.getElementById('hd-done').textContent = `${done} done`;
-            document.getElementById('hd-failed').textContent = `${failed} failed`;
-            document.getElementById('hd-running').textContent = `${running} running`;
-            document.getElementById('hd-total').textContent = `${done + failed} / ${total}`;
-            document.getElementById('progress-bar').style.width = pct + '%';
+        function updateHdr() {
+            const v = [...S.values()];
+            const done = v.filter(p => p.status === 'done').length;
+            const fail = v.filter(p => p.status === 'failed').length;
+            const run = v.filter(p => p.status === 'running').length;
+            const tot = totalUrls || S.size;
+            document.getElementById('hd').textContent = `${done} done`;
+            document.getElementById('hf').textContent = `${fail} failed`;
+            document.getElementById('hr').textContent = `${run} running`;
+            document.getElementById('ht').textContent = `${done + fail}/${tot}`;
+            document.getElementById('pb').style.width = tot ? ((done + fail) / tot * 100).toFixed(1) + '%' : '0%';
         }
-
-        // ── Filter / search ───────────────────────────────────────────────────────
-        function setFilter(mode, btn) {
-            filterMode = mode;
-            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            applyFilter();
-        }
-
+        function setFilter(m, btn) { filterMode = m; document.querySelectorAll('.fb').forEach(b => b.classList.remove('active')); btn.classList.add('active'); applyFilter(); }
         function applyFilter() {
-            searchQuery = document.getElementById('search').value.toLowerCase();
-            document.querySelectorAll('.url-row').forEach(row => {
-                const url = row.dataset.url;
-                const p = state.get(url);
-                if (!p) return;
-
-                const matchSearch = !searchQuery || url.toLowerCase().includes(searchQuery);
-                let matchFilter = true;
-
-                if (filterMode === 'running') matchFilter = p.status === 'running';
-                if (filterMode === 'failed') matchFilter = p.status === 'failed';
-                if (filterMode === 'poor') {
-                    const lcp = p.result?.vitals?.lcp;
-                    matchFilter = (lcp && lcp > 4000) || p.status === 'failed';
-                }
-
-                row.style.display = matchSearch && matchFilter ? '' : 'none';
+            const q = document.getElementById('search').value.toLowerCase();
+            document.querySelectorAll('.ur').forEach(row => {
+                const url = row.dataset.url; const p = S.get(url); if (!p) return;
+                const ms = !q || url.toLowerCase().includes(q);
+                let mf = true;
+                if (filterMode === 'running') mf = p.status === 'running';
+                if (filterMode === 'failed') mf = p.status === 'failed';
+                if (filterMode === 'poor') { const l = bestLcp(p); mf = (!!l && l > 4000) || p.status === 'failed'; }
+                row.style.display = ms && mf ? '' : 'none';
             });
         }
 
-        // ── Detail panel ──────────────────────────────────────────────────────────
-        function selectUrl(url) {
-            selectedUrl = url;
-            document.querySelectorAll('.url-row').forEach(r => r.classList.remove('selected'));
-            const row = document.querySelector(`.url-row[data-url="${CSS.escape(url)}"]`);
-            if (row) row.classList.add('selected');
+        // ── Detail ────────────────────────────────────────────────────────────────
+        function sel(url) {
+            selUrl = url;
+            document.querySelectorAll('.ur').forEach(r => r.classList.remove('selected'));
+            const row = document.querySelector(`.ur[data-url="${CSS.escape(url)}"]`);
+            if (row) { row.classList.add('selected'); row.scrollIntoView({ block: 'nearest' }); }
+            const p = S.get(url);
+            selTab = p?.results?.[0]?.profile?.id ?? (profiles[0]?.id ?? null);
             renderDetail(url);
         }
+        function selTab2(id) { selTab = id; renderDetail(selUrl); }
 
+        // ── Device frame builders ─────────────────────────────────────────────────
+        function frameHtml(profile, imgId, hasShot, url) {
+            const ft = profile.frameType ?? 'desktop';
+            const imgSrc = hasShot ? `data:image/jpeg;base64,${hasShot}` : '';
+            const imgOpacity = hasShot ? '1' : '0';
+            const shimmer = !hasShot ? '<div class="loading-shimmer"></div>' : '';
+            const liveBadge = `<div class="live-overlay"><div class="live-badge"><span class="live-dot"></span>LIVE</div>${shimmer}</div>`;
+
+            if (ft === 'iphone') {
+                return `
+    <div class="frame-area">
+      <div class="frame-phone">
+        <div class="iphone-body">
+          <div class="iphone-notch"><div class="iphone-cam"></div></div>
+          <div class="iphone-screen" style="position:relative">
+            <img id="${imgId}" src="${imgSrc}" style="opacity:${imgOpacity}">
+            ${liveBadge}
+          </div>
+          <div class="iphone-bar"></div>
+        </div>
+        <div class="iphone-side-btn"></div>
+      </div>
+    </div>`;
+            }
+
+            if (ft === 'android') {
+                return `
+    <div class="frame-area">
+      <div class="frame-phone">
+        <div class="android-body">
+          <div class="android-cam"></div>
+          <div class="android-screen" style="position:relative">
+            <img id="${imgId}" src="${imgSrc}" style="opacity:${imgOpacity}">
+            ${liveBadge}
+          </div>
+          <div class="android-nav">
+            <span>◀</span><span>⏺</span><span>▮▮</span>
+          </div>
+        </div>
+      </div>
+    </div>`;
+            }
+
+            // desktop / macbook — Windows Chrome style
+            const shortUrl = url.replace(/^https?:\/\//, '').slice(0, 55);
+            const domain = (() => { try { return new URL(url).hostname; } catch { return url; } })();
+            const isMac = ft === 'macbook';
+            if (isMac) {
+                // macOS Safari — keep traffic lights but use Safari toolbar
+                return `
+    <div class="frame-desktop">
+      <div class="browser-chrome" style="background:#1e2028;padding:0">
+        <div style="display:flex;align-items:center;gap:6px;padding:7px 12px;border-bottom:1px solid #3a3d4a">
+          <div style="display:flex;gap:5px">
+            <span style="width:10px;height:10px;border-radius:50%;background:#ff5f57;display:block"></span>
+            <span style="width:10px;height:10px;border-radius:50%;background:#febc2e;display:block"></span>
+            <span style="width:10px;height:10px;border-radius:50%;background:#28c840;display:block"></span>
+          </div>
+          <div style="flex:1;background:#2a2d38;border-radius:5px;font-family:var(--mono);font-size:9px;
+            color:rgba(255,255,255,.5);padding:3px 10px;text-align:center;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+            🔒 ${shortUrl}
+          </div>
+        </div>
+      </div>
+      <div class="screen" style="position:relative">
+        <img id="${imgId}" src="${imgSrc}" style="opacity:${imgOpacity}">
+        ${liveBadge}
+      </div>
+      <div class="stand"></div>
+    </div>`;
+            }
+            // Windows Chrome
+            return `
+    <div class="frame-desktop">
+      <div class="browser-chrome">
+        <div class="win-tabbar">
+          <div class="win-tab">
+            <div class="win-tab-favicon"></div>
+            <span class="win-tab-title">${domain}</span>
+            <span class="win-tab-close">✕</span>
+          </div>
+          <div style="flex:1"></div>
+          <div style="display:flex;gap:0;margin-bottom:0">
+            <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;color:rgba(255,255,255,.4)">─</span>
+            <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.4)">⬜</span>
+            <span style="width:28px;height:28px;display:flex;align-items:center;justify-content:center;font-size:12px;color:rgba(255,255,255,.4);border-radius:0 6px 0 0">✕</span>
+          </div>
+        </div>
+        <div class="win-toolbar">
+          <div class="win-navbtns">
+            <span>‹</span><span>›</span><span style="font-size:9px">↻</span>
+          </div>
+          <div class="win-urlbar">
+            <span class="win-urlbar-lock">🔒</span>
+            <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${shortUrl}</span>
+          </div>
+        </div>
+      </div>
+      <div class="screen" style="position:relative">
+        <img id="${imgId}" src="${imgSrc}" style="opacity:${imgOpacity}">
+        ${liveBadge}
+      </div>
+    </div>`;
+        }
+
+        // ── Render detail ─────────────────────────────────────────────────────────
         function renderDetail(url) {
-            const p = state.get(url);
-            if (!p) return;
+            if (!url) return;
+            const p = S.get(url); if (!p) return;
             const detail = document.getElementById('detail');
 
             if (p.status === 'pending') {
-                detail.innerHTML = `
-      <div class="detail-empty">
-        <div class="big">⏳</div>
-        <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">${url}</div>
-        <div>Queued — waiting to start</div>
-      </div>`;
+                detail.innerHTML = `<div class="di"><div class="de" style="height:60vh"><div class="big">⏳</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted)">${url}</div><div>Queued</div></div></div>`;
                 return;
             }
 
-            if (p.status === 'running') {
-                detail.innerHTML = `
-      <div class="detail-url" style="margin-bottom:14px">
-        <a href="${url}" target="_blank" rel="noopener">${url}</a>
-      </div>
-      <div class="live-preview" id="live-preview-wrap">
-        <img id="live-img" src="" alt="" style="opacity:0;min-height:200px">
-        <div class="live-badge"><span class="live-dot"></span> LIVE</div>
-        <div class="live-url-label" id="live-url-label">${url}</div>
-      </div>
-      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:16px" id="live-vitals"></div>
-      <div style="color:var(--muted);font-size:12px;font-family:var(--mono);text-align:center;padding:8px 0">
-        ⏳ Capturing screenshots every 800ms…
-      </div>`;
-                return;
+            const profs = profiles.length ? profiles : (p.results ?? []).map(r => r.profile).filter(Boolean);
+            const activeId = selTab ?? profs[0]?.id;
+            const activeResult = p.results?.find(r => r.profile?.id === activeId);
+            const activeProfile = profs.find(pr => pr.id === activeId);
+
+            // Tabs
+            const tabsHtml = profs.map(pr => {
+                const res = p.results?.find(r => r.profile?.id === pr.id);
+                const grade = res ? lcpG(res.vitals?.lcp) : (p.status === 'running' ? 'running' : '');
+                const active = activeId === pr.id ? 'active' : '';
+                const eng = res?.engine ? `<span class="dtab-eng">${res.engine}</span>` : '';
+                return `<div class="dtab ${active}" onclick="selTab2('${pr.id}')">${pr.icon} ${pr.label}${eng}<span class="dtab-dot ${grade}"></span></div>`;
+            }).join('');
+
+            // Compare bar
+            const allLcps = (p.results ?? []).map(r => r.vitals?.lcp ?? 0);
+            const maxLcp = Math.max(...allLcps, 1);
+            const cmpHtml = profs.map(pr => {
+                const res = p.results?.find(r => r.profile?.id === pr.id);
+                const lcp = res?.vitals?.lcp ?? 0;
+                const g = lcpG(lcp);
+                const pct = lcp ? (lcp / maxLcp * 100).toFixed(1) : 0;
+                return `<div class="cmprow">
+      <span class="cmplbl">${pr.icon} ${pr.label}</span>
+      <div class="cmptrack"><div class="cmpfill" style="width:${pct}%;background:${gcol(g)}"></div></div>
+      <span class="cmpval" style="color:${gcol(g)}">${fmtMs(lcp)}</span>
+    </div>`;
+            }).join('');
+
+            // Active tab content
+            const isLive = !activeResult && p.status === 'running';
+            const urlShots = shots.get(url) ?? {};
+            const curShot = urlShots[activeId];
+
+            let frameSection = '';
+            if (activeProfile && (isLive || (activeResult && curShot))) {
+                frameSection = frameHtml(activeProfile, 'live-img', curShot || null, url);
             }
 
-            const r = p.result;
-            if (!r) return;
-            const v = r.vitals ?? {};
+            let tabContent = '';
 
-            // Vitals
-            const vitals = [
-                { label: 'LCP', val: v.lcp, fmt: fmtMs, good: 2500, warn: 4000, unit: 'Largest Contentful Paint' },
-                { label: 'CLS', val: v.cls, fmt: fmtCLS, good: 0.1, warn: 0.25, unit: 'Cumulative Layout Shift' },
-                { label: 'FCP', val: v.fcp, fmt: fmtMs, good: 1800, warn: 3000, unit: 'First Contentful Paint' },
-                { label: 'TTFB', val: v.ttfb, fmt: fmtMs, good: 800, warn: 1800, unit: 'Time To First Byte' },
-                { label: 'Load', val: v.totalTime, fmt: fmtMs, good: 3000, warn: 6000, unit: 'Total Load Time' },
-            ];
-
-            const vitalsHtml = vitals.map(vt => {
-                const grade = vt.val !== undefined ? vitalGrade(vt.val, vt.good, vt.warn) : '';
-                const color = grade === 'good' ? 'var(--good)' : grade === 'needs work' ? 'var(--warn)' : grade === 'poor' ? 'var(--poor)' : 'var(--muted)';
-                return `
-      <div class="vital-card">
-        <div class="vital-label">${vt.label}</div>
-        <div class="vital-value" style="color:${color}">${vt.fmt(vt.val)}</div>
-        <div class="vital-unit">${vt.unit}</div>
-        ${grade ? `<div class="vital-grade ${gradeClass(grade)}">${grade}</div>` : ''}
-      </div>`;
-            }).join('');
-
-            // API table
-            const apis = r.apiCalls ?? [];
-            const ssrCount = apis.filter(a => a.type === 'ssr').length;
-            const csrCount = apis.filter(a => a.type === 'csr').length;
-
-            const apiRows = apis.map(a => {
-                const tag = a.type === 'ssr'
-                    ? '<span class="tag tag-ssr">SSR</span>'
-                    : '<span class="tag tag-csr">CSR</span>';
-                const st = a.status
-                    ? `<span class="${a.status >= 400 ? 'status-err' : 'status-ok'}">${a.status}</span>`
-                    : '<span style="color:var(--muted);font-family:var(--mono);font-size:11px">–</span>';
-                const msColor = a.duration <= 300 ? 'var(--good)' : a.duration <= 1000 ? 'var(--warn)' : 'var(--poor)';
-                const timing = a.serverTiming ? `<span class="server-timing">${a.serverTiming}</span>` : '';
-                return `
-      <tr>
-        <td class="col-type">${tag}</td>
-        <td class="col-url td-url" title="${a.url}">${a.url}</td>
-        <td class="col-status" style="text-align:center">${st}</td>
-        <td class="col-time td-dur" style="color:${msColor}">${fmtMs(a.duration)}</td>
-        <td class="col-st">${timing}</td>
-      </tr>`;
-            }).join('');
-
-            // Errors
-            const errorsHtml = r.errors?.length ? `
-    <div class="section">
-      <div class="section-hd" style="border-color:rgba(240,67,90,0.3)">
-        Console errors
-        <span class="meta">${r.errors.length}</span>
+            if (isLive) {
+                tabContent = `
+      ${frameSection}
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-bottom:14px">
+        ${['LCP', 'CLS', 'FCP', 'TTFB'].map(l => `<div class="vc"><div class="vl">${l}</div><div class="vv" style="color:var(--muted)">…</div></div>`).join('')}
       </div>
-      <div class="error-list">
-        ${r.errors.map(e => `<div class="error-item">${e}</div>`).join('')}
-      </div>
-    </div>` : '';
+      <div style="color:var(--muted);font-size:10px;font-family:var(--mono);text-align:center;padding:6px">Capturing every 800ms…</div>`;
 
-            // Video
-            const videoHtml = r.videoPath ? `
-    <div class="section">
-      <div class="section-hd">Page recording</div>
-      <div class="video-wrap">
-        <video controls preload="metadata">
-          <source src="/videos/${encodeURIComponent(r.videoPath.split(/[/\\]/).pop())}" type="video/webm">
-        </video>
-      </div>
-    </div>` : '';
+            } else if (activeResult) {
+                const v = activeResult.vitals ?? {};
+                const vi = [
+                    { l: 'LCP', v: v.lcp, f: fmtMs, g: 2500, w: 4000, s: 'Largest Contentful Paint' },
+                    { l: 'CLS', v: v.cls, f: fmtCls, g: .1, w: .25, s: 'Cumulative Layout Shift' },
+                    { l: 'FCP', v: v.fcp, f: fmtMs, g: 1800, w: 3000, s: 'First Contentful Paint' },
+                    { l: 'TTFB', v: v.ttfb, f: fmtMs, g: 800, w: 1800, s: 'Time To First Byte' },
+                    { l: 'Load', v: v.totalTime, f: fmtMs, g: 3000, w: 6000, s: 'Total Load Time' },
+                ];
+                const vhtml = vi.map(it => {
+                    const gr = it.v !== undefined ? vgrade(it.v, it.g, it.w) : '';
+                    const c = gcol(gr);
+                    return `<div class="vc"><div class="vl">${it.l}</div><div class="vv" style="color:${c}">${it.f(it.v)}</div><div class="vs">${it.s}</div>${gr ? `<div class="vgrade g${gr[0]}">${gr}</div>` : ''}</div>`;
+                }).join('');
 
-            const httpBadge = r.status
-                ? `<span class="${r.status >= 400 ? 'http-err' : 'http-ok'}">${r.status}</span>`
-                : '';
+                const apis = activeResult.apiCalls ?? [];
+                const ssrN = apis.filter(a => a.type === 'ssr').length;
+                const csrN = apis.filter(a => a.type === 'csr').length;
+                const arows = apis.map(a => {
+                    const tag = a.type === 'ssr' ? '<span class="tag ssr">SSR</span>' : '<span class="tag csr">CSR</span>';
+                    const st = a.status ? `<span class="${a.status >= 400 ? 'serr' : 'sok'}">${a.status}</span>` : '<span style="color:var(--muted)">–</span>';
+                    const mc = a.duration <= 300 ? 'var(--good)' : a.duration <= 1000 ? 'var(--warn)' : 'var(--poor)';
+                    const stxt = a.serverTiming ? `<span class="stxt">${a.serverTiming}</span>` : '';
+                    return `<tr><td class="ct">${tag}</td><td class="cu tdu" title="${a.url}">${a.url}</td><td class="cs" style="text-align:center">${st}</td><td class="cm" style="text-align:right;font-family:var(--mono);color:${mc}">${fmtMs(a.duration)}</td><td class="cst">${stxt}</td></tr>`;
+                }).join('');
 
-            detail.innerHTML = `
-    <div class="detail-url">
-      <a href="${r.url}" target="_blank" rel="noopener">${r.url}</a>
-      ${httpBadge}
-    </div>
+                const errHtml = activeResult.errors?.length ? `
+      <div class="sec"><div class="sechd" style="border-color:rgba(240,67,90,.3)">Console errors<span class="meta">${activeResult.errors.length}</span></div>
+      <div class="erl">${activeResult.errors.map(e => `<div class="eri">${e}</div>`).join('')}</div></div>` : '';
 
-    ${r.error ? `<div class="error-banner">⚠ ${r.error}</div>` : ''}
+                const vidFile = activeResult.videoPath ? activeResult.videoPath.split(/[/\\]/).pop() : null;
+                const vidMime = vidFile?.endsWith('.mp4') ? 'video/mp4' : 'video/webm';
+                const vidHtml = vidFile ? `
+      <div class="sec"><div class="sechd">Page recording <span class="meta">${vidMime}</span></div>
+      <div class="vwrap"><video controls preload="metadata">
+        <source src="/videos/${encodeURIComponent(vidFile)}" type="${vidMime}">
+        Your browser does not support this video format.
+      </video></div></div>` : '';
 
-    <div class="vitals-grid">${vitalsHtml}</div>
+                const hb = activeResult.status ? `<span class="${activeResult.status >= 400 ? 'herr' : 'hok'}">${activeResult.status}</span>` : '';
 
-    ${apis.length ? `
-    <div class="section">
-      <div class="section-hd">
-        API calls
-        <span class="meta">
-          ${ssrCount ? `SSR: ${ssrCount}` : ''}
-          ${ssrCount && csrCount ? ' · ' : ''}
-          ${csrCount ? `CSR: ${csrCount}` : ''}
-        </span>
-      </div>
-      <div class="api-table-wrap">
-        <table>
-          <thead><tr>
-            <th class="col-type">Type</th>
-            <th class="col-url">URL</th>
-            <th class="col-status">Status</th>
-            <th class="col-time">Time</th>
-            <th class="col-st">Server-Timing</th>
-          </tr></thead>
-          <tbody>${apiRows}</tbody>
-        </table>
-      </div>
-    </div>` : ''}
+                tabContent = `
+      ${activeResult.error ? `<div class="errb">⚠ ${activeResult.error}</div>` : ''}
+      ${frameSection}
+      <div class="vg">${vhtml}</div>
+      ${apis.length ? `<div class="sec"><div class="sechd">API calls<span class="meta">SSR:${ssrN} · CSR:${csrN}</span></div>
+      <div class="tbwrap"><table><thead><tr><th class="ct">Type</th><th class="cu">URL</th><th class="cs">Status</th><th class="cm">Time</th><th class="cst">Server-Timing</th></tr></thead>
+      <tbody>${arows}</tbody></table></div></div>` : ''}
+      ${errHtml}${vidHtml}`;
+            } else {
+                tabContent = `<div style="color:var(--muted);text-align:center;padding:40px;font-size:11px">No data yet</div>`;
+            }
 
-    ${errorsHtml}
-    ${videoHtml}`;
+            detail.innerHTML = `<div class="di">
+    <div class="durl"><a href="${url}" target="_blank" rel="noopener">${url}</a></div>
+    <div class="dtabs">${tabsHtml}</div>
+    ${profs.length > 1 && p.results?.length ? `<div class="sec" style="margin-bottom:14px">
+      <div class="sechd">LCP across devices</div>
+      <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 7px 7px;padding:10px 14px">
+        <div class="cmpbar">${cmpHtml}</div>
+      </div></div>`: ''}
+    ${tabContent}
+  </div>`;
         }
     </script>
 </body>
