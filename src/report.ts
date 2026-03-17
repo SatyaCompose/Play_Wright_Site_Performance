@@ -1,139 +1,165 @@
-import type { PageResult, ApiCall } from "./types";
+import type { PageResult, ApiCall, DeviceProfile } from "./types.js";
 
-// ── Scoring thresholds (Google CWV) ─────────────────────────────────────────
-function lcpScore(ms: number): "good" | "needs-improvement" | "poor" {
-  if (ms <= 2500) return "good";
-  if (ms <= 4000) return "needs-improvement";
-  return "poor";
+// ── CWV thresholds ────────────────────────────────────────────────────────
+function grade(metric: string, val: number): "good" | "ni" | "poor" {
+  const thresholds: Record<string, [number, number]> = {
+    lcp: [2500, 4000],
+    fcp: [1800, 3000],
+    ttfb: [800, 1800],
+    cls: [0.1, 0.25],
+    load: [3000, 6000],
+  };
+  const [good, warn] = thresholds[metric] ?? [Infinity, Infinity];
+  return val <= good ? "good" : val <= warn ? "ni" : "poor";
 }
 
-function clsScore(score: number): "good" | "needs-improvement" | "poor" {
-  if (score <= 0.1) return "good";
-  if (score <= 0.25) return "needs-improvement";
-  return "poor";
-}
-
-function ttfbScore(ms: number): "good" | "needs-improvement" | "poor" {
-  if (ms <= 800) return "good";
-  if (ms <= 1800) return "needs-improvement";
-  return "poor";
-}
-
-function fcpScore(ms: number): "good" | "needs-improvement" | "poor" {
-  if (ms <= 1800) return "good";
-  if (ms <= 3000) return "needs-improvement";
-  return "poor";
-}
-
-const SCORE_COLOR: Record<string, string> = {
-  good: "#0cce6b",
-  "needs-improvement": "#ffa400",
-  poor: "#ff4e42",
+const GRADE_COLOR = { good: "#0cce6b", ni: "#ffa400", poor: "#ff4e42" };
+const GRADE_BG = {
+  good: "rgba(12,206,107,.1)",
+  ni: "rgba(255,164,0,.1)",
+  poor: "rgba(255,78,66,.1)",
 };
+const GRADE_LABEL = { good: "Good", ni: "Needs work", poor: "Poor" };
 
-const SCORE_BG: Record<string, string> = {
-  good: "rgba(12,206,107,0.1)",
-  "needs-improvement": "rgba(255,164,0,0.1)",
-  poor: "rgba(255,78,66,0.1)",
-};
-
-function badge(
-  label: string,
-  value: string | number,
-  grade: "good" | "needs-improvement" | "poor"
-) {
-  return `<span class="badge" style="background:${SCORE_BG[grade]};border:1px solid ${SCORE_COLOR[grade]};color:${SCORE_COLOR[grade]}">${label}: ${value}</span>`;
+function gradeColor(metric: string, val: number | undefined): string {
+  if (val === undefined || val === null) return "#6b7280";
+  return GRADE_COLOR[grade(metric, val)];
 }
 
-function fmt(n: number | undefined, unit = "ms"): string {
-  if (n === undefined || n === 0) return "–";
-  return `${n.toLocaleString()}${unit}`;
+function fmt(n: number | undefined, dec = 0): string {
+  if (n === undefined || n === null) return "–";
+  return dec > 0 ? n.toFixed(dec) : n.toLocaleString() + "ms";
 }
 
-function apiRow(call: ApiCall): string {
-  const type =
-    call.type === "ssr"
-      ? `<span class="tag ssr">SSR</span>`
-      : `<span class="tag csr">CSR</span>`;
-  const status = call.status
-    ? `<span class="status ${call.status >= 400 ? "err" : "ok"}">${
-        call.status
-      }</span>`
-    : `<span class="status unknown">–</span>`;
-  const serverTiming = call.serverTiming
-    ? `<div class="server-timing">${call.serverTiming}</div>`
-    : "";
-  return `
-    <tr>
-      <td>${type}</td>
-      <td class="url-cell" title="${call.url}">${call.url}</td>
-      <td>${status}</td>
-      <td>${fmt(call.duration)}</td>
-      <td class="small">${serverTiming}</td>
+function fmtCls(n: number | undefined): string {
+  if (n === undefined || n === null) return "–";
+  return n.toFixed(3);
+}
+
+function badge(label: string, val: string, g: "good" | "ni" | "poor") {
+  return `<span style="background:${GRADE_BG[g]};border:1px solid ${GRADE_COLOR[g]};color:${GRADE_COLOR[g]};
+    padding:3px 9px;border-radius:5px;font-size:11px;font-weight:600;font-family:monospace">${label}: ${val}</span>`;
+}
+
+function apiRows(calls: ApiCall[]): string {
+  return calls
+    .map((c) => {
+      const type =
+        c.type === "ssr"
+          ? `<span style="background:rgba(108,99,255,.15);color:#7c6dff;border:1px solid rgba(108,99,255,.3);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">SSR</span>`
+          : `<span style="background:rgba(255,164,0,.1);color:#ffa400;border:1px solid rgba(255,164,0,.25);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">CSR</span>`;
+      const st = c.status
+        ? `<span style="color:${
+            c.status >= 400 ? "#ff4e42" : "#0cce6b"
+          };font-family:monospace;font-size:10px">${c.status}</span>`
+        : `<span style="color:#6b7280">–</span>`;
+      const dur = c.duration;
+      const durColor =
+        dur <= 300 ? "#0cce6b" : dur <= 1000 ? "#ffa400" : "#ff4e42";
+      const st_txt = c.serverTiming
+        ? `<div style="font-size:9px;color:#6b7280;font-family:monospace">${c.serverTiming}</div>`
+        : "";
+      return `<tr>
+      <td style="width:52px">${type}</td>
+      <td style="font-family:monospace;font-size:10px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${
+        c.url
+      }">${c.url}</td>
+      <td style="width:60px;text-align:center">${st}</td>
+      <td style="width:80px;text-align:right;font-family:monospace;color:${durColor}">${fmt(
+        dur
+      )}</td>
+      <td style="width:180px;font-size:9px">${st_txt}</td>
     </tr>`;
+    })
+    .join("");
 }
 
-function pageCard(page: PageResult, index: number): string {
-  const { url, vitals, apiCalls, errors, status, error, videoPath } = page;
-  const v = vitals ?? {};
+// ── Group results by URL, preserving device order ─────────────────────────
+interface UrlGroup {
+  url: string;
+  results: PageResult[];
+  worstLcp: number;
+}
 
-  const lcpG = v.lcp ? lcpScore(v.lcp) : "poor";
-  const clsG = v.cls !== undefined ? clsScore(v.cls) : "poor";
-  const ttfbG = v.ttfb ? ttfbScore(v.ttfb) : "poor";
-  const fcpG = v.fcp ? fcpScore(v.fcp) : "poor";
+function groupByUrl(results: PageResult[]): UrlGroup[] {
+  const map = new Map<string, PageResult[]>();
+  for (const r of results) {
+    if (!map.has(r.url)) map.set(r.url, []);
+    map.get(r.url)!.push(r);
+  }
+  return [...map.entries()].map(([url, rs]) => ({
+    url,
+    results: rs,
+    worstLcp: Math.max(...rs.map((r) => r.vitals?.lcp ?? 0)),
+  }));
+}
 
-  const hasError = !!error;
-  const ssrCalls = apiCalls.filter((a) => a.type === "ssr");
-  const csrCalls = apiCalls.filter((a) => a.type === "csr");
+// ── Per-device result card inside a URL group ─────────────────────────────
+function deviceCard(r: PageResult, idx: number, tabId: string): string {
+  const v = r.vitals ?? {};
+  const p = r.profile;
+  const ssr = (r.apiCalls ?? []).filter((a) => a.type === "ssr");
+  const csr = (r.apiCalls ?? []).filter((a) => a.type === "csr");
+  const avgSsr = ssr.length
+    ? Math.round(ssr.reduce((s, a) => s + a.duration, 0) / ssr.length)
+    : 0;
+  const avgCsr = csr.length
+    ? Math.round(csr.reduce((s, a) => s + a.duration, 0) / csr.length)
+    : 0;
 
-  const avgSsrTime = ssrCalls.length
-    ? Math.round(ssrCalls.reduce((s, a) => s + a.duration, 0) / ssrCalls.length)
-    : undefined;
-  const avgCsrTime = csrCalls.length
-    ? Math.round(csrCalls.reduce((s, a) => s + a.duration, 0) / csrCalls.length)
-    : undefined;
+  const videoFileName = r.videoPath ? r.videoPath.split(/[/\\]/).pop() : null;
+  const videoMime = videoFileName?.endsWith(".mp4")
+    ? "video/mp4"
+    : "video/webm";
 
-  return `
-  <div class="card ${hasError ? "card-error" : ""}" id="page-${index}">
-    <div class="card-header">
-      <div class="card-title">
-        <span class="page-num">#${index + 1}</span>
-        <a href="${url}" target="_blank" rel="noopener">${url}</a>
-        ${
-          status
-            ? `<span class="http-status ${
-                status >= 400 ? "err" : "ok"
-              }">${status}</span>`
-            : ""
-        }
-      </div>
-      <div class="card-time">${new Date(
-        page.auditedAt
-      ).toLocaleTimeString()}</div>
-    </div>
-
-    ${hasError ? `<div class="error-banner">⚠️ ${error}</div>` : ""}
-
-    <div class="vitals-row">
-      ${v.lcp !== undefined ? badge("LCP", fmt(v.lcp), lcpG) : ""}
-      ${v.cls !== undefined ? badge("CLS", v.cls.toFixed(3), clsG) : ""}
-      ${v.fcp !== undefined ? badge("FCP", fmt(v.fcp), fcpG) : ""}
-      ${v.ttfb !== undefined ? badge("TTFB", fmt(v.ttfb), ttfbG) : ""}
+  const vitalsHtml = [
+    { label: "LCP", metric: "lcp", val: v.lcp, fv: fmt(v.lcp) },
+    { label: "CLS", metric: "cls", val: v.cls, fv: fmtCls(v.cls) },
+    { label: "FCP", metric: "fcp", val: v.fcp, fv: fmt(v.fcp) },
+    { label: "TTFB", metric: "ttfb", val: v.ttfb, fv: fmt(v.ttfb) },
+    { label: "Load", metric: "load", val: v.totalTime, fv: fmt(v.totalTime) },
+  ]
+    .map(({ label, metric, val, fv }) => {
+      const g = val !== undefined ? grade(metric, val) : null;
+      const c = g ? GRADE_COLOR[g] : "#6b7280";
+      return `<div style="background:#18191f;border:1px solid #2a2d38;border-radius:8px;padding:12px 10px;min-width:0">
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#6b7280;margin-bottom:4px">${label}</div>
+      <div style="font-family:monospace;font-size:18px;font-weight:700;color:${c};line-height:1">${fv}</div>
       ${
-        v.totalTime !== undefined
-          ? `<span class="badge neutral">Load: ${fmt(v.totalTime)}</span>`
+        g
+          ? `<div style="font-size:9px;color:${c};margin-top:4px;font-weight:600;text-transform:uppercase">${GRADE_LABEL[g]}</div>`
           : ""
       }
+    </div>`;
+    })
+    .join("");
+
+  return `
+  <div class="dcard" id="dc-${tabId}" style="display:${
+    idx === 0 ? "block" : "none"
+  }">
+    ${
+      r.error
+        ? `<div style="background:rgba(255,78,66,.08);border:1px solid rgba(255,78,66,.25);border-radius:8px;padding:10px 14px;color:#ff4e42;font-size:12px;margin-bottom:14px;font-family:monospace">⚠ ${r.error}</div>`
+        : ""
+    }
+
+    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px">
+      ${vitalsHtml}
     </div>
 
     ${
-      videoPath
+      videoFileName
         ? `
-    <div class="video-row">
+    <div style="margin-bottom:16px">
       <details>
-        <summary>🎬 Page Recording</summary>
-        <video controls width="100%" style="margin-top:8px;border-radius:6px;">
-          <source src="${videoPath}" type="video/webm">
+        <summary style="cursor:pointer;font-size:12px;color:#7c6dff;padding:8px 0;user-select:none">🎬 Page Recording (${
+          p?.label ?? ""
+        })</summary>
+        <video controls preload="metadata" style="width:100%;border-radius:8px;background:#000;margin-top:8px;max-height:400px">
+          <source src="/videos/${encodeURIComponent(
+            videoFileName
+          )}" type="${videoMime}">
         </video>
       </details>
     </div>`
@@ -141,28 +167,37 @@ function pageCard(page: PageResult, index: number): string {
     }
 
     ${
-      apiCalls.length > 0
+      (r.apiCalls ?? []).length > 0
         ? `
-    <div class="api-section">
-      <div class="api-header">
-        <span>API Calls (${apiCalls.length})</span>
-        <span class="api-meta">
+    <div style="margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;
+        padding:8px 12px;background:#18191f;border:1px solid #2a2d38;border-radius:8px 8px 0 0;
+        font-size:12px;font-weight:600">
+        <span>API Calls (${r.apiCalls.length})</span>
+        <span style="font-family:monospace;font-size:10px;color:#6b7280">
           ${
-            ssrCalls.length
-              ? `SSR: ${ssrCalls.length} (avg ${fmt(avgSsrTime)})`
+            ssr.length
+              ? `SSR: ${ssr.length}${avgSsr ? ` · avg ${fmt(avgSsr)}` : ""}`
               : ""
           }
+          ${ssr.length && csr.length ? " · " : ""}
           ${
-            csrCalls.length
-              ? ` · CSR: ${csrCalls.length} (avg ${fmt(avgCsrTime)})`
+            csr.length
+              ? `CSR: ${csr.length}${avgCsr ? ` · avg ${fmt(avgCsr)}` : ""}`
               : ""
           }
         </span>
       </div>
-      <div class="table-wrap">
-        <table class="api-table">
-          <thead><tr><th>Type</th><th>URL</th><th>Status</th><th>Time</th><th>Server-Timing</th></tr></thead>
-          <tbody>${apiCalls.map(apiRow).join("")}</tbody>
+      <div style="border:1px solid #2a2d38;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
+        <table style="width:100%;border-collapse:collapse;table-layout:fixed">
+          <thead><tr style="background:#18191f">
+            <th style="padding:6px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;text-align:left;width:52px">Type</th>
+            <th style="padding:6px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;text-align:left">URL</th>
+            <th style="padding:6px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;text-align:center;width:60px">Status</th>
+            <th style="padding:6px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;text-align:right;width:80px">Time</th>
+            <th style="padding:6px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;text-align:left;width:180px">Server-Timing</th>
+          </tr></thead>
+          <tbody>${apiRows(r.apiCalls)}</tbody>
         </table>
       </div>
     </div>`
@@ -170,436 +205,413 @@ function pageCard(page: PageResult, index: number): string {
     }
 
     ${
-      errors.length > 0
+      (r.errors ?? []).length > 0
         ? `
-    <div class="errors-section">
-      <div class="errors-header">Console Errors (${errors.length})</div>
-      ${errors.map((e) => `<div class="error-line">${e}</div>`).join("")}
+    <div>
+      <div style="padding:8px 12px;background:rgba(255,78,66,.08);border:1px solid rgba(255,78,66,.3);
+        border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#ff4e42">
+        Console Errors (${r.errors.length})
+      </div>
+      <div style="border:1px solid rgba(255,78,66,.2);border-top:none;border-radius:0 0 8px 8px">
+        ${r.errors
+          .map(
+            (e) =>
+              `<div style="padding:5px 12px;font-family:monospace;font-size:10px;color:#ff8080;border-bottom:1px solid rgba(255,78,66,.1)">${e}</div>`
+          )
+          .join("")}
+      </div>
     </div>`
         : ""
     }
   </div>`;
 }
 
+// ── URL group card ────────────────────────────────────────────────────────
+function urlGroupCard(group: UrlGroup, groupIdx: number): string {
+  const { url, results } = group;
+
+  // Device tabs
+  const tabGroupId = `g${groupIdx}`;
+  const tabsHtml = results
+    .map((r, i) => {
+      const p = r.profile;
+      const lcp = r.vitals?.lcp;
+      const g = lcp !== undefined ? grade("lcp", lcp) : null;
+      const dot = g
+        ? `<span style="display:inline-block;width:6px;height:6px;border-radius:50%;background:${GRADE_COLOR[g]};margin-left:5px;vertical-align:middle"></span>`
+        : "";
+      const active = i === 0;
+      return `<button onclick="switchTab('${tabGroupId}',${i},${
+        results.length
+      })"
+      id="tab-${tabGroupId}-${i}"
+      style="padding:7px 14px;font-size:11px;font-weight:600;cursor:pointer;border:none;
+        border-bottom:2px solid ${active ? "#7c6dff" : "transparent"};
+        color:${active ? "#7c6dff" : "#6b7280"};background:transparent;
+        transition:all .15s;white-space:nowrap">
+      ${p?.icon ?? ""} ${p?.label ?? `Device ${i + 1}`}${dot}
+    </button>`;
+    })
+    .join("");
+
+  // Per-device vitals summary in the overview table row
+  const deviceVitals = results
+    .map((r) => {
+      const v = r.vitals ?? {};
+      const lcp = v.lcp;
+      const g = lcp !== undefined ? grade("lcp", lcp) : null;
+      return `<td style="padding:8px 10px;font-family:monospace;font-size:11px;color:${
+        g ? GRADE_COLOR[g] : "#6b7280"
+      }">${fmt(lcp)}</td>
+            <td style="padding:8px 10px;font-family:monospace;font-size:11px;color:${gradeColor(
+              "cls",
+              v.cls
+            )}">${fmtCls(v.cls)}</td>
+            <td style="padding:8px 10px;font-family:monospace;font-size:11px;color:${gradeColor(
+              "ttfb",
+              v.ttfb
+            )}">${fmt(v.ttfb)}</td>`;
+    })
+    .join("<td style='padding:8px 10px;color:#2a2d38'>|</td>");
+
+  const firstStatus = results[0]?.status;
+  const hasError = results.some((r) => !!r.error);
+
+  return `
+  <div class="url-card" id="ug-${groupIdx}" style="background:#111216;border:1px solid ${
+    hasError ? "rgba(255,78,66,.4)" : "#2a2d38"
+  };border-radius:12px;margin-bottom:16px;overflow:hidden">
+    <!-- Card header -->
+    <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid #2a2d38">
+      <span style="font-size:10px;font-family:monospace;color:#6b7280;background:#22242c;padding:2px 7px;border-radius:3px">#${
+        groupIdx + 1
+      }</span>
+      <a href="${url}" target="_blank" rel="noopener" style="color:#e2e4f0;font-family:monospace;font-size:12px;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${url}">${url}</a>
+      ${
+        firstStatus
+          ? `<span style="padding:2px 8px;border-radius:4px;font-family:monospace;font-size:10px;font-weight:700;${
+              firstStatus >= 400
+                ? "background:rgba(255,78,66,.1);color:#ff4e42;border:1px solid rgba(255,78,66,.25)"
+                : "background:rgba(12,206,107,.1);color:#0cce6b;border:1px solid rgba(12,206,107,.25)"
+            }">${firstStatus}</span>`
+          : ""
+      }
+      <span style="font-size:11px;color:#6b7280;font-family:monospace;flex-shrink:0">${new Date(
+        results[0]?.auditedAt
+      ).toLocaleTimeString()}</span>
+    </div>
+
+    <!-- Device tabs -->
+    <div style="display:flex;border-bottom:1px solid #2a2d38;background:#0a0b0e;overflow-x:auto">
+      ${tabsHtml}
+    </div>
+
+    <!-- Device content panels -->
+    <div style="padding:16px 18px">
+      ${results.map((r, i) => deviceCard(r, i, `${tabGroupId}-${i}`)).join("")}
+    </div>
+  </div>`;
+}
+
+// ── Main export ───────────────────────────────────────────────────────────
 export function generateHTMLReport(results: PageResult[]): string {
-  const total = results.length;
-  const failed = results.filter(
-    (r) => r.error || (r.status && r.status >= 400)
+  const groups = groupByUrl(results);
+  const total = groups.length; // unique URLs
+  const totalResults = results.length;
+
+  const failed = groups.filter((g) =>
+    g.results.some((r) => r.error || (r.status && r.status >= 400))
   );
   const passed = total - failed.length;
 
-  // Aggregate Web Vitals
-  const lcpValues = results
+  // Aggregate CWV across all results
+  const allLcp = results
     .map((r) => r.vitals?.lcp)
-    .filter(Boolean) as number[];
-  const clsValues = results
+    .filter((v): v is number => !!v);
+  const allCls = results
     .map((r) => r.vitals?.cls)
-    .filter((v) => v !== undefined) as number[];
-  const ttfbValues = results
+    .filter((v): v is number => v !== undefined);
+  const allTtfb = results
     .map((r) => r.vitals?.ttfb)
-    .filter(Boolean) as number[];
-  const fcpValues = results
+    .filter((v): v is number => !!v);
+  const allFcp = results
     .map((r) => r.vitals?.fcp)
-    .filter(Boolean) as number[];
+    .filter((v): v is number => !!v);
 
   const median = (arr: number[]) => {
     if (!arr.length) return undefined;
     const s = [...arr].sort((a, b) => a - b);
     return s[Math.floor(s.length / 2)];
   };
+  const mean = (arr: number[]) =>
+    arr.length ? arr.reduce((a, b) => a + b, 0) / arr.length : undefined;
 
-  const medLcp = median(lcpValues);
-  const medCls = clsValues.length
-    ? clsValues.reduce((a, b) => a + b, 0) / clsValues.length
-    : undefined;
-  const medTtfb = median(ttfbValues);
-  const medFcp = median(fcpValues);
+  const medLcp = median(allLcp);
+  const medCls = mean(allCls);
+  const medTtfb = median(allTtfb);
+  const medFcp = median(allFcp);
 
-  const allApiCalls = results.flatMap((r) => r.apiCalls ?? []);
-  const ssrTotal = allApiCalls.filter((a) => a.type === "ssr").length;
-  const csrTotal = allApiCalls.filter((a) => a.type === "csr").length;
+  const ssrTotal = results
+    .flatMap((r) => r.apiCalls ?? [])
+    .filter((a) => a.type === "ssr").length;
+  const csrTotal = results
+    .flatMap((r) => r.apiCalls ?? [])
+    .filter((a) => a.type === "csr").length;
 
-  // Pages sorted worst LCP first for the summary table
-  const sorted = [...results].sort(
-    (a, b) => (b.vitals?.lcp ?? 0) - (a.vitals?.lcp ?? 0)
-  );
+  // Sort by worst LCP for overview table
+  const sortedGroups = [...groups].sort((a, b) => b.worstLcp - a.worstLcp);
+
+  // Get unique devices that were run
+  const deviceSet = new Map<string, DeviceProfile>();
+  for (const r of results) {
+    if (r.profile && !deviceSet.has(r.profile.id))
+      deviceSet.set(r.profile.id, r.profile);
+  }
+  const devices = [...deviceSet.values()];
+
+  // Overview table header per device
+  const devHeaders = devices
+    .map(
+      (d) =>
+        `<th colspan="3" style="padding:8px 10px;text-align:center;background:#111216;border-left:1px solid #2a2d38">${d.icon} ${d.label}</th>`
+    )
+    .join("");
+  const devSubHeaders = devices
+    .map(
+      () =>
+        `<th style="padding:6px 10px;text-align:left;background:#111216;border-left:1px solid #2a2d38;font-size:9px;width:80px">LCP</th>
+     <th style="padding:6px 10px;text-align:left;font-size:9px;width:70px">CLS</th>
+     <th style="padding:6px 10px;text-align:left;font-size:9px;width:70px">TTFB</th>`
+    )
+    .join("");
+
+  const hasPoorLcp = allLcp.some((v) => grade("lcp", v) === "poor");
+  const hasPoorCls = allCls.some((v) => grade("cls", v) === "poor");
+  const tableTitle =
+    hasPoorLcp || hasPoorCls
+      ? "Pages by LCP — worst first"
+      : "All Pages by LCP";
 
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Site Audit Report</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg: #0a0b0e;
-      --surface: #111318;
-      --surface2: #1a1d24;
-      --border: #262a33;
-      --text: #e4e6ef;
-      --muted: #6b7280;
-      --accent: #6c63ff;
-      --good: #0cce6b;
-      --warn: #ffa400;
-      --poor: #ff4e42;
-      --font-sans: 'Syne', sans-serif;
-      --font-mono: 'JetBrains Mono', monospace;
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: var(--font-sans);
-      font-size: 14px;
-      line-height: 1.6;
-    }
-
-    /* ── Header ── */
-    .header {
-      border-bottom: 1px solid var(--border);
-      padding: 32px 40px 24px;
-      display: flex;
-      align-items: flex-start;
-      gap: 24px;
-    }
-    .header-logo {
-      font-size: 28px;
-      font-weight: 800;
-      letter-spacing: -1px;
-      background: linear-gradient(135deg, var(--accent), #a78bfa);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-    }
-    .header-meta { color: var(--muted); font-size: 13px; margin-top: 4px; font-family: var(--font-mono); }
-
-    /* ── Layout ── */
-    .container { max-width: 1400px; margin: 0 auto; padding: 0 40px 80px; }
-
-    /* ── Summary Grid ── */
-    .summary-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-      gap: 16px;
-      padding: 32px 0 24px;
-    }
-    .stat-tile {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 12px;
-      padding: 20px;
-    }
-    .stat-tile .label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); }
-    .stat-tile .value { font-size: 32px; font-weight: 800; margin-top: 4px; font-family: var(--font-mono); }
-    .stat-tile .sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
-    .stat-tile.pass .value { color: var(--good); }
-    .stat-tile.fail .value { color: var(--poor); }
-    .stat-tile.warn .value { color: var(--warn); }
-    .stat-tile.neutral .value { color: var(--accent); }
-
-    /* ── CWV Summary ── */
-    .cwv-band {
-      display: flex;
-      gap: 12px;
-      flex-wrap: wrap;
-      padding-bottom: 24px;
-    }
-    .cwv-tile {
-      flex: 1;
-      min-width: 140px;
-      background: var(--surface);
-      border-radius: 10px;
-      border: 1px solid var(--border);
-      padding: 16px;
-    }
-    .cwv-tile .cwv-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
-    .cwv-tile .cwv-value { font-size: 22px; font-weight: 700; font-family: var(--font-mono); margin-top: 4px; }
-    .cwv-tile .cwv-grade { font-size: 11px; margin-top: 4px; font-weight: 600; }
-
-    /* ── Worst pages table ── */
-    .section-title {
-      font-size: 16px;
-      font-weight: 700;
-      color: var(--text);
-      margin-bottom: 12px;
-      letter-spacing: -0.3px;
-    }
-    .worst-table { width: 100%; border-collapse: collapse; margin-bottom: 32px; }
-    .worst-table th, .worst-table td {
-      text-align: left;
-      padding: 10px 14px;
-      font-size: 13px;
-    }
-    .worst-table th { background: var(--surface2); color: var(--muted); font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; }
-    .worst-table tr:hover td { background: var(--surface); }
-    .worst-table td { border-bottom: 1px solid var(--border); }
-    .worst-table td a { color: var(--accent); text-decoration: none; font-family: var(--font-mono); font-size: 12px; }
-    .worst-table td a:hover { text-decoration: underline; }
-
-    /* ── Page Cards ── */
-    .cards-section .section-title { margin-top: 32px; }
-    .card {
-      background: var(--surface);
-      border: 1px solid var(--border);
-      border-radius: 14px;
-      margin-bottom: 20px;
-      overflow: hidden;
-    }
-    .card-error { border-color: rgba(255,78,66,0.4); }
-    .card-header {
-      padding: 16px 20px 14px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-bottom: 1px solid var(--border);
-    }
-    .card-title { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 1; }
-    .page-num { font-size: 11px; font-family: var(--font-mono); color: var(--muted); background: var(--surface2); padding: 2px 8px; border-radius: 4px; }
-    .card-title a { color: var(--text); font-family: var(--font-mono); font-size: 12px; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 700px; }
-    .card-title a:hover { color: var(--accent); }
-    .card-time { font-size: 12px; color: var(--muted); font-family: var(--font-mono); flex-shrink: 0; }
-
-    .http-status { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; font-family: var(--font-mono); }
-    .http-status.ok { background: rgba(12,206,107,0.1); color: var(--good); }
-    .http-status.err { background: rgba(255,78,66,0.1); color: var(--poor); }
-
-    .error-banner { background: rgba(255,78,66,0.08); border-bottom: 1px solid rgba(255,78,66,0.2); padding: 10px 20px; color: var(--poor); font-size: 13px; }
-
-    .vitals-row { display: flex; flex-wrap: wrap; gap: 8px; padding: 14px 20px; }
-    .badge {
-      font-family: var(--font-mono);
-      font-size: 12px;
-      font-weight: 600;
-      padding: 4px 10px;
-      border-radius: 6px;
-    }
-    .badge.neutral { background: var(--surface2); border: 1px solid var(--border); color: var(--muted); }
-
-    .video-row { padding: 0 20px 14px; }
-    .video-row details summary { cursor: pointer; font-size: 13px; color: var(--accent); }
-
-    .api-section { border-top: 1px solid var(--border); }
-    .api-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 20px; background: var(--surface2); }
-    .api-header span { font-size: 13px; font-weight: 600; }
-    .api-meta { font-size: 12px; color: var(--muted); font-family: var(--font-mono); }
-    .table-wrap { overflow-x: auto; }
-    .api-table { width: 100%; border-collapse: collapse; }
-    .api-table th { background: var(--surface2); padding: 8px 14px; font-size: 11px; color: var(--muted); text-align: left; text-transform: uppercase; letter-spacing: 0.06em; }
-    .api-table td { padding: 8px 14px; border-bottom: 1px solid var(--border); font-size: 12px; vertical-align: middle; }
-    .api-table tr:last-child td { border-bottom: none; }
-    .api-table tr:hover td { background: rgba(255,255,255,0.02); }
-    .url-cell { font-family: var(--font-mono); font-size: 11px; max-width: 400px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .tag { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; padding: 2px 7px; border-radius: 4px; }
-    .tag.ssr { background: rgba(108,99,255,0.15); color: var(--accent); border: 1px solid rgba(108,99,255,0.3); }
-    .tag.csr { background: rgba(255,164,0,0.1); color: var(--warn); border: 1px solid rgba(255,164,0,0.25); }
-    .status { font-family: var(--font-mono); font-size: 11px; font-weight: 600; }
-    .status.ok { color: var(--good); }
-    .status.err { color: var(--poor); }
-    .status.unknown { color: var(--muted); }
-    .server-timing { font-size: 10px; color: var(--muted); font-family: var(--font-mono); }
-
-    .errors-section { border-top: 1px solid var(--border); padding: 12px 20px; }
-    .errors-header { font-size: 12px; font-weight: 600; color: var(--poor); margin-bottom: 8px; }
-    .error-line { font-family: var(--font-mono); font-size: 11px; color: #ff8080; padding: 3px 0; border-bottom: 1px solid rgba(255,78,66,0.1); }
-    .small { font-size: 11px; }
-
-    /* ── Filter bar ── */
-    .filter-bar { display: flex; gap: 10px; margin-bottom: 20px; align-items: center; flex-wrap: wrap; }
-    .filter-bar input { background: var(--surface); border: 1px solid var(--border); color: var(--text); padding: 8px 14px; border-radius: 8px; font-family: var(--font-mono); font-size: 13px; flex: 1; min-width: 200px; }
-    .filter-bar input:focus { outline: none; border-color: var(--accent); }
-    .filter-btn { background: var(--surface); border: 1px solid var(--border); color: var(--muted); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-family: var(--font-sans); font-size: 13px; }
-    .filter-btn:hover, .filter-btn.active { border-color: var(--accent); color: var(--accent); }
-  </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Site Audit Report</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#09090c;--s1:#111216;--s2:#18191f;--s3:#22242c;--border:#2a2d38;--text:#e2e4f0;--muted:#6b7280;--accent:#7c6dff;}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;font-size:14px;line-height:1.6;}
+a{color:var(--accent);}
+.container{max-width:1400px;margin:0 auto;padding:0 32px 80px;}
+/* Header */
+.hdr{padding:28px 32px 20px;border-bottom:1px solid var(--border);background:var(--s1);margin-bottom:32px;}
+.hdr h1{font-size:26px;font-weight:800;letter-spacing:-.5px;color:var(--accent);}
+.hdr .meta{font-size:12px;color:var(--muted);font-family:'JetBrains Mono',monospace;margin-top:4px;}
+/* Summary tiles */
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:28px;}
+.tile{background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:18px;}
+.tile .tl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);}
+.tile .tv{font-size:30px;font-weight:800;font-family:'JetBrains Mono',monospace;margin:6px 0 2px;}
+.tile .ts{font-size:11px;color:var(--muted);}
+.tile.pass .tv{color:#0cce6b;} .tile.fail .tv{color:#ff4e42;} .tile.ssr .tv{color:#7c6dff;} .tile.csr .tv{color:#ffa400;}
+/* CWV band */
+.cwv-band{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px;}
+.cwv{flex:1;min-width:160px;background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px;}
+.cwv .cl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);}
+.cwv .cv{font-size:24px;font-weight:700;font-family:'JetBrains Mono',monospace;margin:4px 0;}
+.cwv .cg{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;}
+/* Section title */
+.sec-title{font-size:15px;font-weight:700;color:var(--text);margin-bottom:12px;letter-spacing:-.2px;}
+/* Overview table */
+.overview-wrap{overflow-x:auto;margin-bottom:28px;border:1px solid var(--border);border-radius:10px;}
+.overview-table{width:100%;border-collapse:collapse;font-size:12px;}
+.overview-table th{background:var(--s2);padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;}
+.overview-table td{padding:8px 10px;border-bottom:1px solid rgba(42,45,56,.5);}
+.overview-table tr:last-child td{border-bottom:none;}
+.overview-table tr:hover td{background:rgba(255,255,255,.02);}
+.overview-table td a{color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:11px;text-decoration:none;}
+.overview-table td a:hover{text-decoration:underline;}
+/* Filter */
+.filter-bar{display:flex;gap:8px;margin-bottom:16px;align-items:center;flex-wrap:wrap;}
+.filter-bar input{flex:1;min-width:200px;background:var(--s1);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px 14px;font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;}
+.filter-bar input:focus{border-color:var(--accent);}
+.fbtn{background:var(--s1);border:1px solid var(--border);color:var(--muted);padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;}
+.fbtn:hover,.fbtn.active{border-color:var(--accent);color:var(--accent);}
+</style>
 </head>
 <body>
-  <div class="header">
-    <div>
-      <div class="header-logo">⚡ Site Audit Report</div>
-      <div class="header-meta">Generated at ${new Date().toLocaleString()} · ${total} pages audited</div>
-    </div>
+<div class="hdr">
+  <div class="container" style="padding-bottom:0;margin-bottom:0">
+    <h1>⚡ Site Audit Report</h1>
+    <div class="meta">Generated at ${new Date().toLocaleString()} · ${total} URLs audited · ${totalResults} page-device combinations · Devices: ${devices
+    .map((d) => d.icon + " " + d.label)
+    .join(", ")}</div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- Summary tiles -->
+  <div class="tiles">
+    <div class="tile pass"><div class="tl">URLs Passed</div><div class="tv">${passed}</div><div class="ts">of ${total} unique URLs</div></div>
+    <div class="tile fail"><div class="tl">URLs Failed</div><div class="tv">${
+      failed.length
+    }</div><div class="ts">4xx/5xx or error</div></div>
+    <div class="tile ssr"><div class="tl">SSR API Calls</div><div class="tv">${ssrTotal}</div><div class="ts">network-intercepted</div></div>
+    <div class="tile csr"><div class="tl">CSR API Calls</div><div class="tv">${csrTotal}</div><div class="ts">client fetch/XHR</div></div>
   </div>
 
-  <div class="container">
-    <!-- Summary Stats -->
-    <div class="summary-grid">
-      <div class="stat-tile pass">
-        <div class="label">Pages Passed</div>
-        <div class="value">${passed}</div>
-        <div class="sub">of ${total} total</div>
-      </div>
-      <div class="stat-tile fail">
-        <div class="label">Pages Failed</div>
-        <div class="value">${failed.length}</div>
-        <div class="sub">4xx/5xx or error</div>
-      </div>
-      <div class="stat-tile neutral">
-        <div class="label">SSR API Calls</div>
-        <div class="value">${ssrTotal}</div>
-        <div class="sub">network-intercepted</div>
-      </div>
-      <div class="stat-tile warn">
-        <div class="label">CSR API Calls</div>
-        <div class="value">${csrTotal}</div>
-        <div class="sub">client fetch/XHR</div>
-      </div>
-    </div>
+  <!-- CWV Median (across all device results) -->
+  <div class="sec-title">Core Web Vitals — Median across all devices</div>
+  <div class="cwv-band">
+    ${[
+      {
+        label: "LCP · Largest Contentful Paint",
+        metric: "lcp",
+        val: medLcp,
+        fv: medLcp ? fmt(Math.round(medLcp)) : "–",
+      },
+      {
+        label: "CLS · Cumulative Layout Shift",
+        metric: "cls",
+        val: medCls,
+        fv: medCls !== undefined ? medCls.toFixed(3) : "–",
+      },
+      {
+        label: "FCP · First Contentful Paint",
+        metric: "fcp",
+        val: medFcp,
+        fv: medFcp ? fmt(Math.round(medFcp)) : "–",
+      },
+      {
+        label: "TTFB · Time To First Byte",
+        metric: "ttfb",
+        val: medTtfb,
+        fv: medTtfb ? fmt(Math.round(medTtfb)) : "–",
+      },
+    ]
+      .map(({ label, metric, val, fv }) => {
+        const g = val !== undefined ? grade(metric, val) : null;
+        const c = g ? GRADE_COLOR[g] : "#6b7280";
+        return `<div class="cwv"><div class="cl">${label}</div><div class="cv" style="color:${c}">${fv}</div>${
+          g ? `<div class="cg" style="color:${c}">${GRADE_LABEL[g]}</div>` : ""
+        }</div>`;
+      })
+      .join("")}
+  </div>
 
-    <!-- Core Web Vitals Summary -->
-    <div class="section-title">Core Web Vitals — Site Median</div>
-    <div class="cwv-band">
-      ${
-        medLcp !== undefined
-          ? (() => {
-              const g = lcpScore(medLcp);
-              return `<div class="cwv-tile"><div class="cwv-label">LCP · Largest Contentful Paint</div><div class="cwv-value" style="color:${
-                SCORE_COLOR[g]
-              }">${fmt(
-                Math.round(medLcp)
-              )}</div><div class="cwv-grade" style="color:${
-                SCORE_COLOR[g]
-              }">${g}</div></div>`;
-            })()
-          : ""
-      }
-      ${
-        medCls !== undefined
-          ? (() => {
-              const g = clsScore(medCls);
-              return `<div class="cwv-tile"><div class="cwv-label">CLS · Cumulative Layout Shift</div><div class="cwv-value" style="color:${
-                SCORE_COLOR[g]
-              }">${medCls.toFixed(
-                3
-              )}</div><div class="cwv-grade" style="color:${
-                SCORE_COLOR[g]
-              }">${g}</div></div>`;
-            })()
-          : ""
-      }
-      ${
-        medFcp !== undefined
-          ? (() => {
-              const g = fcpScore(medFcp);
-              return `<div class="cwv-tile"><div class="cwv-label">FCP · First Contentful Paint</div><div class="cwv-value" style="color:${
-                SCORE_COLOR[g]
-              }">${fmt(
-                Math.round(medFcp)
-              )}</div><div class="cwv-grade" style="color:${
-                SCORE_COLOR[g]
-              }">${g}</div></div>`;
-            })()
-          : ""
-      }
-      ${
-        medTtfb !== undefined
-          ? (() => {
-              const g = ttfbScore(medTtfb);
-              return `<div class="cwv-tile"><div class="cwv-label">TTFB · Time To First Byte</div><div class="cwv-value" style="color:${
-                SCORE_COLOR[g]
-              }">${fmt(
-                Math.round(medTtfb)
-              )}</div><div class="cwv-grade" style="color:${
-                SCORE_COLOR[g]
-              }">${g}</div></div>`;
-            })()
-          : ""
-      }
-    </div>
-
-    <!-- Worst Pages Summary Table -->
-    <div class="section-title">Worst LCP Pages</div>
-    <table class="worst-table">
+  <!-- Overview table: one row per URL, columns per device -->
+  <div class="sec-title">${tableTitle}</div>
+  <div class="overview-wrap">
+    <table class="overview-table">
       <thead>
         <tr>
-          <th>URL</th>
-          <th>LCP</th>
-          <th>CLS</th>
-          <th>FCP</th>
-          <th>TTFB</th>
-          <th>Load</th>
+          <th style="min-width:300px">URL</th>
+          ${devHeaders}
           <th>Status</th>
+        </tr>
+        <tr>
+          <th></th>
+          ${devSubHeaders}
+          <th></th>
         </tr>
       </thead>
       <tbody>
-        ${sorted
-          .slice(0, 20)
-          .map((r, i) => {
-            const v = r.vitals ?? {};
-            const lcpG = v.lcp ? lcpScore(v.lcp) : "poor";
-            const clsG = v.cls !== undefined ? clsScore(v.cls) : "poor";
-            const ttfbG = v.ttfb ? ttfbScore(v.ttfb) : "poor";
-            const fcpG = v.fcp ? fcpScore(v.fcp) : "poor";
-            return `
-          <tr>
-            <td><a href="#page-${results.indexOf(r)}" title="${r.url}">${
-              r.url.length > 60 ? "…" + r.url.slice(-57) : r.url
+        ${sortedGroups
+          .map((g, i) => {
+            const firstStatus = g.results[0]?.status;
+            return `<tr>
+            <td><a href="#ug-${groups.indexOf(g)}" title="${g.url}">${
+              g.url.length > 70 ? "…" + g.url.slice(-67) : g.url
             }</a></td>
-            <td style="color:${
-              SCORE_COLOR[lcpG]
-            };font-family:var(--font-mono)">${fmt(v.lcp)}</td>
-            <td style="color:${
-              SCORE_COLOR[clsG]
-            };font-family:var(--font-mono)">${
-              v.cls !== undefined ? v.cls.toFixed(3) : "–"
+            ${devices
+              .map((dev) => {
+                const r = g.results.find((r) => r.profile?.id === dev.id);
+                const v = r?.vitals ?? {};
+                const lcpG2 = v.lcp ? grade("lcp", v.lcp) : null;
+                const clsG2 = v.cls !== undefined ? grade("cls", v.cls) : null;
+                const ttfbG2 = v.ttfb ? grade("ttfb", v.ttfb) : null;
+                return `<td style="border-left:1px solid #2a2d38;color:${
+                  lcpG2 ? GRADE_COLOR[lcpG2] : "#6b7280"
+                };font-family:monospace;font-size:11px">${fmt(v.lcp)}</td>
+                      <td style="color:${
+                        clsG2 ? GRADE_COLOR[clsG2] : "#6b7280"
+                      };font-family:monospace;font-size:11px">${fmtCls(
+                  v.cls
+                )}</td>
+                      <td style="color:${
+                        ttfbG2 ? GRADE_COLOR[ttfbG2] : "#6b7280"
+                      };font-family:monospace;font-size:11px">${fmt(
+                  v.ttfb
+                )}</td>`;
+              })
+              .join("")}
+            <td>${
+              firstStatus
+                ? `<span style="padding:2px 7px;border-radius:4px;font-family:monospace;font-size:10px;font-weight:700;${
+                    firstStatus >= 400
+                      ? "background:rgba(255,78,66,.1);color:#ff4e42;border:1px solid rgba(255,78,66,.25)"
+                      : "background:rgba(12,206,107,.1);color:#0cce6b;border:1px solid rgba(12,206,107,.25)"
+                  }">${firstStatus}</span>`
+                : ""
             }</td>
-            <td style="color:${
-              SCORE_COLOR[fcpG]
-            };font-family:var(--font-mono)">${fmt(v.fcp)}</td>
-            <td style="color:${
-              SCORE_COLOR[ttfbG]
-            };font-family:var(--font-mono)">${fmt(v.ttfb)}</td>
-            <td style="font-family:var(--font-mono)">${fmt(v.totalTime)}</td>
-            <td><span class="http-status ${
-              r.status && r.status >= 400 ? "err" : "ok"
-            }">${r.status ?? (r.error ? "ERR" : "?")}</span></td>
           </tr>`;
           })
           .join("")}
       </tbody>
     </table>
-
-    <!-- Per-Page Cards -->
-    <div class="cards-section">
-      <div class="section-title">All Pages (${results.length})</div>
-      <div class="filter-bar">
-        <input type="text" id="search" placeholder="Filter by URL…" oninput="filterCards()">
-        <button class="filter-btn active" onclick="filterBy('all', this)">All</button>
-        <button class="filter-btn" onclick="filterBy('poor', this)">Poor</button>
-        <button class="filter-btn" onclick="filterBy('errors', this)">Errors</button>
-        <button class="filter-btn" onclick="filterBy('api', this)">Has API</button>
-      </div>
-      <div id="cards">
-        ${results.map((r, i) => pageCard(r, i)).join("")}
-      </div>
-    </div>
   </div>
 
-  <script>
-    let currentFilter = 'all';
+  <!-- Per-URL cards with device tabs -->
+  <div class="sec-title">All Pages (${total} URLs)</div>
+  <div class="filter-bar">
+    <input type="text" id="search" placeholder="Filter by URL…" oninput="filterCards()">
+    <button class="fbtn active" onclick="filterBy('all',this)">All</button>
+    <button class="fbtn" onclick="filterBy('poor',this)">Poor CWV</button>
+    <button class="fbtn" onclick="filterBy('errors',this)">Errors</button>
+    <button class="fbtn" onclick="filterBy('api',this)">Has API</button>
+  </div>
+  <div id="cards">
+    ${groups.map((g, i) => urlGroupCard(g, i)).join("")}
+  </div>
 
-    function filterCards() {
-      const q = document.getElementById('search').value.toLowerCase();
-      document.querySelectorAll('#cards .card').forEach(card => {
-        const url = card.querySelector('a')?.href ?? '';
-        const show = url.toLowerCase().includes(q) || q === '';
-        card.style.display = show ? '' : 'none';
-      });
+</div>
+
+<script>
+function switchTab(groupId, idx, total) {
+  for (let i = 0; i < total; i++) {
+    const panel = document.getElementById('dc-' + groupId + '-' + i);
+    const tab   = document.getElementById('tab-' + groupId + '-' + i);
+    if (panel) panel.style.display = i === idx ? 'block' : 'none';
+    if (tab) {
+      tab.style.borderBottomColor = i === idx ? '#7c6dff' : 'transparent';
+      tab.style.color = i === idx ? '#7c6dff' : '#6b7280';
     }
+  }
+}
 
-    function filterBy(type, btn) {
-      currentFilter = type;
-      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
-      btn.classList.add('active');
+function filterCards() {
+  const q = document.getElementById('search').value.toLowerCase();
+  document.querySelectorAll('#cards .url-card').forEach(card => {
+    const url = card.querySelector('a')?.textContent ?? '';
+    card.style.display = url.toLowerCase().includes(q) || !q ? '' : 'none';
+  });
+}
 
-      document.querySelectorAll('#cards .card').forEach(card => {
-        let show = true;
-        if (type === 'poor') show = card.innerHTML.includes('"poor"') || card.classList.contains('card-error');
-        if (type === 'errors') show = card.querySelector('.errors-section') !== null || card.classList.contains('card-error');
-        if (type === 'api') show = card.querySelector('.api-section') !== null;
-        card.style.display = show ? '' : 'none';
-      });
-    }
-  </script>
+function filterBy(type, btn) {
+  document.querySelectorAll('.fbtn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('#cards .url-card').forEach(card => {
+    let show = true;
+    if (type === 'poor')   show = card.innerHTML.includes('"poor"') || card.querySelector('[style*="ff4e42"]') !== null;
+    if (type === 'errors') show = card.innerHTML.includes('⚠') || card.querySelector('[style*="rgba(255,78,66"]') !== null;
+    if (type === 'api')    show = card.innerHTML.includes('SSR</span>') || card.innerHTML.includes('CSR</span>');
+    card.style.display = show ? '' : 'none';
+  });
+}
+</script>
 </body>
 </html>`;
 }

@@ -1,0 +1,20 @@
+app = "site-audit-tool"
+primary_region = "syd"  # Sydney — closest to AU
+
+[build]
+
+[env]
+  PORT = "7331"
+  CONCURRENCY = "3"
+
+[http_service]
+  internal_port = 7331
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  memory = "2gb"
+  cpu_kind = "shared"
+  cpus = 2

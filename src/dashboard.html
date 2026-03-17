@@ -1407,75 +1407,195 @@
             position: fixed;
             inset: 0;
             z-index: 100;
-            background: rgba(0, 0, 0, .75);
-            backdrop-filter: blur(6px);
+            background: rgba(0, 0, 0, .8);
+            backdrop-filter: blur(8px);
             display: flex;
             align-items: center;
             justify-content: center;
+            padding: 20px;
         }
 
         .cfg-panel {
             background: var(--s1);
             border: 1px solid var(--border);
-            border-radius: 16px;
-            width: 620px;
-            max-width: 96vw;
-            padding: 0;
-            overflow: hidden;
-            box-shadow: 0 32px 80px rgba(0, 0, 0, .6);
+            border-radius: 20px;
+            width: 680px;
+            max-width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            overflow-x: hidden;
+            box-shadow: 0 40px 100px rgba(0, 0, 0, .7);
+        }
+
+        .cfg-panel::-webkit-scrollbar {
+            width: 4px;
+        }
+
+        .cfg-panel::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
         }
 
         .cfg-head {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            padding: 20px 24px 16px;
+            padding: 28px 32px 22px;
             border-bottom: 1px solid var(--border);
+            background: linear-gradient(135deg, rgba(124, 109, 255, .08), transparent);
         }
 
         .cfg-head h2 {
-            font-size: 16px;
+            font-size: 22px;
             font-weight: 800;
-            letter-spacing: -.3px;
+            letter-spacing: -.5px;
+            margin-bottom: 4px;
         }
 
         .cfg-head .sub {
-            font-size: 11px;
+            font-size: 13px;
             color: var(--muted);
             font-family: var(--mono);
-            margin-top: 2px;
         }
 
         .cfg-body {
-            padding: 20px 24px;
+            padding: 24px 32px 28px;
         }
 
         .cfg-section {
-            margin-bottom: 20px;
+            margin-bottom: 28px;
         }
 
         .cfg-label {
-            font-size: 11px;
+            font-size: 12px;
             font-weight: 700;
             text-transform: uppercase;
-            letter-spacing: .08em;
+            letter-spacing: .1em;
             color: var(--muted);
-            margin-bottom: 10px;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .cfg-label-badge {
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(124, 109, 255, .15);
+            color: var(--accent);
+            text-transform: none;
+            letter-spacing: 0;
+        }
+
+        /* Source type toggle */
+        .src-toggle {
+            display: flex;
+            gap: 0;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow: hidden;
+            margin-bottom: 14px;
+        }
+
+        .src-tab {
+            flex: 1;
+            padding: 9px 16px;
+            font-size: 13px;
+            font-weight: 600;
+            text-align: center;
+            cursor: pointer;
+            transition: all .15s;
+            background: transparent;
+            border: none;
+            color: var(--muted);
+        }
+
+        .src-tab.active {
+            background: var(--accent);
+            color: #fff;
+        }
+
+        .src-tab:first-child {
+            border-right: 1px solid var(--border);
+        }
+
+        /* Input fields */
+        .cfg-input {
+            width: 100%;
+            background: var(--s2);
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: var(--mono);
+            font-size: 12px;
+            padding: 11px 14px;
+            outline: none;
+            transition: border-color .15s;
+        }
+
+        .cfg-input:focus {
+            border-color: var(--accent);
+        }
+
+        .cfg-input::placeholder {
+            color: var(--muted);
+        }
+
+        .cfg-input-row {
+            display: flex;
+            gap: 8px;
+        }
+
+        .cfg-input-row .cfg-input {
+            flex: 1;
+        }
+
+        .load-btn {
+            background: var(--s2);
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: var(--sans);
+            font-size: 13px;
+            font-weight: 700;
+            padding: 11px 20px;
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all .15s;
+        }
+
+        .load-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .load-btn:disabled {
+            opacity: .4;
+            cursor: not-allowed;
+        }
+
+        .load-status {
+            font-size: 12px;
+            font-family: var(--mono);
+            margin-top: 8px;
+            min-height: 18px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
         }
 
         /* URL count chips */
         .url-chips {
             display: flex;
             flex-wrap: wrap;
-            gap: 6px;
+            gap: 7px;
         }
 
         .url-chip {
             font-family: var(--mono);
-            font-size: 11px;
-            padding: 5px 12px;
-            border-radius: 6px;
-            border: 1px solid var(--border);
+            font-size: 12px;
+            padding: 7px 15px;
+            border-radius: 7px;
+            border: 1.5px solid var(--border);
             color: var(--muted);
             background: var(--s2);
             cursor: pointer;
@@ -1494,25 +1614,20 @@
             font-weight: 600;
         }
 
-        .url-chip.disabled {
-            opacity: .3;
-            cursor: not-allowed;
-        }
-
         /* Device cards */
         .dev-cards {
             display: grid;
             grid-template-columns: 1fr 1fr;
-            gap: 8px;
+            gap: 10px;
         }
 
         .dev-card {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 10px 14px;
-            border-radius: 8px;
-            border: 1px solid var(--border);
+            gap: 12px;
+            padding: 13px 16px;
+            border-radius: 10px;
+            border: 1.5px solid var(--border);
             background: var(--s2);
             cursor: pointer;
             transition: all .15s;
@@ -1520,12 +1635,12 @@
         }
 
         .dev-card:hover {
-            border-color: var(--accent);
+            border-color: rgba(124, 109, 255, .5);
         }
 
         .dev-card.active {
             border-color: var(--accent);
-            background: rgba(124, 109, 255, .1);
+            background: rgba(124, 109, 255, .08);
         }
 
         .dev-card.active .dc-check {
@@ -1538,9 +1653,9 @@
         }
 
         .dc-check {
-            width: 16px;
-            height: 16px;
-            border-radius: 4px;
+            width: 18px;
+            height: 18px;
+            border-radius: 5px;
             border: 1.5px solid var(--border);
             background: var(--s3);
             flex-shrink: 0;
@@ -1552,70 +1667,110 @@
             content: '';
             position: absolute;
             inset: 0;
-            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 4l3 3 5-6' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") center/10px no-repeat;
+            background: url("data:image/svg+xml,%3Csvg viewBox='0 0 10 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 4l3 3 5-6' stroke='white' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E") center/11px no-repeat;
             opacity: 0;
-            transition: opacity .1s;
+            transition: opacity .12s;
         }
 
         .dc-icon {
-            font-size: 18px;
+            font-size: 22px;
+            flex-shrink: 0;
         }
 
         .dc-name {
-            font-size: 12px;
-            font-weight: 600;
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.3;
         }
 
         .dc-eng {
-            font-size: 9px;
+            font-size: 10px;
             font-family: var(--mono);
             color: var(--muted);
             background: var(--s3);
-            padding: 1px 5px;
+            padding: 2px 6px;
             border-radius: 3px;
-            margin-top: 2px;
+            margin-top: 3px;
             display: inline-block;
         }
 
-        /* Summary row */
+        /* Divider */
+        .cfg-or {
+            text-align: center;
+            color: var(--muted);
+            font-size: 11px;
+            font-weight: 700;
+            letter-spacing: .1em;
+            text-transform: uppercase;
+            position: relative;
+            margin: 4px 0;
+        }
+
+        .cfg-or::before,
+        .cfg-or::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            width: calc(50% - 24px);
+            height: 1px;
+            background: var(--border);
+        }
+
+        .cfg-or::before {
+            left: 0;
+        }
+
+        .cfg-or::after {
+            right: 0;
+        }
+
+        /* Summary */
         .cfg-summary {
             display: flex;
             align-items: center;
-            gap: 10px;
-            padding: 14px 16px;
+            gap: 12px;
+            flex-wrap: wrap;
+            padding: 16px 18px;
             background: var(--s2);
-            border-radius: 8px;
+            border-radius: 10px;
             margin-bottom: 20px;
-            font-size: 12px;
+            font-size: 14px;
+            border: 1px solid var(--border);
         }
 
         .cfg-summary strong {
             color: var(--accent);
+            font-size: 18px;
         }
 
         .cfg-summary .sep {
             color: var(--border);
-            margin: 0 2px;
+            font-size: 16px;
         }
 
         /* Run button */
         .run-btn {
             width: 100%;
-            padding: 13px;
-            border-radius: 8px;
+            padding: 15px;
+            border-radius: 10px;
             border: none;
             background: var(--accent);
             color: #fff;
             font-family: var(--sans);
-            font-size: 14px;
-            font-weight: 700;
+            font-size: 15px;
+            font-weight: 800;
             cursor: pointer;
-            transition: background .15s;
+            transition: all .15s;
             letter-spacing: -.2px;
         }
 
-        .run-btn:hover {
+        .run-btn:hover:not(:disabled) {
             background: #6458e8;
+            transform: translateY(-1px);
+        }
+
+        .run-btn:active:not(:disabled) {
+            transform: translateY(0);
         }
 
         .run-btn:disabled {
@@ -1625,43 +1780,176 @@
         }
 
         .run-btn .run-count {
+            font-size: 12px;
+            font-weight: 500;
+            opacity: .75;
+            margin-left: 8px;
+        }
+
+        /* ── Report panel ── */
+        .report-panel {
+            position: fixed;
+            inset: 0;
+            z-index: 200;
+            background: rgba(0, 0, 0, .85);
+            backdrop-filter: blur(8px);
+            display: none;
+            flex-direction: column;
+        }
+
+        .report-panel.open {
+            display: flex;
+        }
+
+        .report-toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 16px;
+            background: var(--s1);
+            border-bottom: 1px solid var(--border);
+            flex-shrink: 0;
+        }
+
+        .report-toolbar h3 {
+            font-size: 13px;
+            font-weight: 700;
+            flex: 1;
+        }
+
+        .report-dl-btn {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            background: var(--s2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text);
+            font-family: var(--sans);
             font-size: 11px;
-            font-weight: 400;
-            opacity: .8;
-            margin-left: 6px;
+            font-weight: 600;
+            padding: 6px 12px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all .15s;
+        }
+
+        .report-dl-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .report-close {
+            background: none;
+            border: none;
+            color: var(--muted);
+            font-size: 18px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+
+        .report-close:hover {
+            background: var(--s2);
+            color: var(--text);
+        }
+
+        .report-frame {
+            flex: 1;
+            border: none;
+            background: #fff;
         }
     </style>
 </head>
 
 <body>
 
-    <!-- ── Config overlay (shown before audit starts) ── -->
+    <!-- ── Config overlay ── -->
     <div class="cfg-overlay" id="cfg-overlay">
         <div class="cfg-panel">
             <div class="cfg-head">
-                <div>
-                    <h2>⚡ Site Audit</h2>
-                    <div class="sub" id="cfg-sitemap">Loading sitemap…</div>
-                </div>
+                <h2>⚡ Site Audit</h2>
+                <div class="sub">Configure your audit run</div>
             </div>
             <div class="cfg-body">
 
+                <!-- Step 1: URL Source -->
                 <div class="cfg-section">
-                    <div class="cfg-label">URLs to audit</div>
-                    <div class="url-chips" id="url-chips">
-                        <span class="url-chip disabled">Loading…</span>
+                    <div class="cfg-label">
+                        <span
+                            style="background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">1</span>
+                        URL Source
+                    </div>
+
+                    <!-- Toggle: Sitemap vs Manual -->
+                    <div class="src-toggle">
+                        <button class="src-tab active" id="tab-sitemap" onclick="switchSource('sitemap')">
+                            📋 Sitemap / URL list
+                        </button>
+                        <button class="src-tab" id="tab-manual" onclick="switchSource('manual')">
+                            ✏️ Paste URLs manually
+                        </button>
+                    </div>
+
+                    <!-- Sitemap input pane -->
+                    <div id="pane-sitemap">
+                        <div class="cfg-input-row">
+                            <input id="sitemap-input" class="cfg-input" type="text"
+                                placeholder="https://example.com/sitemap.xml"
+                                onkeydown="if(event.key==='Enter')loadUrls()">
+                            <button class="load-btn" onclick="loadUrls()" id="load-btn">Load →</button>
+                        </div>
+                        <div class="load-status" id="load-status"></div>
+                        <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6">
+                            Accepts <code
+                                style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">.xml</code>
+                            sitemap,
+                            sitemap index (auto-expanded), plain text URL list (one per line), or a single page URL.
+                        </div>
+                    </div>
+
+                    <!-- Manual URLs pane (hidden by default) -->
+                    <div id="pane-manual" style="display:none">
+                        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
+                            <span style="font-size:12px;color:var(--muted)">One URL per line</span>
+                            <span id="manual-count"
+                                style="font-family:var(--mono);font-size:12px;color:var(--accent);font-weight:600"></span>
+                        </div>
+                        <textarea id="manual-urls" class="cfg-input"
+                            placeholder="https://example.com/product/foo&#10;https://example.com/product/bar&#10;https://example.com/page/about"
+                            oninput="onManualInput()"
+                            style="height:120px;resize:vertical;line-height:1.6;font-size:11px;"></textarea>
+                        <div style="font-size:11px;color:var(--muted);margin-top:6px">
+                            Paste any number of URLs — each will be audited across the selected devices.
+                        </div>
                     </div>
                 </div>
 
-                <div class="cfg-section">
-                    <div class="cfg-label">Devices</div>
-                    <div class="dev-cards" id="dev-cards">
-                        <!-- injected by JS once profiles arrive -->
+                <!-- Step 2: URL count (only shown after sitemap loads) -->
+                <div class="cfg-section" id="url-count-section" style="display:none">
+                    <div class="cfg-label">
+                        <span
+                            style="background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">2</span>
+                        How many URLs?
+                        <span class="cfg-label-badge" id="total-badge"></span>
                     </div>
+                    <div class="url-chips" id="url-chips"></div>
                 </div>
 
-                <div class="cfg-summary" id="cfg-summary">
-                    Waiting for sitemap…
+                <!-- Step 3: Devices (shown after URL source is set) -->
+                <div class="cfg-section" id="devices-section" style="display:none">
+                    <div class="cfg-label">
+                        <span
+                            style="background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0"
+                            id="dev-step-num">3</span>
+                        Devices
+                    </div>
+                    <div class="dev-cards" id="dev-cards"></div>
+                </div>
+
+                <!-- Summary -->
+                <div class="cfg-summary" id="cfg-summary" style="display:none">
+                    <!-- filled by JS -->
                 </div>
 
                 <button class="run-btn" id="run-btn" disabled onclick="startAudit()">
@@ -1703,6 +1991,17 @@
             </div>
         </div>
     </div>
+    <!-- ── Report panel (fullscreen preview) ── -->
+    <div class="report-panel" id="report-panel">
+        <div class="report-toolbar">
+            <h3>📊 Audit Report</h3>
+            <a class="report-dl-btn" href="/report.html" download="audit-report.html">⬇ Download HTML</a>
+            <a class="report-dl-btn" href="/report.pdf" download="audit-report.pdf" id="pdf-dl-btn">⬇ Download PDF</a>
+            <button class="report-close" onclick="closeReport()">✕</button>
+        </div>
+        <iframe class="report-frame" id="report-frame" src="about:blank"></iframe>
+    </div>
+
     <script>
         // ── State ─────────────────────────────────────────────────────────────────
         const S = new Map();
@@ -1712,10 +2011,12 @@
         let filterMode = 'all';
         let totalUrls = 0;
         let profiles = [];
-        let allUrls = [];        // full sitemap URL list
-        let selectedProfileIds = [];  // currently selected in config UI
-        let selectedUrlCount = 0;   // currently selected chip value
+        let allUrls = [];
+        let selectedProfileIds = [];
+        let selectedUrlCount = 0;
         let ws = null;
+        let hasReport = false;
+        let hasPdf = false;
 
         // ── Utils ─────────────────────────────────────────────────────────────────
         const pathOf = url => { try { return new URL(url).pathname || '/'; } catch { return url; } };
@@ -1728,33 +2029,85 @@
 
         // ── Config panel ──────────────────────────────────────────────────────────
         const URL_STEPS = [1, 10, 25, 50, 100, 500, 1000, 5000, 10000, 15000];
+        let sourceMode = 'sitemap'; // 'sitemap' | 'manual'
 
-        function showConfig() {
-            document.getElementById('cfg-overlay').style.display = 'flex';
-        }
-        function hideConfig() {
-            document.getElementById('cfg-overlay').style.display = 'none';
+        function showConfig() { document.getElementById('cfg-overlay').style.display = 'flex'; }
+        function hideConfig() { document.getElementById('cfg-overlay').style.display = 'none'; }
+
+        // ── Switch between sitemap and manual panes ────────────────────────────────
+        function switchSource(mode) {
+            sourceMode = mode;
+            document.getElementById('tab-sitemap').classList.toggle('active', mode === 'sitemap');
+            document.getElementById('tab-manual').classList.toggle('active', mode === 'manual');
+            document.getElementById('pane-sitemap').style.display = mode === 'sitemap' ? '' : 'none';
+            document.getElementById('pane-manual').style.display = mode === 'manual' ? '' : 'none';
+
+            if (mode === 'manual') {
+                // Manual mode: hide URL chips (not relevant), show devices immediately
+                document.getElementById('url-count-section').style.display = 'none';
+                // Step numbers shift: devices becomes step 2
+                document.getElementById('dev-step-num').textContent = '2';
+                showDevicesSection();
+            } else {
+                document.getElementById('dev-step-num').textContent = '3';
+                // Only show devices section if we already have URLs loaded
+                if (allUrls.length > 0) showDevicesSection();
+                else document.getElementById('devices-section').style.display = 'none';
+            }
+            updateConfigSummary();
         }
 
-        function buildConfigUI() {
-            // ── Device cards ──
+        // ── Load sitemap from server ───────────────────────────────────────────────
+        function loadUrls() {
+            const source = document.getElementById('sitemap-input').value.trim();
+            if (!source) return;
+            setLoadStatus('loading', 'Fetching ' + source + '…');
+            document.getElementById('load-btn').disabled = true;
+            if (ws?.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({ type: 'load_urls', source }));
+            }
+        }
+
+        function setLoadStatus(type, msg) {
+            const el = document.getElementById('load-status');
+            const color = type === 'ok' ? 'var(--good)' : type === 'error' ? 'var(--poor)' : 'var(--running)';
+            const icon = type === 'ok' ? '✓ ' : type === 'error' ? '✗ ' : '⟳ ';
+            el.style.color = color;
+            el.innerHTML = `<span>${icon}${msg}</span>`;
+        }
+
+        // ── Build device cards (called once) ──────────────────────────────────────
+        function buildDeviceCards() {
+            if (!profiles.length) return;
             const dc = document.getElementById('dev-cards');
+            if (dc.children.length) return;
             dc.innerHTML = profiles.map(pr => `
     <div class="dev-card active" id="dc-${pr.id}" onclick="toggleDevice('${pr.id}')">
-      <div class="dc-check" id="dck-${pr.id}"></div>
+      <div class="dc-check"></div>
       <div class="dc-icon">${pr.icon}</div>
-      <div class="dc-info">
+      <div>
         <div class="dc-name">${pr.label}</div>
         <span class="dc-eng">${pr.engine ?? 'chromium'}</span>
       </div>
     </div>`).join('');
             selectedProfileIds = profiles.map(p => p.id);
+        }
 
-            // ── URL chips ──
+        function showDevicesSection() {
+            buildDeviceCards();
+            document.getElementById('devices-section').style.display = '';
+        }
+
+        // ── Build URL chips after sitemap loads ───────────────────────────────────
+        function buildUrlChips() {
             const total = allUrls.length;
             const chips = document.getElementById('url-chips');
+            const section = document.getElementById('url-count-section');
+            const badge = document.getElementById('total-badge');
+
+            badge.textContent = total.toLocaleString() + ' total';
+
             const available = URL_STEPS.filter(n => n <= total);
-            // Always add "All" at end if last step < total
             if (!available.includes(total)) available.push(total);
 
             chips.innerHTML = available.map(n => {
@@ -1762,11 +2115,11 @@
                 return `<span class="url-chip" data-count="${n}" onclick="selectUrlCount(${n})">${label}</span>`;
             }).join('');
 
-            // Default: select All
-            selectUrlCount(total);
+            section.style.display = '';
+            selectUrlCount(total);  // default: all
 
-            document.getElementById('cfg-sitemap').textContent = `${total.toLocaleString()} URLs found`;
-            updateConfigSummary();
+            // Show devices step after URL chips appear
+            showDevicesSection();
         }
 
         function selectUrlCount(n) {
@@ -1780,8 +2133,7 @@
         function toggleDevice(id) {
             const card = document.getElementById(`dc-${id}`);
             if (selectedProfileIds.includes(id)) {
-                // Don't allow deselecting the last one
-                if (selectedProfileIds.length === 1) return;
+                if (selectedProfileIds.length === 1) return; // keep at least one
                 selectedProfileIds = selectedProfileIds.filter(x => x !== id);
                 card.classList.remove('active');
             } else {
@@ -1791,36 +2143,94 @@
             updateConfigSummary();
         }
 
+        // ── Summary + run button ──────────────────────────────────────────────────
         function updateConfigSummary() {
-            const urlN = selectedUrlCount || allUrls.length;
+            const isManual = sourceMode === 'manual';
+            const manUrls = getManualUrls();
+            const urlN = isManual ? manUrls.length : (selectedUrlCount || allUrls.length);
             const devN = selectedProfileIds.length;
-            const total = urlN * devN;
-            const devNames = profiles.filter(p => selectedProfileIds.includes(p.id)).map(p => p.icon + ' ' + p.label).join(', ');
-            document.getElementById('cfg-summary').innerHTML =
-                `<strong>${urlN.toLocaleString()}</strong> URLs <span class="sep">×</span>
-     <strong>${devN}</strong> device${devN === 1 ? '' : 's'}
-     <span class="sep">→</span>
-     <strong>${total.toLocaleString()}</strong> page audits
-     <span style="margin-left:auto;color:var(--muted);font-size:10px">${devNames}</span>`;
+            const totalAudits = urlN * devN;
 
+            const summary = document.getElementById('cfg-summary');
             const btn = document.getElementById('run-btn');
-            btn.disabled = devN === 0 || urlN === 0;
-            btn.innerHTML = `Run Audit <span class="run-count">(${total.toLocaleString()} pages)</span>`;
+            const canRun = urlN > 0 && devN > 0 && ws?.readyState === WebSocket.OPEN;
+
+            if (urlN > 0 && devN > 0) {
+                summary.style.display = 'flex';
+                const devIcons = profiles.filter(p => selectedProfileIds.includes(p.id)).map(p => p.icon).join(' ');
+                summary.innerHTML =
+                    `<strong>${urlN.toLocaleString()}</strong>
+       <span style="color:var(--muted);font-size:13px">URLs</span>
+       <span class="sep">×</span>
+       <strong>${devN}</strong>
+       <span style="color:var(--muted);font-size:13px">device${devN === 1 ? '' : 's'} ${devIcons}</span>
+       <span class="sep">=</span>
+       <strong>${totalAudits.toLocaleString()}</strong>
+       <span style="color:var(--muted);font-size:13px">page audits</span>`;
+            } else {
+                summary.style.display = 'none';
+            }
+
+            btn.disabled = !canRun;
+            btn.innerHTML = canRun
+                ? `🚀 Run Audit <span class="run-count">${totalAudits.toLocaleString()} pages</span>`
+                : urlN === 0
+                    ? `Run Audit <span class="run-count">load URLs first</span>`
+                    : `Run Audit`;
         }
 
+        // ── Report panel ──────────────────────────────────────────────────────────
+        function openReport() {
+            const panel = document.getElementById('report-panel');
+            const frame = document.getElementById('report-frame');
+            frame.src = '/report';
+            panel.classList.add('open');
+            document.getElementById('pdf-dl-btn').style.display = hasPdf ? '' : 'none';
+        }
+        function closeReport() {
+            document.getElementById('report-panel').classList.remove('open');
+        }
+        document.addEventListener('keydown', e => { if (e.key === 'Escape') closeReport(); });
+
+        // ── Manual URL helpers ────────────────────────────────────────────────────
+        function onManualInput() {
+            const lines = getManualUrls();
+            const el = document.getElementById('manual-count');
+            el.textContent = lines.length ? `${lines.length} URL${lines.length === 1 ? '' : 's'}` : '';
+            if (lines.length > 0) showDevicesSection();
+            updateConfigSummary();
+        }
+
+        function getManualUrls() {
+            return (document.getElementById('manual-urls')?.value ?? '')
+                .split('\n').map(l => l.trim()).filter(l => l.startsWith('http'));
+        }
+
+        // ── Start audit ───────────────────────────────────────────────────────────
         function startAudit() {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
-            const urlCount = selectedUrlCount || allUrls.length;
+            const isManual = sourceMode === 'manual';
+            const manualUrls = getManualUrls();
+            const urlCount = isManual ? 0 : (selectedUrlCount || allUrls.length);
+
+            if (allUrls.length === 0 && manualUrls.length === 0) {
+                setLoadStatus('error', 'Load a sitemap or paste URLs first');
+                switchSource('sitemap');
+                return;
+            }
+
             ws.send(JSON.stringify({
                 type: 'start',
                 profileIds: selectedProfileIds,
-                urlCount,
+                urlCount: isManual ? 0 : urlCount,
+                manualUrls: isManual ? manualUrls : [],
             }));
+
             hideConfig();
-            // Clear previous run state
             S.clear(); shots.clear(); selUrl = null; selTab = null;
             document.getElementById('ul').innerHTML = '';
-            document.getElementById('detail').innerHTML = '<div class="de"><div class="big">🚀</div><div>Audit starting…</div></div>';
+            document.getElementById('detail').innerHTML =
+                '<div class="de"><div class="big">🚀</div><div>Audit starting…</div></div>';
         }
 
         // ── WebSocket ─────────────────────────────────────────────────────────────
@@ -1834,26 +2244,50 @@
             ws.onmessage = e => {
                 const m = JSON.parse(e.data);
 
-                // ── Init / URLs loaded ──
-                if (m.type === 'init' || m.type === 'urls_loaded') {
+                // ── Init (server state on connect) ──
+                if (m.type === 'init') {
                     if (m.profiles?.length) {
                         profiles = m.profiles;
-                        // Inject engine label from profile id heuristic if missing
-                        profiles.forEach(p => { if (!p.engine) p.engine = p.id.includes('safari') || p.id.includes('ios') ? 'webkit' : 'chromium'; });
+                        profiles.forEach(p => {
+                            if (!p.engine) p.engine = (p.id.includes('safari') || p.id.includes('ios')) ? 'webkit' : 'chromium';
+                        });
+                        buildDeviceCards();
                     }
-                    if (m.urls?.length) allUrls = m.urls;
-                    buildConfigUI();
+                    if (m.urls?.length) { allUrls = m.urls; buildUrlChips(); }
+                    if (m.hasReport) { hasReport = true; hasPdf = !!m.hasPdf; showReportBtn(); }
 
-                    // If server says audit already running (reconnect), hide config
                     if (m.running) {
                         hideConfig();
-                        if (m.progress) { m.progress.forEach(p => S.set(p.url, p)); renderAll(); }
-                    } else if (!m.done) {
-                        showConfig();
-                    } else {
+                        if (m.progress?.length) { m.progress.forEach(p => S.set(p.url, p)); totalUrls = m.progress.length; renderAll(); }
+                    } else if (m.done) {
                         hideConfig();
-                        if (m.progress) { m.progress.forEach(p => S.set(p.url, p)); renderAll(); }
+                        if (m.progress?.length) { m.progress.forEach(p => S.set(p.url, p)); totalUrls = m.progress.length; renderAll(); }
+                    } else {
+                        showConfig();
                     }
+                    updateConfigSummary();
+                }
+
+                // ── Sitemap URLs loaded ──
+                if (m.type === 'urls_loaded') {
+                    allUrls = m.urls ?? [];
+                    document.getElementById('load-btn').disabled = false;
+                    setLoadStatus('ok', `${allUrls.length.toLocaleString()} URLs loaded`);
+                    buildUrlChips();
+                    updateConfigSummary();
+                }
+
+                // ── Sitemap fetch started ──
+                if (m.type === 'loading_urls') {
+                    setLoadStatus('loading', `Fetching…`);
+                }
+
+                // ── Server error ──
+                if (m.type === 'error') {
+                    setLoadStatus('error', m.message);
+                    const lb = document.getElementById('load-btn');
+                    if (lb) lb.disabled = false;
+                    updateConfigSummary();
                 }
 
                 // ── Audit kicked off ──
@@ -1897,17 +2331,43 @@
 
                 // ── Done ──
                 if (m.type === 'done') {
+                    hasReport = m.hasReport ?? false;
+                    hasPdf = m.hasPdf ?? false;
                     updateHdr();
+                    showReportBtn();
                     if (!selUrl) {
-                        document.getElementById('detail').innerHTML =
-                            `<div class="de"><div class="big">✅</div><div>Audit complete — ${m.total} pages</div></div>`;
+                        document.getElementById('detail').innerHTML = `
+          <div class="de">
+            <div class="big">✅</div>
+            <div style="margin-bottom:16px">Audit complete — ${m.total} URLs</div>
+            <button onclick="openReport()"
+              style="background:var(--accent);border:none;color:#fff;
+                font-family:var(--sans);font-size:13px;font-weight:700;
+                padding:10px 24px;border-radius:8px;cursor:pointer;">
+              📊 View Report
+            </button>
+          </div>`;
                     }
                 }
             };
 
-            ws.onclose = () => setTimeout(connect, 2000);
+            ws.onclose = () => { setTimeout(connect, 2000); updateConfigSummary(); };
         }
         connect();
+
+        function showReportBtn() {
+            if (!hasReport) return;
+            let btn = document.getElementById('view-report-hdr');
+            if (!btn) {
+                btn = document.createElement('button');
+                btn.id = 'view-report-hdr';
+                btn.className = 'fb';
+                btn.style.cssText = 'background:rgba(124,109,255,.15);border-color:var(--accent);color:var(--accent);margin-left:4px;';
+                btn.onclick = openReport;
+                btn.innerHTML = '📊 Report';
+                document.querySelector('.hstats').appendChild(btn);
+            }
+        }
 
         // ── Sidebar ───────────────────────────────────────────────────────────────
         function pdots(p) {

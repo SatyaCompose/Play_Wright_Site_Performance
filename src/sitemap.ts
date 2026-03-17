@@ -1,37 +1,54 @@
 import axios from "axios";
 import { parseStringPromise } from "xml2js";
 
-const ORIGIN_REPLACE_FROM = "https://www.kitchenwarehouse.com.au";
-const ORIGIN_REPLACE_TO = "https://kwh-kitchenwarehouse.netlify.app";
-
-function rewriteUrl(original: string): string {
-  return original.startsWith(ORIGIN_REPLACE_FROM)
-    ? ORIGIN_REPLACE_TO + original.slice(ORIGIN_REPLACE_FROM.length)
-    : original;
-}
-
+/**
+ * Fetch URLs from either:
+ *  - A sitemap XML (if url ends with .xml or content-type is xml)
+ *  - A plain URL list (one URL per line, text response)
+ *  - A single page URL (just returns [url])
+ *
+ * No hardcoded domain rewrites. URLs are returned exactly as found in the sitemap.
+ * Rewriting (e.g. prod → staging) is the caller's responsibility via the config panel.
+ */
 export async function getUrlsFromSitemap(url: string): Promise<string[]> {
-  const { data } = await axios.get(url, {
+  const { data, headers } = await axios.get(url, {
     timeout: 30000,
     headers: { "User-Agent": "SiteAuditBot/1.0" },
+    // Accept both XML and plain text
+    responseType: "text",
   });
 
+  const contentType = headers["content-type"] ?? "";
+  const isXml = url.endsWith(".xml") || contentType.includes("xml");
+
+  // ── Plain text list ──────────────────────────────────────────────────
+  if (!isXml) {
+    // Could be a newline-separated list of URLs, or a single URL
+    const lines = String(data)
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .filter((l) => l.startsWith("http"));
+    if (lines.length > 0) return lines;
+    // Single page — just return it
+    return [url];
+  }
+
+  // ── XML sitemap ──────────────────────────────────────────────────────
   const parsed = await parseStringPromise(data);
 
-  // Handle sitemap index (references child sitemaps)
+  // Sitemap index — recursively fetch child sitemaps
   if (parsed.sitemapindex?.sitemap) {
-    const childUrls: string[] = parsed.sitemapindex.sitemap.map((s: any) => {
-      const rewritten = rewriteUrl(s.loc[0]);
-      console.log(`  child sitemap: ${rewritten}`);
-      return rewritten; // ← was returning s.loc[0] before
-    });
-
+    const childUrls: string[] = parsed.sitemapindex.sitemap.map(
+      (s: any) => s.loc[0]
+    );
     console.log(`  Sitemap index: ${childUrls.length} child sitemaps`);
 
     const nested = await Promise.all(
       childUrls.map((u) =>
         getUrlsFromSitemap(u).catch((err) => {
-          console.warn(`  ⚠ Failed to fetch ${u}: ${err.message}`);
+          console.warn(
+            `  ⚠ Failed to fetch child sitemap ${u}: ${err.message}`
+          );
           return [] as string[];
         })
       )
@@ -39,10 +56,12 @@ export async function getUrlsFromSitemap(url: string): Promise<string[]> {
     return nested.flat();
   }
 
-  // Standard sitemap — rewrite every page URL too
+  // Standard urlset
   if (parsed.urlset?.url) {
-    return parsed.urlset.url.map((u: any) => rewriteUrl(u.loc[0]));
+    return parsed.urlset.url.map((u: any) => u.loc[0]);
   }
 
-  throw new Error("Unrecognised sitemap format");
+  throw new Error(
+    "Unrecognised sitemap format — expected <urlset> or <sitemapindex>"
+  );
 }
