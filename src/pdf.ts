@@ -1,9 +1,9 @@
-import puppeteer from "puppeteer";
+import { chromium } from "playwright";
 import * as fs from "fs";
 import * as path from "path";
 
 export async function generatePDF(html: string): Promise<void> {
-  const browser = await puppeteer.launch({
+  const browser = await chromium.launch({
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
@@ -13,7 +13,7 @@ export async function generatePDF(html: string): Promise<void> {
   const tmpPath = path.resolve("./report_tmp.html");
   fs.writeFileSync(tmpPath, html, "utf-8");
 
-  await page.goto(`file://${tmpPath}`, { waitUntil: "networkidle0" });
+  await page.goto(`file://${tmpPath}`, { waitUntil: "networkidle" });
 
   await page.pdf({
     path: "report.pdf",
