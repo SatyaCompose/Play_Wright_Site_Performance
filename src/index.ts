@@ -24,10 +24,21 @@ let auditDone = false;
 let auditRunning = false;
 let allUrls: string[] = [];
 let lastReportHtml = "";
+// Track videos created in the current session so we can clean them on next run
+let currentSessionVideos: string[] = [];
 
-// ── Ctrl+C: clean exit ────────────────────────────────────────────────────
-// Runner already sets its own shuttingDown flag — here we just exit the
-// process cleanly once the server and WS connections are done.
+// ── Helpers ───────────────────────────────────────────────────────────────
+function clearSessionVideos() {
+  for (const f of currentSessionVideos) {
+    try {
+      if (fs.existsSync(f)) fs.unlinkSync(f);
+    } catch {}
+  }
+  currentSessionVideos = [];
+  console.log("  Previous session videos cleared.");
+}
+
+// ── Graceful exit ─────────────────────────────────────────────────────────
 let exiting = false;
 function gracefulExit() {
   if (exiting) return;
@@ -38,7 +49,6 @@ function gracefulExit() {
     console.log("  Goodbye.\n");
     process.exit(0);
   });
-  // Force exit after 3s if something hangs (e.g. Playwright browser still open)
   setTimeout(() => process.exit(0), 3000).unref();
 }
 process.on("SIGINT", gracefulExit);
@@ -54,14 +64,17 @@ const dashboardHtml = fs.readFileSync(
 );
 
 const httpServer = http.createServer((req, res) => {
-  const url = req.url ?? "/";
+  // Parse URL and query string
+  const [rawPath, rawQuery] = (req.url ?? "/").split("?");
+  const params = new URLSearchParams(rawQuery ?? "");
 
-  if (url === "/" || url === "/dashboard") {
+  if (rawPath === "/" || rawPath === "/dashboard") {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(dashboardHtml);
     return;
   }
-  if (url === "/report") {
+
+  if (rawPath === "/report") {
     if (!lastReportHtml) {
       res.writeHead(404);
       res.end("No report yet");
@@ -71,7 +84,8 @@ const httpServer = http.createServer((req, res) => {
     res.end(lastReportHtml);
     return;
   }
-  if (url === "/report.pdf") {
+
+  if (rawPath === "/report.pdf") {
     const p = path.join(process.cwd(), "report.pdf");
     if (!fs.existsSync(p)) {
       res.writeHead(404);
@@ -87,7 +101,8 @@ const httpServer = http.createServer((req, res) => {
     fs.createReadStream(p).pipe(res);
     return;
   }
-  if (url === "/report.html") {
+
+  if (rawPath === "/report.html") {
     if (!lastReportHtml) {
       res.writeHead(404);
       res.end("No report yet");
@@ -100,20 +115,49 @@ const httpServer = http.createServer((req, res) => {
     res.end(lastReportHtml);
     return;
   }
-  if (url.startsWith("/videos/")) {
-    const fp = path.join(process.cwd(), url);
-    if (fs.existsSync(fp)) {
-      const stat = fs.statSync(fp);
-      const mime = fp.endsWith(".mp4") ? "video/mp4" : "video/webm";
+
+  // Video streaming + optional download
+  if (rawPath.startsWith("/videos/")) {
+    const fp = path.join(process.cwd(), rawPath);
+    if (!fs.existsSync(fp)) {
+      res.writeHead(404);
+      res.end("Video not found");
+      return;
+    }
+
+    const stat = fs.statSync(fp);
+    const mime = fp.endsWith(".mp4") ? "video/mp4" : "video/webm";
+    const fname = path.basename(fp);
+    const download = params.get("download") === "1";
+
+    // Support HTTP Range requests so Safari/mobile can seek
+    const range = req.headers.range;
+    if (range && !download) {
+      const [startStr, endStr] = range.replace(/bytes=/, "").split("-");
+      const start = parseInt(startStr, 10);
+      const end = endStr ? parseInt(endStr, 10) : stat.size - 1;
+      const chunkSize = end - start + 1;
+      res.writeHead(206, {
+        "Content-Range": `bytes ${start}-${end}/${stat.size}`,
+        "Accept-Ranges": "bytes",
+        "Content-Length": chunkSize,
+        "Content-Type": mime,
+      });
+      fs.createReadStream(fp, { start, end }).pipe(res);
+    } else {
       res.writeHead(200, {
         "Content-Type": mime,
         "Content-Length": stat.size,
         "Accept-Ranges": "bytes",
+        "Content-Disposition": download
+          ? `attachment; filename="${fname}"`
+          : `inline; filename="${fname}"`,
       });
       fs.createReadStream(fp).pipe(res);
-      return;
     }
+    return;
   }
+
   res.writeHead(404);
   res.end("Not found");
 });
@@ -125,7 +169,6 @@ const clients = new Set<WebSocket>();
 wss.on("connection", (ws) => {
   clients.add(ws);
 
-  // Always send full current state so reconnects / refreshes work
   ws.send(
     JSON.stringify({
       type: "init",
@@ -139,9 +182,7 @@ wss.on("connection", (ws) => {
   );
 
   ws.on("message", async (raw) => {
-    // Ignore messages while shutting down
     if (exiting) return;
-
     let msg: any;
     try {
       msg = JSON.parse(raw.toString());
@@ -151,8 +192,6 @@ wss.on("connection", (ws) => {
 
     // ── Load sitemap ──────────────────────────────────────────────────
     if (msg.type === "load_urls") {
-      // Allow re-loading even while auditRunning — they might be loading
-      // a new sitemap to queue for the next run
       const source: string = (msg.source ?? "").trim();
       if (!source) {
         ws.send(
@@ -228,24 +267,24 @@ wss.on("connection", (ws) => {
         return;
       }
 
-      // ── Reset all state for the new run ──────────────────────────────
+      // ── Clear previous session's videos before starting new run ──────
+      clearSessionVideos();
+
       auditRunning = true;
       auditDone = false;
       lastReportHtml = "";
       progressMap.clear();
-
       for (const u of urlsToRun)
         progressMap.set(u, { url: u, status: "pending" });
+
       broadcast({ type: "start", urls: urlsToRun, profiles: selectedProfiles });
       console.log(
         `\n  Audit: ${urlsToRun.length} URLs × ${selectedProfiles.length} profiles`
       );
 
-      // ── Run in background — don't block the message handler ──────────
-      // Using setImmediate so the WS ack is sent before the heavy work starts
       setImmediate(async () => {
         try {
-          resetShuttingDown(); // allow a fresh run even after a prior Ctrl+C
+          resetShuttingDown();
           const allProgress = await runAudit(urlsToRun, {
             concurrency,
             videosDir,
@@ -254,6 +293,17 @@ wss.on("connection", (ws) => {
               progressMap.set(progress.url, progress);
               const { screenshots, ...rest } = progress;
               broadcast({ type: "progress", progress: rest });
+
+              // Track video paths as they come in
+              for (const r of progress.results ?? []) {
+                if (
+                  r.videoPath &&
+                  !currentSessionVideos.includes(r.videoPath)
+                ) {
+                  currentSessionVideos.push(r.videoPath);
+                }
+              }
+
               const done = [...progressMap.values()].filter(
                 (p) => p.status === "done" || p.status === "failed"
               ).length;
@@ -264,9 +314,17 @@ wss.on("connection", (ws) => {
             },
           });
 
-          // ── Always reset running flag, even if something threw ────────
           auditRunning = false;
           auditDone = true;
+
+          // Also collect any videos we might have missed
+          for (const p of allProgress) {
+            for (const r of p.results ?? []) {
+              if (r.videoPath && !currentSessionVideos.includes(r.videoPath)) {
+                currentSessionVideos.push(r.videoPath);
+              }
+            }
+          }
 
           console.log(`\n\n  Generating reports…`);
           lastReportHtml = generateHTMLReport(
@@ -288,10 +346,11 @@ wss.on("connection", (ws) => {
             hasReport: true,
             hasPdf,
           });
-          console.log(`  Done — ${allProgress.length} URLs audited\n`);
+          console.log(
+            `  Done — ${allProgress.length} URLs · ${currentSessionVideos.length} videos`
+          );
           console.log("  Ready for another run.\n");
         } catch (e: any) {
-          // Ensure the flag is always reset so the user can retry
           auditRunning = false;
           console.error("\n  Audit error:", e.message);
           broadcast({ type: "error", message: `Audit failed: ${e.message}` });
