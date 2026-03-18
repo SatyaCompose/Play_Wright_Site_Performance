@@ -236,19 +236,17 @@ async function auditPage(
 
     await page.addInitScript(VITALS_SCRIPT);
 
-    // "networkidle" waits for no network activity for 500ms after load —
-    // catches React/Next.js hydration API calls that fire after DOMContentLoaded.
-    // Falls back to "load" if networkidle times out (e.g. long-polling pages).
-    let response;
-    try {
-      response = await page.goto(url, {
-        waitUntil: "networkidle",
-        timeout: 60000,
-      });
-    } catch {
-      response = await page.goto(url, { waitUntil: "load", timeout: 60000 });
-    }
+    // Navigate with "load" (reliable), then opportunistically wait for
+    // networkidle to catch React/Next.js hydration API calls.
+    // Keeping them separate avoids re-navigating the page if networkidle
+    // times out on busy e-commerce pages (analytics, ads, lazy images).
+    const response = await page.goto(url, { waitUntil: "load", timeout: 60000 });
     if (!response) throw new Error("No response received");
+    try {
+      await page.waitForLoadState("networkidle", { timeout: 15000 });
+    } catch {
+      // Network never fully idle — continue with what we have
+    }
 
     // Give mobile browsers extra time: WebKit paints later than Chromium,
     // and CSR frameworks (React, Vue) fire data fetches after initial paint.
