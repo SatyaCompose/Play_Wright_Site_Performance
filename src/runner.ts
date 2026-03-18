@@ -43,12 +43,16 @@ const VITALS_SCRIPT = `
 `;
 
 let shuttingDown = false;
+// index.ts owns the process exit — runner just needs to know to stop
+// launching new pages. Do NOT call process.exit() here; that's index.ts's job.
 process.on("SIGINT", () => {
   shuttingDown = true;
 });
 process.on("SIGTERM", () => {
   shuttingDown = true;
 });
+
+// Allow runner to be reset between audit runs
 
 // ── Browser pool: one instance per engine, shared across all pages ────────
 const browserPool = new Map<string, Browser>();
@@ -75,6 +79,11 @@ async function closeAllBrowsers() {
     } catch {}
   }
   browserPool.clear();
+}
+
+// Called by index.ts before each new audit run
+export function resetShuttingDown() {
+  shuttingDown = false;
 }
 
 // ── Resolve which engine a profile needs ─────────────────────────────────
