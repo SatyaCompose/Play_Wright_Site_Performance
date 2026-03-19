@@ -1859,6 +1859,147 @@
             border: none;
             background: #fff;
         }
+
+        /* ══════════════════════════════════════
+           MOBILE RESPONSIVE
+        ══════════════════════════════════════ */
+        .mob-back { display: none; }
+
+        @media (max-width: 768px) {
+            body {
+                height: 100dvh;
+                grid-template-rows: auto 1fr;
+                overflow: hidden;
+            }
+
+            header {
+                flex-wrap: wrap;
+                padding: 8px 12px;
+                gap: 6px;
+                height: auto;
+                min-height: 48px;
+            }
+
+            .pw { width: 80px; }
+
+            .hstats {
+                flex-wrap: wrap;
+                gap: 4px;
+            }
+
+            /* Two-panel slide navigation */
+            .layout {
+                grid-template-columns: 1fr;
+                position: relative;
+                overflow: hidden;
+            }
+
+            .sidebar {
+                position: absolute;
+                inset: 0;
+                border-right: none;
+                z-index: 1;
+                width: 100%;
+                transition: transform .25s cubic-bezier(.4,0,.2,1);
+            }
+
+            .sidebar.mob-hidden {
+                transform: translateX(-100%);
+                pointer-events: none;
+            }
+
+            .detail {
+                position: absolute;
+                inset: 0;
+                transform: translateX(100%);
+                transition: transform .25s cubic-bezier(.4,0,.2,1);
+                z-index: 2;
+            }
+
+            .detail.mob-active {
+                transform: translateX(0);
+            }
+
+            /* Floating back bar that slides in with detail */
+            .mob-back {
+                display: flex;
+                align-items: center;
+                gap: 6px;
+                padding: 10px 14px;
+                background: var(--s1);
+                border-bottom: 1px solid var(--border);
+                font-size: 12px;
+                font-weight: 700;
+                color: var(--accent);
+                cursor: pointer;
+                flex-shrink: 0;
+                position: absolute;
+                top: 0;
+                left: 0;
+                right: 0;
+                z-index: 3;
+                transform: translateX(100%);
+                transition: transform .25s cubic-bezier(.4,0,.2,1);
+            }
+
+            .mob-back:active { background: var(--s2); }
+
+            .mob-back.mob-active {
+                transform: translateX(0);
+            }
+
+            /* Push detail content below the back bar */
+            .detail.mob-active .di {
+                padding-top: 52px;
+            }
+
+            /* Vitals: 2 columns */
+            .vg { grid-template-columns: repeat(2, 1fr) !important; }
+            #live-vitals-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+            /* Compare bar narrower label */
+            .cmplbl { width: 80px; font-size: 9px; }
+            .cmpval { width: 44px; font-size: 9px; }
+
+            /* Config panel */
+            .cfg-head { padding: 18px 16px 14px; }
+            .cfg-body { padding: 16px 16px 20px; }
+            .cfg-panel { border-radius: 14px; }
+
+            /* Device cards: 1 column */
+            .dev-cards { grid-template-columns: 1fr; }
+
+            /* Phone frames: scale down */
+            .frame-area {
+                min-height: 320px;
+                padding: 10px 0 12px;
+            }
+
+            .iphone-body,
+            .android-body {
+                transform: scale(0.8);
+                transform-origin: top center;
+                margin-bottom: -60px;
+            }
+
+            /* Tables: horizontal scroll */
+            .tbwrap {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            table { min-width: 400px; }
+        }
+
+        @media (max-width: 480px) {
+            .pill { font-size: 9px; padding: 2px 5px; }
+            .pw { width: 60px; }
+            .vv { font-size: 15px; }
+            .logo { font-size: 14px; }
+            .cfg-body { padding: 12px 12px 16px; }
+            .cfg-head { padding: 14px 12px 10px; }
+            .cfg-head h2 { font-size: 18px; }
+        }
     </style>
 </head>
 
@@ -1974,6 +2115,7 @@
         </div>
     </header>
     <div class="layout">
+        <div id="mob-back" class="mob-back" onclick="mobBack()">‹ All URLs</div>
         <div class="sidebar">
             <div class="sbt">
                 <input id="search" type="text" placeholder="Filter URLs…" oninput="applyFilter()">
@@ -2227,6 +2369,7 @@
             }));
 
             hideConfig();
+            mobBack();
             S.clear(); shots.clear(); selUrl = null; selTab = null;
             document.getElementById('ul').innerHTML = '';
             document.getElementById('detail').innerHTML =
@@ -2437,6 +2580,17 @@
             const p = S.get(url);
             selTab = p?.results?.[0]?.profile?.id ?? (profiles[0]?.id ?? null);
             renderDetail(url);
+            if (window.innerWidth <= 768) {
+                document.querySelector('.sidebar').classList.add('mob-hidden');
+                document.getElementById('detail').classList.add('mob-active');
+                document.getElementById('mob-back').classList.add('mob-active');
+            }
+        }
+
+        function mobBack() {
+            document.querySelector('.sidebar').classList.remove('mob-hidden');
+            document.getElementById('detail').classList.remove('mob-active');
+            document.getElementById('mob-back').classList.remove('mob-active');
         }
         function selTab2(id) { selTab = id; renderDetail(selUrl); }
 
