@@ -1872,6 +1872,7 @@
                 overflow: hidden;
             }
 
+            /* ── Header ── */
             header {
                 flex-wrap: wrap;
                 padding: 8px 12px;
@@ -1887,7 +1888,7 @@
                 gap: 4px;
             }
 
-            /* Two-panel slide navigation */
+            /* ── Two-panel slide navigation ── */
             .layout {
                 grid-template-columns: 1fr;
                 position: relative;
@@ -1920,7 +1921,7 @@
                 transform: translateX(0);
             }
 
-            /* Floating back bar that slides in with detail */
+            /* ── Floating back bar ── */
             .mob-back {
                 display: flex;
                 align-items: center;
@@ -1953,52 +1954,123 @@
                 padding-top: 52px;
             }
 
-            /* Vitals: 2 columns */
+            /* ── Vitals grid: 2 columns ── */
             .vg { grid-template-columns: repeat(2, 1fr) !important; }
             #live-vitals-grid { grid-template-columns: repeat(2, 1fr) !important; }
 
-            /* Compare bar narrower label */
-            .cmplbl { width: 80px; font-size: 9px; }
-            .cmpval { width: 44px; font-size: 9px; }
+            /* ── Compare bar ── */
+            .cmplbl { width: 64px; font-size: 9px; }
+            .cmpval { width: 46px; font-size: 9px; text-align: right; }
 
-            /* Config panel */
+            /* ── Config panel ── */
             .cfg-head { padding: 18px 16px 14px; }
             .cfg-body { padding: 16px 16px 20px; }
             .cfg-panel { border-radius: 14px; }
 
-            /* Device cards: 1 column */
+            /* ── Device cards: 1 column ── */
             .dev-cards { grid-template-columns: 1fr; }
 
-            /* Phone frames: scale down */
+            /* ── Phone frames: scale & fit ── */
             .frame-area {
-                min-height: 320px;
-                padding: 10px 0 12px;
+                min-height: unset;
+                padding: 16px 0 8px;
+                overflow: hidden;
             }
 
-            .iphone-body,
+            .iphone-body {
+                width: 240px;
+                border-radius: 36px;
+            }
+
             .android-body {
-                transform: scale(0.8);
-                transform-origin: top center;
-                margin-bottom: -60px;
+                width: 220px;
+                border-radius: 28px;
             }
 
-            /* Tables: horizontal scroll */
+            /* ── Desktop (macOS/Windows) frames on mobile ── */
+            .frame-desktop {
+                background: radial-gradient(ellipse at 50% 20%, rgba(124,109,255,.1) 0%, transparent 70%);
+                padding: 14px 0 16px;
+                margin-bottom: 16px;
+            }
+
+            /* Simplify mac chrome */
+            .mac-new-tab { display: none; }
+            .mac-tab { min-width: 80px; max-width: 130px; padding: 5px 8px; }
+            .mac-tab-close { display: none; }
+            .mac-stand-neck,
+            .mac-stand-base { display: none; }
+            .mac-actions { display: none; }
+
+            /* Simplify windows chrome */
+            .win-tab { min-width: 80px; max-width: 130px; padding: 0 8px; }
+            .win-tab-x { display: none; }
+            .win-newtab { display: none; }
+            .win-extbtns { display: none; }
+            .wc-btn { width: 30px; font-size: 10px; }
+
+            /* ── Tables: horizontal scroll, hide low-value column ── */
             .tbwrap {
                 overflow-x: auto;
                 -webkit-overflow-scrolling: touch;
             }
 
-            table { min-width: 400px; }
+            table { min-width: 360px; }
+
+            /* Hide Server-Timing column — rarely has data on mobile view */
+            th.cst, td.cst { display: none; }
+
+            /* ── Report panel toolbar: stack on mobile ── */
+            .report-toolbar {
+                flex-wrap: wrap;
+                row-gap: 8px;
+                padding: 10px 12px;
+            }
+
+            .report-toolbar h3 {
+                width: 100%;
+                flex: none;
+                order: -1;
+                font-size: 13px;
+            }
+
+            .report-dl-btn {
+                flex: 1;
+                justify-content: center;
+                font-size: 10px;
+                padding: 7px 8px;
+                min-width: 0;
+            }
+
+            .report-close {
+                order: -1;
+                margin-left: auto;
+            }
         }
 
         @media (max-width: 480px) {
             .pill { font-size: 9px; padding: 2px 5px; }
             .pw { width: 60px; }
             .vv { font-size: 15px; }
+            .vs { font-size: 8px; }
             .logo { font-size: 14px; }
             .cfg-body { padding: 12px 12px 16px; }
             .cfg-head { padding: 14px 12px 10px; }
             .cfg-head h2 { font-size: 18px; }
+            .di { padding: 12px 12px; }
+            .detail.mob-active .di { padding-top: 52px; padding-left: 12px; padding-right: 12px; }
+            .durl { font-size: 10px; }
+            .dtab { padding: 8px 10px; font-size: 10px; }
+
+            /* Phone frames even smaller */
+            .iphone-body { width: 200px; border-radius: 30px; }
+            .android-body { width: 185px; border-radius: 24px; }
+
+            /* Windows/mac tabs very compact */
+            .mac-tab, .win-tab { min-width: 60px; max-width: 100px; font-size: 9px; }
+
+            /* Compare bar: icon only in label */
+            .cmplbl { width: 28px; overflow: hidden; }
         }
     </style>
 </head>
