@@ -2175,6 +2175,21 @@
                     <div class="dev-cards" id="dev-cards"></div>
                 </div>
 
+                <!-- Quick mode toggle -->
+                <div class="cfg-section" id="quick-section" style="display:none">
+                    <label style="display:flex;align-items:flex-start;gap:12px;cursor:pointer;user-select:none">
+                        <input type="checkbox" id="quick-mode"
+                            style="width:16px;height:16px;margin-top:2px;flex-shrink:0;accent-color:var(--accent);cursor:pointer">
+                        <div>
+                            <div style="font-weight:700;font-size:13px">⚡ Quick Audit</div>
+                            <div style="font-size:11px;color:var(--muted);margin-top:3px;line-height:1.5">
+                                No video, no live screenshots — runs 15 URLs at a time instead of 3.<br>
+                                Best for scanning 100+ URLs. Results focus on errors and empty pages.
+                            </div>
+                        </div>
+                    </label>
+                </div>
+
                 <!-- Summary -->
                 <div class="cfg-summary" id="cfg-summary" style="display:none">
                     <!-- filled by JS -->
@@ -2362,6 +2377,7 @@
         function showDevicesSection() {
             buildDeviceCards();
             document.getElementById('devices-section').style.display = '';
+            document.getElementById('quick-section').style.display = '';
         }
 
         // ── Build URL chips after sitemap loads ───────────────────────────────────
@@ -2511,11 +2527,13 @@
             const isFiltered = !isManual && productListFilter !== 'all';
             const auditUrls = isManual ? [] : getFilteredAuditUrls();
 
+            const quickMode = document.getElementById('quick-mode')?.checked ?? false;
             ws.send(JSON.stringify({
                 type: 'start',
                 profileIds: selectedProfileIds,
                 urlCount: isManual ? 0 : (isFiltered ? 0 : auditUrls.length),
                 manualUrls: isManual ? manualUrls : (isFiltered ? auditUrls : []),
+                quickMode,
             }));
 
             hideConfig();

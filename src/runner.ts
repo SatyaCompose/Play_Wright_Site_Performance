@@ -106,7 +106,7 @@ function engineForProfile(
 }
 
 // ── Build Playwright newContext() options for a profile ───────────────────
-function contextOptions(profile: DeviceProfile, videosDir: string) {
+function contextOptions(profile: DeviceProfile, videosDir: string, quickMode = false) {
   // Start from Playwright device descriptor if specified
   const deviceDesc = profile.playwrightDevice
     ? { ...devices[profile.playwrightDevice] }
@@ -131,10 +131,12 @@ function contextOptions(profile: DeviceProfile, videosDir: string) {
 
   return {
     ...merged,
-    recordVideo: {
-      dir: videosDir,
-      size: { width: viewport.width, height: viewport.height },
-    },
+    ...(quickMode ? {} : {
+      recordVideo: {
+        dir: videosDir,
+        size: { width: viewport.width, height: viewport.height },
+      },
+    }),
   };
 }
 
@@ -167,18 +169,19 @@ async function auditPage(
   url: string,
   profile: DeviceProfile,
   videosDir: string,
-  onScreenshot?: (profileId: string, png: string) => void
+  onScreenshot?: (profileId: string, png: string) => void,
+  quickMode = false
 ): Promise<PageResult> {
   const engine = engineForProfile(profile);
   const browser = await getBrowser(engine);
   let context: BrowserContext | null = null;
 
   try {
-    context = await browser.newContext(contextOptions(profile, videosDir));
+    context = await browser.newContext(contextOptions(profile, videosDir, quickMode));
     const page = await context.newPage();
 
     let stopScreenshots: (() => void) | null = null;
-    if (onScreenshot) {
+    if (onScreenshot && !quickMode) {
       stopScreenshots = startScreenshotStream(page, 800, (png) =>
         onScreenshot(profile.id, png)
       );
@@ -248,29 +251,31 @@ async function auditPage(
     const response = await page.goto(url, { waitUntil: "load", timeout: 60000 });
     if (!response) throw new Error("No response received");
     try {
-      await page.waitForLoadState("networkidle", { timeout: 15000 });
+      await page.waitForLoadState("networkidle", { timeout: quickMode ? 3000 : 15000 });
     } catch {
       // Network never fully idle — continue with what we have
     }
 
     // Give mobile browsers extra time: WebKit paints later than Chromium,
     // and CSR frameworks (React, Vue) fire data fetches after initial paint.
-    const settlems = engineForProfile(profile) === "webkit" ? 4000 : 2500;
+    const settlems = quickMode ? 600 : (engineForProfile(profile) === "webkit" ? 4000 : 2500);
     await page.waitForTimeout(settlems);
 
     // ── Scroll through full page so the video captures all content ───────
-    await page.evaluate(async () => {
-      const totalHeight = document.body.scrollHeight;
-      const step = Math.ceil(window.innerHeight * 0.6);
-      for (let pos = 0; pos < totalHeight; pos += step) {
-        window.scrollTo({ top: pos, behavior: "smooth" });
-        await new Promise((r) => setTimeout(r, 300));
-      }
-      // Pause at bottom, then scroll back to top
-      await new Promise((r) => setTimeout(r, 500));
-      window.scrollTo({ top: 0, behavior: "smooth" });
-      await new Promise((r) => setTimeout(r, 400));
-    });
+    if (!quickMode) {
+      await page.evaluate(async () => {
+        const totalHeight = document.body.scrollHeight;
+        const step = Math.ceil(window.innerHeight * 0.6);
+        for (let pos = 0; pos < totalHeight; pos += step) {
+          window.scrollTo({ top: pos, behavior: "smooth" });
+          await new Promise((r) => setTimeout(r, 300));
+        }
+        // Pause at bottom, then scroll back to top
+        await new Promise((r) => setTimeout(r, 500));
+        window.scrollTo({ top: 0, behavior: "smooth" });
+        await new Promise((r) => setTimeout(r, 400));
+      });
+    }
 
     // ── Product count (product-list pages) ──────────────────────────────
     // Returns the number of loaded product cards, or undefined if the page
@@ -335,7 +340,7 @@ async function auditPage(
       productCountRaw !== null ? productCountRaw : undefined;
 
     // Final screenshot
-    if (onScreenshot) {
+    if (onScreenshot && !quickMode) {
       try {
         const buf = await page.screenshot({ type: "jpeg", quality: 85 });
         onScreenshot(profile.id, buf.toString("base64"));
@@ -407,46 +412,44 @@ async function auditPage(
     };
 
     // ── Save video ───────────────────────────────────────────────────────
-    // Must call page.video().path() BEFORE closing page/context — Playwright
-    // finalises the file only after context.close(), but the path is locked in
-    // at page creation time. Calling it after close() returns undefined.
     let videoPath: string | undefined;
-    const video = page.video();
 
-    await page.close();
-    // context.close() blocks until Playwright finishes writing the video file
-    await context.close();
+    if (!quickMode) {
+      // Must call page.video().path() BEFORE closing page/context — Playwright
+      // finalises the file only after context.close(), but the path is locked in
+      // at page creation time. Calling it after close() returns undefined.
+      const video = page.video();
 
-    if (video) {
-      try {
-        const raw: string =
-          typeof (video as any).savePath === "function"
-            ? await (video as any).savePath()
-            : await video.path();
+      await page.close();
+      await context.close();
 
-        if (raw && fs.existsSync(raw)) {
-          const ext = raw.endsWith(".mp4") ? ".mp4" : ".webm";
+      if (video) {
+        try {
+          const raw: string =
+            typeof (video as any).savePath === "function"
+              ? await (video as any).savePath()
+              : await video.path();
 
-          // Clean slug from URL path: /product/wolstead-glass-lid → product-wolstead-glass-lid
-          const slug =
-            new URL(url).pathname
-              .replace(/^\//, "") // strip leading slash
-              .replace(/\//g, "-") // slashes → hyphens
-              .replace(/[^a-zA-Z0-9-]/g, "") // strip anything else
-              .slice(0, 80) || // cap length
-            "root";
-
-          // Format: <slug>-<profile-id>.ext  e.g. product-wolstead-glass-lid-28cm-mobile-ios.mp4
-          const newName = path.join(videosDir, `${slug}-${profile.id}${ext}`);
-
-          // Overwrite any previous recording for this URL+profile combination
-          if (fs.existsSync(newName)) fs.unlinkSync(newName);
-          fs.renameSync(raw, newName);
-          videoPath = newName;
+          if (raw && fs.existsSync(raw)) {
+            const ext = raw.endsWith(".mp4") ? ".mp4" : ".webm";
+            const slug =
+              new URL(url).pathname
+                .replace(/^\//, "")
+                .replace(/\//g, "-")
+                .replace(/[^a-zA-Z0-9-]/g, "")
+                .slice(0, 80) || "root";
+            const newName = path.join(videosDir, `${slug}-${profile.id}${ext}`);
+            if (fs.existsSync(newName)) fs.unlinkSync(newName);
+            fs.renameSync(raw, newName);
+            videoPath = newName;
+          }
+        } catch (e) {
+          console.warn("  ⚠ video save failed:", (e as any).message);
         }
-      } catch (e) {
-        console.warn("  ⚠ video save failed:", (e as any).message);
       }
+    } else {
+      await page.close();
+      await context.close();
     }
 
     return {
@@ -488,6 +491,7 @@ export async function runAudit(
     profiles?: DeviceProfile[];
     onProgress?: (progress: AuditProgress) => void;
     onScreenshot?: (url: string, profileId: string, png: string) => void;
+    quickMode?: boolean;
   } = {}
 ): Promise<AuditProgress[]> {
   const {
@@ -496,6 +500,7 @@ export async function runAudit(
     profiles = DEVICE_PROFILES,
     onProgress,
     onScreenshot,
+    quickMode = false,
   } = options;
 
   if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
@@ -533,7 +538,8 @@ export async function runAudit(
                 shots[pid] = png;
                 onScreenshot(url, pid, png);
               }
-            : undefined
+            : undefined,
+          quickMode
         );
         results.push(result);
         // Broadcast partial progress after each profile

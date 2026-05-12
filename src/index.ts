@@ -267,6 +267,7 @@ wss.on("connection", (ws) => {
         return;
       }
 
+      const quickMode: boolean = !!msg.quickMode;
       const selectedProfileIds: string[] =
         msg.profileIds ?? DEVICE_PROFILES.map((p) => p.id);
       const urlCount: number = msg.urlCount ?? allUrls.length;
@@ -313,9 +314,10 @@ wss.on("connection", (ws) => {
         try {
           resetShuttingDown();
           const allProgress = await runAudit(urlsToRun, {
-            concurrency,
+            concurrency: quickMode ? Math.max(concurrency, 15) : concurrency,
             videosDir,
             profiles: selectedProfiles,
+            quickMode,
             onProgress: (progress) => {
               progressMap.set(progress.url, progress);
               const { screenshots, ...rest } = progress;
@@ -336,7 +338,7 @@ wss.on("connection", (ws) => {
               ).length;
               process.stdout.write(`\r  ${done} / ${urlsToRun.length} done   `);
             },
-            onScreenshot: (url, profileId, png) => {
+            onScreenshot: quickMode ? undefined : (url, profileId, png) => {
               broadcast({ type: "screenshot", url, profileId, png });
             },
           });
