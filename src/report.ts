@@ -328,8 +328,17 @@ export function generateHTMLReport(results: PageResult[]): string {
     .flatMap((r) => r.apiCalls ?? [])
     .filter((a) => a.type === "csr").length;
 
-  // Sort by worst LCP for overview table
-  const sortedGroups = [...groups].sort((a, b) => b.worstLcp - a.worstLcp);
+  // Sort by worst LCP; 0-product URLs go to the end regardless of LCP
+  const getProductCount = (g: (typeof groups)[0]) =>
+    g.results.find((r) => r.productCount !== undefined)?.productCount;
+  const sortedGroups = [...groups].sort((a, b) => {
+    const pcA = getProductCount(a);
+    const pcB = getProductCount(b);
+    const aIsZero = pcA === 0;
+    const bIsZero = pcB === 0;
+    if (aIsZero !== bIsZero) return aIsZero ? 1 : -1;
+    return b.worstLcp - a.worstLcp;
+  });
 
   // Get unique devices that were run
   const deviceSet = new Map<string, DeviceProfile>();
@@ -415,6 +424,14 @@ a{color:var(--accent);}
 .filter-bar input:focus{border-color:var(--accent);}
 .fbtn{background:var(--s1);border:1px solid var(--border);color:var(--muted);padding:7px 14px;border-radius:8px;cursor:pointer;font-size:12px;}
 .fbtn:hover,.fbtn.active{border-color:var(--accent);color:var(--accent);}
+@media print{
+  .overview-wrap{overflow:visible;}
+  .overview-table thead{display:table-header-group;}
+  .overview-table tr{page-break-inside:avoid;}
+  .overview-table tr.zero-sep{page-break-after:avoid;}
+  .filter-bar,.fbtn{display:none;}
+  .hdr a[download]{display:none;}
+}
 </style>
 </head>
 <body>
@@ -500,7 +517,13 @@ a{color:var(--accent);}
         ${sortedGroups
           .map((g, i) => {
             const firstStatus = g.results[0]?.status;
-            return `<tr>
+            const pc = g.results.find((r) => r.productCount !== undefined)?.productCount;
+            const isZeroProduct = pc === 0;
+            const prevPc = i > 0 ? getProductCount(sortedGroups[i - 1]) : undefined;
+            const separatorRow = isZeroProduct && prevPc !== 0
+              ? `<tr class="zero-sep"><td colspan="${1 + devices.length * 3 + 1 + (hasAnyProductCount ? 1 : 0)}" style="padding:6px 10px;background:#111216;border-top:2px solid #2a2d38;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6b7280">0 Products — for reference</td></tr>`
+              : "";
+            return `${separatorRow}<tr style="${isZeroProduct ? "opacity:0.6" : ""}">
             <td><a href="#ug-${groups.indexOf(g)}" title="${g.url}">${g.url.length > 70 ? "…" + g.url.slice(-67) : g.url}</a></td>
             ${devices
               .map((dev) => {
@@ -515,7 +538,7 @@ a{color:var(--accent);}
               })
               .join("")}
             <td>${firstStatus ? `<span style="padding:2px 7px;border-radius:4px;font-family:monospace;font-size:10px;font-weight:700;${firstStatus >= 400 ? "background:rgba(255,78,66,.1);color:#ff4e42;border:1px solid rgba(255,78,66,.25)" : "background:rgba(12,206,107,.1);color:#0cce6b;border:1px solid rgba(12,206,107,.25)"}">${firstStatus}</span>` : ""}</td>
-            ${hasAnyProductCount ? (() => { const pc = g.results.find((r) => r.productCount !== undefined)?.productCount; return `<td style="font-family:monospace;font-size:11px;color:#7c6dff">${pc !== undefined ? pc.toLocaleString() : "–"}</td>`; })() : ""}
+            ${hasAnyProductCount ? `<td style="font-family:monospace;font-size:11px;color:#7c6dff">${pc !== undefined ? pc.toLocaleString() : "–"}</td>` : ""}
           </tr>`;
           })
           .join("")}
