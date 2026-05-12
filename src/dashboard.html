@@ -2463,6 +2463,12 @@
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
             const isManual = sourceMode === 'manual';
             const manualUrls = getManualUrls();
+
+            // When a product-list filter (brands/categories) is active, the server
+            // has no knowledge of it — it would slice from the full unfiltered list.
+            // So pass the filtered URLs directly as manualUrls instead.
+            const isFiltered = !isManual && productListFilter !== 'all';
+            const filteredUrls = isFiltered ? allUrls.slice(0, selectedUrlCount || allUrls.length) : [];
             const urlCount = isManual ? 0 : (selectedUrlCount || allUrls.length);
 
             if (allUrls.length === 0 && manualUrls.length === 0) {
@@ -2474,8 +2480,8 @@
             ws.send(JSON.stringify({
                 type: 'start',
                 profileIds: selectedProfileIds,
-                urlCount: isManual ? 0 : urlCount,
-                manualUrls: isManual ? manualUrls : [],
+                urlCount: isFiltered ? 0 : (isManual ? 0 : urlCount),
+                manualUrls: isManual ? manualUrls : filteredUrls,
             }));
 
             hideConfig();

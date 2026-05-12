@@ -262,6 +262,30 @@ async function auditPage(
     // Returns the number of loaded product cards, or undefined if the page
     // doesn't match any known product-listing pattern.
     const productCountRaw = await page.evaluate((): number | null => {
+      // Strategy 0: __NEXT_DATA__ (fastest — available before hydration)
+      try {
+        const nd = (window as any).__NEXT_DATA__?.props?.pageProps;
+        if (nd) {
+          // Walk common shapes: totalCount, total, productCount, count,
+          // pagination.total, products.total, products.length, etc.
+          const candidates = [
+            nd.totalCount, nd.total, nd.productCount, nd.count,
+            nd.pagination?.total, nd.pagination?.totalCount,
+            nd.products?.total, nd.products?.totalCount, nd.products?.count,
+            nd.data?.totalCount, nd.data?.total, nd.data?.productCount,
+            nd.searchResult?.totalCount, nd.searchResult?.total,
+            nd.listing?.totalCount, nd.listing?.total,
+            nd.category?.productCount, nd.category?.totalProducts,
+            nd.brand?.productCount, nd.brand?.totalProducts,
+            Array.isArray(nd.products) ? nd.products.length : undefined,
+            Array.isArray(nd.items) ? nd.items.length : undefined,
+          ];
+          for (const v of candidates) {
+            if (typeof v === 'number' && v >= 0) return v;
+          }
+        }
+      } catch {}
+
       // Strategy 1: extract count from a visible results-count text node
       // e.g. "1,234 Products", "Showing 48 of 1234 results"
       const textSelectors = [
