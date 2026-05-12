@@ -130,12 +130,20 @@ function deviceCard(r: PageResult, idx: number, tabId: string): string {
     })
     .join("");
 
+  const productTileHtml = r.productCount !== undefined
+    ? `<div style="background:#18191f;border:1px solid rgba(124,109,255,.3);border-radius:8px;padding:12px 10px;min-width:0">
+      <div style="font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#6b7280;margin-bottom:4px">Products</div>
+      <div style="font-family:monospace;font-size:18px;font-weight:700;color:#7c6dff;line-height:1">${r.productCount.toLocaleString()}</div>
+      <div style="font-size:9px;color:#7c6dff;margin-top:4px;font-weight:600;text-transform:uppercase">Loaded</div>
+    </div>`
+    : "";
+
   return `
   <div class="dcard" id="dc-${tabId}" style="display:${idx === 0 ? "block" : "none"}">
     ${r.error ? `<div style="background:rgba(255,78,66,.08);border:1px solid rgba(255,78,66,.25);border-radius:8px;padding:10px 14px;color:#ff4e42;font-size:12px;margin-bottom:14px;font-family:monospace">⚠ ${r.error}</div>` : ""}
 
-    <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:16px">
-      ${vitalsHtml}
+    <div style="display:grid;grid-template-columns:repeat(${r.productCount !== undefined ? 6 : 5},1fr);gap:8px;margin-bottom:16px">
+      ${vitalsHtml}${productTileHtml}
     </div>
 
     ${
@@ -250,6 +258,7 @@ function urlGroupCard(group: UrlGroup, groupIdx: number): string {
 
   const firstStatus = results[0]?.status;
   const hasError = results.some((r) => !!r.error);
+  const productCount = results.find((r) => r.productCount !== undefined)?.productCount;
 
   return `
   <div class="url-card" id="ug-${groupIdx}" style="background:#111216;border:1px solid ${hasError ? "rgba(255,78,66,.4)" : "#2a2d38"};border-radius:12px;margin-bottom:16px;overflow:hidden">
@@ -257,6 +266,7 @@ function urlGroupCard(group: UrlGroup, groupIdx: number): string {
     <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid #2a2d38">
       <span style="font-size:10px;font-family:monospace;color:#6b7280;background:#22242c;padding:2px 7px;border-radius:3px">#${groupIdx + 1}</span>
       <a href="${url}" target="_blank" rel="noopener" style="color:#e2e4f0;font-family:monospace;font-size:12px;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${url}">${url}</a>
+      ${productCount !== undefined ? `<span style="font-family:monospace;font-size:10px;color:#7c6dff;background:rgba(124,109,255,.1);border:1px solid rgba(124,109,255,.25);padding:2px 8px;border-radius:4px;flex-shrink:0">📦 ${productCount.toLocaleString()}</span>` : ""}
       ${firstStatus ? `<span style="padding:2px 8px;border-radius:4px;font-family:monospace;font-size:10px;font-weight:700;${firstStatus >= 400 ? "background:rgba(255,78,66,.1);color:#ff4e42;border:1px solid rgba(255,78,66,.25)" : "background:rgba(12,206,107,.1);color:#0cce6b;border:1px solid rgba(12,206,107,.25)"}">${firstStatus}</span>` : ""}
       <span style="font-size:11px;color:#6b7280;font-family:monospace;flex-shrink:0">${new Date(results[0]?.auditedAt).toLocaleTimeString()}</span>
     </div>
@@ -345,12 +355,18 @@ export function generateHTMLReport(results: PageResult[]): string {
     )
     .join("");
 
+  const hasAnyProductCount = groups.some((g) =>
+    g.results.some((r) => r.productCount !== undefined)
+  );
+
   const hasPoorLcp = allLcp.some((v) => grade("lcp", v) === "poor");
   const hasPoorCls = allCls.some((v) => grade("cls", v) === "poor");
   const tableTitle =
     hasPoorLcp || hasPoorCls
       ? "Pages by LCP — worst first"
       : "All Pages by LCP";
+
+  const dlBtnStyle = `display:inline-flex;align-items:center;gap:6px;padding:8px 16px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none;border:1px solid`;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -403,9 +419,15 @@ a{color:var(--accent);}
 </head>
 <body>
 <div class="hdr">
-  <div class="container" style="padding-bottom:0;margin-bottom:0">
-    <h1>⚡ Site Audit Report</h1>
-    <div class="meta">Generated at ${new Date().toLocaleString()} · ${total} URLs audited · ${totalResults} page-device combinations · Devices: ${devices.map((d) => d.icon + " " + d.label).join(", ")}</div>
+  <div class="container" style="padding-bottom:0;margin-bottom:0;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+    <div>
+      <h1>⚡ Site Audit Report</h1>
+      <div class="meta">Generated at ${new Date().toLocaleString()} · ${total} URLs audited · ${totalResults} page-device combinations · Devices: ${devices.map((d) => d.icon + " " + d.label).join(", ")}</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;padding-top:4px;flex-shrink:0">
+      <a href="/report.pdf" download="audit-report.pdf" style="${dlBtnStyle} rgba(124,109,255,.3);background:rgba(124,109,255,.1);color:#7c6dff">⬇ PDF</a>
+      <a href="/report.html" download="audit-report.html" style="${dlBtnStyle} var(--border);background:var(--s2);color:var(--muted)">⬇ HTML</a>
+    </div>
   </div>
 </div>
 
@@ -465,11 +487,13 @@ a{color:var(--accent);}
           <th style="min-width:300px">URL</th>
           ${devHeaders}
           <th>Status</th>
+          ${hasAnyProductCount ? `<th style="color:#7c6dff">Products</th>` : ""}
         </tr>
         <tr>
           <th></th>
           ${devSubHeaders}
           <th></th>
+          ${hasAnyProductCount ? `<th></th>` : ""}
         </tr>
       </thead>
       <tbody>
@@ -491,6 +515,7 @@ a{color:var(--accent);}
               })
               .join("")}
             <td>${firstStatus ? `<span style="padding:2px 7px;border-radius:4px;font-family:monospace;font-size:10px;font-weight:700;${firstStatus >= 400 ? "background:rgba(255,78,66,.1);color:#ff4e42;border:1px solid rgba(255,78,66,.25)" : "background:rgba(12,206,107,.1);color:#0cce6b;border:1px solid rgba(12,206,107,.25)"}">${firstStatus}</span>` : ""}</td>
+            ${hasAnyProductCount ? (() => { const pc = g.results.find((r) => r.productCount !== undefined)?.productCount; return `<td style="font-family:monospace;font-size:11px;color:#7c6dff">${pc !== undefined ? pc.toLocaleString() : "–"}</td>`; })() : ""}
           </tr>`;
           })
           .join("")}
