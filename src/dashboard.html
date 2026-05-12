@@ -2206,6 +2206,7 @@
                 <button class="fb" onclick="setFilter('running',this)">Live</button>
                 <button class="fb" onclick="setFilter('poor',this)">Poor</button>
                 <button class="fb" onclick="setFilter('failed',this)">Failed</button>
+                <button class="fb" onclick="setFilter('zeroproducts',this)" title="Pages with 0 products loaded">0 Products</button>
             </div>
             <div class="ul" id="ul"></div>
         </div>
@@ -2254,6 +2255,7 @@
         const vgrade = (v, good, warn) => v === undefined ? '' : v <= good ? 'good' : v <= warn ? 'warn' : 'poor';
         const lcpG = ms => !ms ? 'poor' : ms <= 2500 ? 'good' : ms <= 4000 ? 'warn' : 'poor';
         const bestLcp = p => { const l = (p.results ?? []).map(r => r.vitals?.lcp).filter(Boolean); return l.length ? Math.min(...l) : undefined; };
+        const bestProductCount = p => { for (const r of (p.results ?? [])) { if (r.productCount !== undefined) return r.productCount; } return undefined; };
 
         // ── Config panel ──────────────────────────────────────────────────────────
         const URL_STEPS = [1, 10, 25, 50, 100, 500, 1000, 5000, 10000, 15000];
@@ -2657,11 +2659,16 @@
         function mkRow(p) {
             const lcp = bestLcp(p);
             const lc = lcp ? gcol(lcpG(lcp)) : 'var(--muted)';
+            const pc = bestProductCount(p);
+            const pcHtml = pc !== undefined
+                ? `<span style="font-family:var(--mono);font-size:9px;flex-shrink:0;color:${pc === 0 ? 'var(--poor)' : 'var(--muted)'}" title="Product count">${pc === 0 ? '⚠ 0p' : pc + 'p'}</span>`
+                : '';
             return `<div class="ur ${p.status}" data-url="${p.url}" onclick="sel(this.dataset.url)">
     <span class="sd ${p.status}"></span>
     <span class="up" title="${p.url}">${pathOf(p.url)}</span>
     ${pdots(p)}
     ${lcp ? `<span style="font-family:var(--mono);font-size:9px;color:${lc};flex-shrink:0">${fmtMs(lcp)}</span>` : ''}
+    ${pcHtml}
   </div>`;
         }
         function renderAll() {
@@ -2700,6 +2707,7 @@
                 if (filterMode === 'running') mf = p.status === 'running';
                 if (filterMode === 'failed') mf = p.status === 'failed';
                 if (filterMode === 'poor') { const l = bestLcp(p); mf = (!!l && l > 4000) || p.status === 'failed'; }
+                if (filterMode === 'zeroproducts') { const pc = bestProductCount(p); mf = pc === 0; }
                 row.style.display = ms && mf ? '' : 'none';
             });
         }
@@ -3037,6 +3045,12 @@
                     const c = gcol(gr);
                     return `<div class="vc"><div class="vl">${it.l}</div><div class="vv" style="color:${c}">${it.f(it.v)}</div><div class="vs">${it.s}</div>${gr ? `<div class="vgrade g${gr[0]}">${gr}</div>` : ''}</div>`;
                 }).join('');
+                const pc = activeResult.productCount;
+                const pcCard = pc !== undefined ? (() => {
+                    const c = pc === 0 ? 'var(--poor)' : pc < 4 ? 'var(--warn)' : 'var(--good)';
+                    const gr = pc === 0 ? 'poor' : pc < 4 ? 'warn' : 'good';
+                    return `<div class="vc"><div class="vl">Products</div><div class="vv" style="color:${c}">${pc}</div><div class="vs">Loaded product cards</div><div class="vgrade g${gr[0]}">${gr}</div></div>`;
+                })() : '';
 
                 const apis = activeResult.apiCalls ?? [];
                 const ssrN = apis.filter(a => a.type === 'ssr').length;
@@ -3072,7 +3086,7 @@
                 tabContent = `
       ${activeResult.error ? `<div class="errb">⚠ ${activeResult.error}</div>` : ''}
       ${recordingFrame || finalShotFrame}
-      <div class="vg">${vhtml}</div>
+      <div class="vg">${vhtml}${pcCard}</div>
       ${apis.length ? `<div class="sec"><div class="sechd">API calls<span class="meta">SSR:${ssrN} · CSR:${csrN}</span></div>
       <div class="tbwrap"><table><thead><tr><th class="ct">Type</th><th class="cu">URL</th><th class="cs">Status</th><th class="cm">Time</th><th class="cst">Server-Timing</th></tr></thead>
       <tbody>${arows}</tbody></table></div></div>` : ''}

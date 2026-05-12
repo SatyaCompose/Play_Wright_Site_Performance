@@ -258,6 +258,56 @@ async function auditPage(
     const settlems = engineForProfile(profile) === "webkit" ? 4000 : 2500;
     await page.waitForTimeout(settlems);
 
+    // ── Product count (product-list pages) ──────────────────────────────
+    // Returns the number of loaded product cards, or undefined if the page
+    // doesn't match any known product-listing pattern.
+    const productCountRaw = await page.evaluate((): number | null => {
+      // Strategy 1: extract count from a visible results-count text node
+      // e.g. "1,234 Products", "Showing 48 of 1234 results"
+      const textSelectors = [
+        "[data-test*='result']", "[data-testid*='result-count']",
+        "[class*='ResultCount']", "[class*='result-count']",
+        "[class*='ProductCount']", "[class*='product-count']",
+        "[class*='TotalResults']", "[class*='total-results']",
+        "[class*='SearchResultCount']",
+      ];
+      for (const sel of textSelectors) {
+        const el = document.querySelector(sel);
+        if (el?.textContent) {
+          const m = el.textContent.replace(/,/g, "").match(/\b(\d+)\b/);
+          if (m) return parseInt(m[1], 10);
+        }
+      }
+      // Strategy 2: count rendered product card/tile elements
+      const cardSelectors = [
+        "[data-product-id]",
+        "[data-product]",
+        "[data-testid='product-card']",
+        "[data-testid='product-item']",
+        "[data-testid='product-tile']",
+        "[data-cy='product-card']",
+        "article[class*='roduct']",
+        "li[class*='roduct-item']",
+        "li[class*='roductItem']",
+        "[class*='ProductCard']:not([class*='Skeleton'])",
+        "[class*='ProductItem']:not([class*='Skeleton'])",
+        "[class*='ProductTile']:not([class*='Skeleton'])",
+        "[class*='product-card']:not([class*='skeleton'])",
+        "[class*='product-item']:not([class*='skeleton'])",
+        ".product-card", ".product-item", ".product-tile",
+      ];
+      for (const sel of cardSelectors) {
+        try {
+          const els = document.querySelectorAll(sel);
+          if (els.length > 0) return els.length;
+        } catch {}
+      }
+      return null; // page type not recognised — don't report a count
+    }).catch(() => null);
+
+    const productCount =
+      productCountRaw !== null ? productCountRaw : undefined;
+
     // Final screenshot
     if (onScreenshot) {
       try {
@@ -382,6 +432,7 @@ async function auditPage(
       apiCalls,
       errors,
       videoPath,
+      productCount,
       auditedAt: new Date().toISOString(),
     };
   } catch (err: any) {

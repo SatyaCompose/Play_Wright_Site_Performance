@@ -26,6 +26,7 @@ export interface PageResult {
   auditedAt: string;
   profile: DeviceProfile;
   engine?: string;
+  productCount?: number; // null-ish absent means "not measured"; 0 means measured and empty
 }
 
 export type AuditStatus = "pending" | "running" | "done" | "failed";
