@@ -213,7 +213,24 @@ wss.on("connection", (ws) => {
             45000
           )
         );
-        allUrls = await Promise.race([getUrlsFromSitemap(source), timeout]);
+        const rawUrls = await Promise.race([getUrlsFromSitemap(source), timeout]);
+        // Rewrite host: if the sitemap source host differs from the URLs inside
+        // (e.g. staging.kitchenwarehouse.com.au fetching a sitemap whose <loc>
+        // tags still say www.kitchenwarehouse.com.au), replace each URL's origin
+        // with the source origin so audits hit the intended environment.
+        const sourceOrigin = new URL(source).origin;
+        allUrls = rawUrls.map((u) => {
+          try {
+            const parsed = new URL(u);
+            if (parsed.origin !== sourceOrigin) {
+              parsed.hostname = new URL(source).hostname;
+              parsed.protocol = new URL(source).protocol;
+              parsed.port = new URL(source).port;
+              return parsed.toString();
+            }
+          } catch {}
+          return u;
+        });
         console.log(`  Loaded ${allUrls.length} URLs from ${source}`);
         broadcast({
           type: "urls_loaded",
