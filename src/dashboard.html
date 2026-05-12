@@ -2121,6 +2121,16 @@
                         </div>
                     </div>
 
+                    <!-- Product-list page-type filter (only shown for sitemap-product-list-pages.xml) -->
+                    <div id="product-filter-section" style="display:none;margin-top:10px">
+                        <div style="font-size:11px;color:var(--muted);margin-bottom:6px;font-weight:600;letter-spacing:.03em">Filter page type</div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap">
+                            <button class="url-chip active" id="pf-all"        onclick="setProductFilter('all')">All pages</button>
+                            <button class="url-chip"        id="pf-brands"     onclick="setProductFilter('brands')">Brand pages</button>
+                            <button class="url-chip"        id="pf-categories" onclick="setProductFilter('categories')">Category pages</button>
+                        </div>
+                    </div>
+
                     <!-- Manual URLs pane (hidden by default) -->
                     <div id="pane-manual" style="display:none">
                         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px">
@@ -2226,6 +2236,9 @@
         let totalUrls = 0;
         let profiles = [];
         let allUrls = [];
+        let allUrlsRaw = [];          // full unfiltered set from server
+        let productListFilter = 'all'; // 'all' | 'brands' | 'categories'
+        let isProductListSitemap = false;
         let selectedProfileIds = [];
         let selectedUrlCount = 0;
         let ws = null;
@@ -2290,6 +2303,28 @@
             el.innerHTML = `<span>${icon}${msg}</span>`;
         }
 
+        // ── Product-list page-type filter ────────────────────────────────────────
+        function setProductFilter(mode) {
+            productListFilter = mode;
+            ['all', 'brands', 'categories'].forEach(m => {
+                document.getElementById('pf-' + m).classList.toggle('active', m === mode);
+            });
+            applyProductFilter();
+            buildUrlChips();
+        }
+
+        function applyProductFilter() {
+            if (!isProductListSitemap || productListFilter === 'all') {
+                allUrls = allUrlsRaw.slice();
+                return;
+            }
+            if (productListFilter === 'brands') {
+                allUrls = allUrlsRaw.filter(u => { try { return new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
+            } else if (productListFilter === 'categories') {
+                allUrls = allUrlsRaw.filter(u => { try { const p = new URL(u).pathname; return p.startsWith('/categories/') || p.startsWith('/category/'); } catch { return false; } });
+            }
+        }
+
         // ── Build device cards (called once) ──────────────────────────────────────
         function buildDeviceCards() {
             if (!profiles.length) return;
@@ -2338,7 +2373,7 @@
 
         function selectUrlCount(n) {
             selectedUrlCount = n;
-            document.querySelectorAll('.url-chip').forEach(el => {
+            document.querySelectorAll('#url-chips .url-chip').forEach(el => {
                 el.classList.toggle('active', parseInt(el.dataset.count) === n);
             });
             updateConfigSummary();
@@ -2468,7 +2503,7 @@
                         });
                         buildDeviceCards();
                     }
-                    if (m.urls?.length) { allUrls = m.urls; buildUrlChips(); }
+                    if (m.urls?.length) { allUrlsRaw = m.urls; allUrls = m.urls; buildUrlChips(); }
                     if (m.hasReport) { hasReport = true; hasPdf = !!m.hasPdf; showReportBtn(); }
 
                     if (m.running) {
@@ -2485,9 +2520,16 @@
 
                 // ── Sitemap URLs loaded ──
                 if (m.type === 'urls_loaded') {
-                    allUrls = m.urls ?? [];
+                    allUrlsRaw = m.urls ?? [];
+                    isProductListSitemap = (m.source ?? '').includes('sitemap-product-list-pages.xml');
+                    productListFilter = 'all';
+                    document.getElementById('product-filter-section').style.display = isProductListSitemap ? '' : 'none';
+                    ['all', 'brands', 'categories'].forEach(f => {
+                        document.getElementById('pf-' + f).classList.toggle('active', f === 'all');
+                    });
+                    applyProductFilter();
                     document.getElementById('load-btn').disabled = false;
-                    setLoadStatus('ok', `${allUrls.length.toLocaleString()} URLs loaded`);
+                    setLoadStatus('ok', `${allUrlsRaw.length.toLocaleString()} URLs loaded`);
                     buildUrlChips();
                     updateConfigSummary();
                 }
