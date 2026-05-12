@@ -263,25 +263,13 @@ async function auditPage(
     // doesn't match any known product-listing pattern.
     const productCountRaw = await page.evaluate((): number | null => {
       // Strategy 0: __NEXT_DATA__ (fastest — available before hydration)
+      // dataSources is a map of UUID → dataSource objects; find whichever one
+      // carries a productList array and use its length as the product count.
       try {
-        const nd = (window as any).__NEXT_DATA__?.props?.pageProps;
-        if (nd) {
-          // Walk common shapes: totalCount, total, productCount, count,
-          // pagination.total, products.total, products.length, etc.
-          const candidates = [
-            nd.totalCount, nd.total, nd.productCount, nd.count,
-            nd.pagination?.total, nd.pagination?.totalCount,
-            nd.products?.total, nd.products?.totalCount, nd.products?.count,
-            nd.data?.totalCount, nd.data?.total, nd.data?.productCount,
-            nd.searchResult?.totalCount, nd.searchResult?.total,
-            nd.listing?.totalCount, nd.listing?.total,
-            nd.category?.productCount, nd.category?.totalProducts,
-            nd.brand?.productCount, nd.brand?.totalProducts,
-            Array.isArray(nd.products) ? nd.products.length : undefined,
-            Array.isArray(nd.items) ? nd.items.length : undefined,
-          ];
-          for (const v of candidates) {
-            if (typeof v === 'number' && v >= 0) return v;
+        const dataSources = (window as any).__NEXT_DATA__?.props?.pageProps?.data?.data?.dataSources;
+        if (dataSources && typeof dataSources === 'object') {
+          for (const ds of Object.values(dataSources) as any[]) {
+            if (Array.isArray(ds?.productList)) return ds.productList.length;
           }
         }
       } catch {}
