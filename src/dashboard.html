@@ -2129,6 +2129,11 @@
                             <button class="url-chip"        id="pf-brands"     onclick="setProductFilter('brands')">Brand pages</button>
                             <button class="url-chip"        id="pf-categories" onclick="setProductFilter('categories')">Category pages</button>
                         </div>
+                        <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+                            <span style="font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.03em">Sub-pages</span>
+                            <button class="url-chip active" id="pf-main-only"   onclick="setSubpageMode('main')">Main page only</button>
+                            <button class="url-chip"        id="pf-subpages"    onclick="setSubpageMode('all')">Include p=2, p=3…</button>
+                        </div>
                     </div>
 
                     <!-- Manual URLs pane (hidden by default) -->
@@ -2240,6 +2245,7 @@
         let allUrls = [];
         let allUrlsRaw = [];          // full unfiltered set from server
         let productListFilter = 'all'; // 'all' | 'brands' | 'categories'
+        let subpageMode = 'main';      // 'main' = no ?p= param | 'all' = include paginated
         let isProductListSitemap = false;
         let selectedProfileIds = [];
         let selectedUrlCount = 0;
@@ -2316,15 +2322,23 @@
             buildUrlChips();
         }
 
+        function setSubpageMode(mode) {
+            subpageMode = mode;
+            document.getElementById('pf-main-only').classList.toggle('active', mode === 'main');
+            document.getElementById('pf-subpages').classList.toggle('active', mode === 'all');
+            applyProductFilter();
+            buildUrlChips();
+        }
+
         function applyProductFilter() {
-            if (!isProductListSitemap || productListFilter === 'all') {
-                allUrls = allUrlsRaw.slice();
-                return;
-            }
-            if (productListFilter === 'brands') {
-                allUrls = allUrlsRaw.filter(u => { try { return new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
-            } else if (productListFilter === 'categories') {
-                allUrls = allUrlsRaw.filter(u => { try { const p = new URL(u).pathname; return p.startsWith('/categories/') || p.startsWith('/category/'); } catch { return false; } });
+            allUrls = allUrlsRaw.slice();
+            if (isProductListSitemap) {
+                if (productListFilter === 'brands') {
+                    allUrls = allUrls.filter(u => { try { return new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
+                } else if (productListFilter === 'categories') {
+                    allUrls = allUrls.filter(u => { try { const p = new URL(u).pathname; return p.startsWith('/categories/') || p.startsWith('/category/'); } catch { return false; } });
+                }
+                if (subpageMode === 'main') allUrls = allUrls.filter(isMainPageUrl);
             }
         }
 
@@ -2459,21 +2473,26 @@
         }
 
         // ── Start audit ───────────────────────────────────────────────────────────
+        function isMainPageUrl(u) {
+            try { return !new URL(u).searchParams.has('p'); } catch { return true; }
+        }
+
         function getFilteredAuditUrls() {
             // Always derive fresh from allUrlsRaw so we never depend on allUrls
             // being pre-filtered (it can be stale after a WS reconnect).
-            const count = selectedUrlCount || allUrlsRaw.length;
+            let urls = allUrlsRaw;
+
             if (productListFilter === 'brands') {
-                return allUrlsRaw
-                    .filter(u => { try { return new URL(u).pathname.startsWith('/brands/'); } catch { return false; } })
-                    .slice(0, count);
+                urls = urls.filter(u => { try { return new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
+            } else if (productListFilter === 'categories') {
+                urls = urls.filter(u => { try { const p = new URL(u).pathname; return p.startsWith('/categories/') || p.startsWith('/category/'); } catch { return false; } });
             }
-            if (productListFilter === 'categories') {
-                return allUrlsRaw
-                    .filter(u => { try { const p = new URL(u).pathname; return p.startsWith('/categories/') || p.startsWith('/category/'); } catch { return false; } })
-                    .slice(0, count);
+
+            if (subpageMode === 'main') {
+                urls = urls.filter(isMainPageUrl);
             }
-            return allUrlsRaw.slice(0, count);
+
+            return urls.slice(0, selectedUrlCount || urls.length);
         }
 
         function startAudit() {
@@ -2548,10 +2567,13 @@
                     const loadedSource = m.source ?? document.getElementById('sitemap-input').value.trim();
                     isProductListSitemap = loadedSource.includes('sitemap-product-list-pages.xml');
                     productListFilter = 'all';
+                    subpageMode = 'main';
                     document.getElementById('product-filter-section').style.display = isProductListSitemap ? '' : 'none';
                     ['all', 'brands', 'categories'].forEach(f => {
                         document.getElementById('pf-' + f).classList.toggle('active', f === 'all');
                     });
+                    document.getElementById('pf-main-only').classList.add('active');
+                    document.getElementById('pf-subpages').classList.remove('active');
                     applyProductFilter();
                     document.getElementById('load-btn').disabled = false;
                     setLoadStatus('ok', `${allUrlsRaw.length.toLocaleString()} URLs loaded`);
