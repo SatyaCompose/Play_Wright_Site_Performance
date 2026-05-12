@@ -2459,29 +2459,44 @@
         }
 
         // ── Start audit ───────────────────────────────────────────────────────────
+        function getFilteredAuditUrls() {
+            // Always derive fresh from allUrlsRaw so we never depend on allUrls
+            // being pre-filtered (it can be stale after a WS reconnect).
+            const count = selectedUrlCount || allUrlsRaw.length;
+            if (productListFilter === 'brands') {
+                return allUrlsRaw
+                    .filter(u => { try { return new URL(u).pathname.startsWith('/brands/'); } catch { return false; } })
+                    .slice(0, count);
+            }
+            if (productListFilter === 'categories') {
+                return allUrlsRaw
+                    .filter(u => { try { const p = new URL(u).pathname; return p.startsWith('/categories/') || p.startsWith('/category/'); } catch { return false; } })
+                    .slice(0, count);
+            }
+            return allUrlsRaw.slice(0, count);
+        }
+
         function startAudit() {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
             const isManual = sourceMode === 'manual';
             const manualUrls = getManualUrls();
 
-            // When a product-list filter (brands/categories) is active, the server
-            // has no knowledge of it — it would slice from the full unfiltered list.
-            // So pass the filtered URLs directly as manualUrls instead.
-            const isFiltered = !isManual && productListFilter !== 'all';
-            const filteredUrls = isFiltered ? allUrls.slice(0, selectedUrlCount || allUrls.length) : [];
-            const urlCount = isManual ? 0 : (selectedUrlCount || allUrls.length);
-
-            if (allUrls.length === 0 && manualUrls.length === 0) {
+            if (allUrlsRaw.length === 0 && manualUrls.length === 0) {
                 setLoadStatus('error', 'Load a sitemap or paste URLs first');
                 switchSource('sitemap');
                 return;
             }
 
+            // When a product-list filter is active, send the exact filtered URL list
+            // as manualUrls so the server doesn't slice from its own unfiltered list.
+            const isFiltered = !isManual && productListFilter !== 'all';
+            const auditUrls = isManual ? [] : getFilteredAuditUrls();
+
             ws.send(JSON.stringify({
                 type: 'start',
                 profileIds: selectedProfileIds,
-                urlCount: isFiltered ? 0 : (isManual ? 0 : urlCount),
-                manualUrls: isManual ? manualUrls : filteredUrls,
+                urlCount: isManual ? 0 : (isFiltered ? 0 : auditUrls.length),
+                manualUrls: isManual ? manualUrls : (isFiltered ? auditUrls : []),
             }));
 
             hideConfig();
