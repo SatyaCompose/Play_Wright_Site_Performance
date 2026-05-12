@@ -18,6 +18,7 @@ export async function generatePDF(html: string): Promise<void> {
   await page.pdf({
     path: "report.pdf",
     format: "A4",
+    landscape: true,
     printBackground: true,
     margin: { top: "20px", bottom: "20px", left: "20px", right: "20px" },
   });
