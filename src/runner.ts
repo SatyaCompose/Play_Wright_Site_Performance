@@ -258,6 +258,20 @@ async function auditPage(
     const settlems = engineForProfile(profile) === "webkit" ? 4000 : 2500;
     await page.waitForTimeout(settlems);
 
+    // ── Scroll through full page so the video captures all content ───────
+    await page.evaluate(async () => {
+      const totalHeight = document.body.scrollHeight;
+      const step = Math.ceil(window.innerHeight * 0.6);
+      for (let pos = 0; pos < totalHeight; pos += step) {
+        window.scrollTo({ top: pos, behavior: "smooth" });
+        await new Promise((r) => setTimeout(r, 300));
+      }
+      // Pause at bottom, then scroll back to top
+      await new Promise((r) => setTimeout(r, 500));
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      await new Promise((r) => setTimeout(r, 400));
+    });
+
     // ── Product count (product-list pages) ──────────────────────────────
     // Returns the number of loaded product cards, or undefined if the page
     // doesn't match any known product-listing pattern.
