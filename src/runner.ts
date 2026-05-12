@@ -86,6 +86,11 @@ export function resetShuttingDown() {
   shuttingDown = false;
 }
 
+// Called by index.ts when the user clicks Stop in the UI
+export function cancelAudit() {
+  shuttingDown = true;
+}
+
 // ── Resolve which engine a profile needs ─────────────────────────────────
 function engineForProfile(
   profile: DeviceProfile

@@ -2193,7 +2193,8 @@
                 <div class="pf" id="pb" style="width:0%"></div>
             </div>
             <span class="pill" id="ht" style="min-width:60px;text-align:center">0/0</span>
-            <button class="fb" onclick="showConfig()" style="margin-left:8px" title="New run">⚙ Config</button>
+            <button class="fb" id="stop-btn" onclick="stopAudit()" style="display:none;margin-left:8px;border-color:#f87171;color:#f87171;" title="Stop audit">■ Stop</button>
+            <button class="fb" onclick="showConfig()" style="margin-left:4px" title="New run">⚙ Config</button>
         </div>
     </header>
     <div class="layout">
@@ -2521,7 +2522,8 @@
                 // ── Sitemap URLs loaded ──
                 if (m.type === 'urls_loaded') {
                     allUrlsRaw = m.urls ?? [];
-                    isProductListSitemap = (m.source ?? '').includes('sitemap-product-list-pages.xml');
+                    const loadedSource = m.source ?? document.getElementById('sitemap-input').value.trim();
+                    isProductListSitemap = loadedSource.includes('sitemap-product-list-pages.xml');
                     productListFilter = 'all';
                     document.getElementById('product-filter-section').style.display = isProductListSitemap ? '' : 'none';
                     ['all', 'brands', 'categories'].forEach(f => {
@@ -2553,6 +2555,8 @@
                     totalUrls = m.urls?.length ?? 0;
                     m.urls?.forEach(u => S.set(u, { url: u, status: 'pending' }));
                     renderAll();
+                    const sb = document.getElementById('stop-btn');
+                    sb.disabled = false; sb.innerHTML = '■ Stop'; sb.style.display = '';
                 }
 
                 // ── Per-page progress ──
@@ -2586,10 +2590,17 @@
                     }
                 }
 
+                // ── Audit stopping (cancellation acknowledged) ──
+                if (m.type === 'audit_stopping') {
+                    const sb = document.getElementById('stop-btn');
+                    sb.disabled = true; sb.innerHTML = '⏳ Stopping…';
+                }
+
                 // ── Done ──
                 if (m.type === 'done') {
                     hasReport = m.hasReport ?? false;
                     hasPdf = m.hasPdf ?? false;
+                    document.getElementById('stop-btn').style.display = 'none';
                     updateHdr();
                     showReportBtn();
                     if (!selUrl) {
@@ -2611,6 +2622,14 @@
             ws.onclose = () => { setTimeout(connect, 2000); updateConfigSummary(); };
         }
         connect();
+
+        function stopAudit() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            const btn = document.getElementById('stop-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Stopping…';
+            ws.send(JSON.stringify({ type: 'stop_audit' }));
+        }
 
         function showReportBtn() {
             if (!hasReport) return;

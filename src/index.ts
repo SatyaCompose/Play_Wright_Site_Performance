@@ -4,7 +4,7 @@ import * as path from "path";
 import { WebSocketServer, WebSocket } from "ws";
 import open from "open";
 import { getUrlsFromSitemap } from "./sitemap";
-import { runAudit, resetShuttingDown } from "./runner";
+import { runAudit, resetShuttingDown, cancelAudit } from "./runner";
 import { generateHTMLReport } from "./report";
 import { generatePDF } from "./pdf";
 import type { AuditProgress } from "./types";
@@ -224,6 +224,16 @@ wss.on("connection", (ws) => {
       } catch (e: any) {
         console.error("  load_urls error:", e.message);
         ws.send(JSON.stringify({ type: "error", message: e.message }));
+      }
+      return;
+    }
+
+    // ── Stop audit ────────────────────────────────────────────────────
+    if (msg.type === "stop_audit") {
+      if (auditRunning) {
+        cancelAudit();
+        broadcast({ type: "audit_stopping" });
+        console.log("  Audit cancellation requested by user.");
       }
       return;
     }
