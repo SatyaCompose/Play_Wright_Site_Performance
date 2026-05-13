@@ -2129,15 +2129,6 @@
                             <button class="url-chip"        id="pf-brands"     onclick="setProductFilter('brands')">Brand pages</button>
                             <button class="url-chip"        id="pf-categories" onclick="setProductFilter('categories')">Category pages</button>
                         </div>
-                        <div id="category-path-row" style="display:none;margin-top:8px;gap:8px;align-items:center;flex-wrap:wrap">
-                            <span style="font-size:11px;color:var(--muted)">Path prefix</span>
-                            <input id="category-path-input" type="text"
-                                value="/categories/"
-                                placeholder="e.g. /collections/ or /c/"
-                                oninput="applyProductFilter(); buildUrlChips();"
-                                style="background:var(--s2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:10px;padding:3px 8px;outline:none;width:180px">
-                            <span style="font-size:10px;color:var(--muted)">comma-separate for multiple</span>
-                        </div>
                         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                             <span style="font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.03em">Sub-pages</span>
                             <button class="url-chip active" id="pf-main-only"   onclick="setSubpageMode('main')">Main page only</button>
@@ -2386,7 +2377,6 @@
             ['all', 'brands', 'categories'].forEach(m => {
                 document.getElementById('pf-' + m).classList.toggle('active', m === mode);
             });
-            document.getElementById('category-path-row').style.display = mode === 'categories' ? 'flex' : 'none';
             applyProductFilter();
             buildUrlChips();
         }
@@ -2399,19 +2389,13 @@
             buildUrlChips();
         }
 
-        function getCategoryPrefixes() {
-            const raw = document.getElementById('category-path-input')?.value?.trim() || '/categories/';
-            return raw.split(',').map(s => s.trim()).filter(Boolean);
-        }
-
         function applyProductFilter() {
             allUrls = allUrlsRaw.slice();
             if (isProductListSitemap) {
                 if (productListFilter === 'brands') {
                     allUrls = allUrls.filter(u => { try { return new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
                 } else if (productListFilter === 'categories') {
-                    const prefixes = getCategoryPrefixes();
-                    allUrls = allUrls.filter(u => { try { const p = new URL(u).pathname; return prefixes.some(px => p.startsWith(px)); } catch { return false; } });
+                    allUrls = allUrls.filter(u => { try { return !new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
                 }
                 if (subpageMode === 'main') allUrls = allUrls.filter(isMainPageUrl);
             }
@@ -2566,8 +2550,7 @@
             if (productListFilter === 'brands') {
                 urls = urls.filter(u => { try { return new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
             } else if (productListFilter === 'categories') {
-                const prefixes = getCategoryPrefixes();
-                urls = urls.filter(u => { try { const p = new URL(u).pathname; return prefixes.some(px => p.startsWith(px)); } catch { return false; } });
+                urls = urls.filter(u => { try { return !new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
             }
 
             if (subpageMode === 'main') {
