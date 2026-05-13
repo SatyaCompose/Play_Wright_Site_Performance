@@ -69,7 +69,7 @@ export function generateProductReportHTML(results: PageResult[]): string {
   // Append failed URLs at the bottom
   if (failed.length > 0) {
     rowParts.push(
-      `<tr class="sep-row sep-row-failed"><td colspan="4">Failed to Measure &mdash; Product Count Could Not Be Extracted</td></tr>`
+      `<tr class="sep-row sep-row-failed"><td colspan="4">Pages Without Product List &mdash; No List Tastic Detected</td></tr>`
     );
     failed.forEach((u, i) => {
       rowParts.push(`
@@ -82,7 +82,7 @@ export function generateProductReportHTML(results: PageResult[]): string {
             <span class="count-val failed-dash">&mdash;</span>
           </td>
           <td class="col-badge">
-            <span class="badge badge-failed">Failed</span>
+            <span class="badge badge-failed">No List</span>
           </td>
         </tr>`);
     });
@@ -248,7 +248,7 @@ tbody tr.failed-row td{opacity:.6;}
     </div>
     <div class="report-meta">
       <div>Generated <strong>${generatedAt}</strong></div>
-      <div>${allUrls.length.toLocaleString()} URLs &middot; ${failed.length > 0 ? `${failed.length} failed` : 'all measured'}</div>
+      <div>${allUrls.length.toLocaleString()} URLs &middot; ${failed.length > 0 ? `${failed.length} without product list` : 'all have product list'}</div>
     </div>
   </div>
 
@@ -274,9 +274,9 @@ tbody tr.failed-row td{opacity:.6;}
       <div class="card-note">need attention</div>
     </div>
     <div class="card">
-      <div class="card-label">Failed to Measure</div>
+      <div class="card-label">No Product List</div>
       <div class="card-value" style="color:#9ca3af">${failed.length.toLocaleString()}</div>
-      <div class="card-note">count not extracted</div>
+      <div class="card-note">no list tastic</div>
     </div>
   </div>
 
@@ -299,7 +299,7 @@ tbody tr.failed-row td{opacity:.6;}
 
   <div class="report-footer">
     <span>Product Count Report &mdash; ${generatedAt}</span>
-    <span>${withProducts.length} with products &middot; ${zeroProducts.length} empty &middot; ${failed.length} failed</span>
+    <span>${withProducts.length} with products &middot; ${zeroProducts.length} empty &middot; ${failed.length} no product list</span>
   </div>
 
 </div>

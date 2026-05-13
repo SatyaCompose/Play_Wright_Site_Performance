@@ -281,6 +281,31 @@ async function auditPage(
     let productCount: number | undefined;
     if (!isLcpMode) {
       const productCountRaw = await page.evaluate((): number | null => {
+        // Strategy 0a: gate on page type via __NEXT_DATA__ tastic registry.
+        // If sections.main is present but no product-list tastic found, this
+        // page definitively has no product list — return null immediately.
+        try {
+          const main = (window as any).__NEXT_DATA__?.props?.pageProps?.data?.page?.sections?.main;
+          if (main !== undefined) {
+            let found = false;
+            const layoutElements = main?.layoutElements;
+            if (Array.isArray(layoutElements)) {
+              outer: for (const le of layoutElements) {
+                const tastics = le?.tastics;
+                if (!Array.isArray(tastics)) continue;
+                for (const tastic of tastics) {
+                  if (tastic?.tasticType === 'frontastic/ui/products/product-list') {
+                    found = true;
+                    break outer;
+                  }
+                }
+              }
+            }
+            if (!found) return null;
+          }
+        } catch {}
+
+        // Strategy 0b: __NEXT_DATA__ dataSources (available before hydration)
         try {
           const dataSources = (window as any).__NEXT_DATA__?.props?.pageProps?.data?.data?.dataSources;
           if (dataSources && typeof dataSources === 'object') {
@@ -290,20 +315,6 @@ async function auditPage(
           }
         } catch {}
 
-        const textSelectors = [
-          "[data-test*='result']", "[data-testid*='result-count']",
-          "[class*='ResultCount']", "[class*='result-count']",
-          "[class*='ProductCount']", "[class*='product-count']",
-          "[class*='TotalResults']", "[class*='total-results']",
-          "[class*='SearchResultCount']",
-        ];
-        for (const sel of textSelectors) {
-          const el = document.querySelector(sel);
-          if (el?.textContent) {
-            const m = el.textContent.replace(/,/g, "").match(/\b(\d+)\b/);
-            if (m) return parseInt(m[1], 10);
-          }
-        }
         const cardSelectors = [
           "[data-product-id]", "[data-product]",
           "[data-testid='product-card']", "[data-testid='product-item']", "[data-testid='product-tile']",
