@@ -6,6 +6,7 @@ import open from "open";
 import { getUrlsFromSitemap } from "./sitemap";
 import { runAudit, resetShuttingDown, cancelAudit } from "./runner";
 import { generateHTMLReport } from "./report";
+import { generateProductReportHTML } from "./product-report";
 import { generatePDF } from "./pdf";
 import type { AuditProgress } from "./types";
 import { DEVICE_PROFILES } from "./types";
@@ -113,6 +114,40 @@ const httpServer = http.createServer((req, res) => {
       "Content-Disposition": "attachment; filename=audit-report.html",
     });
     res.end(lastReportHtml);
+    return;
+  }
+
+  if (rawPath === "/product-report.pdf") {
+    const p = path.join(process.cwd(), "product-report.pdf");
+    if (!fs.existsSync(p)) {
+      res.writeHead(404);
+      res.end("No product report PDF yet");
+      return;
+    }
+    const stat = fs.statSync(p);
+    res.writeHead(200, {
+      "Content-Type": "application/pdf",
+      "Content-Length": stat.size,
+      "Content-Disposition": "attachment; filename=product-report.pdf",
+    });
+    fs.createReadStream(p).pipe(res);
+    return;
+  }
+
+  if (rawPath === "/product-report.html") {
+    const p = path.join(process.cwd(), "product-report.html");
+    if (!fs.existsSync(p)) {
+      res.writeHead(404);
+      res.end("No product report yet");
+      return;
+    }
+    const stat = fs.statSync(p);
+    res.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Length": stat.size,
+      "Content-Disposition": "attachment; filename=product-report.html",
+    });
+    fs.createReadStream(p).pipe(res);
     return;
   }
 
@@ -356,14 +391,18 @@ wss.on("connection", (ws) => {
           }
 
           console.log(`\n\n  Generating reports…`);
-          lastReportHtml = generateHTMLReport(
-            allProgress.flatMap((p) => p.results ?? [])
-          );
+          const allResults = allProgress.flatMap((p) => p.results ?? []);
+
+          lastReportHtml = generateHTMLReport(allResults);
           fs.writeFileSync("report.html", lastReportHtml, "utf-8");
+
+          const productReportHtml = generateProductReportHTML(allResults);
+          fs.writeFileSync("product-report.html", productReportHtml, "utf-8");
 
           let hasPdf = false;
           try {
-            await generatePDF(lastReportHtml);
+            await generatePDF(lastReportHtml, "report.pdf", true, false);
+            await generatePDF(productReportHtml, "product-report.pdf", false, true);
             hasPdf = true;
           } catch (e: any) {
             console.warn("  PDF skipped:", e.message);

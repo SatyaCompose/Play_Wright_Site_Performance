@@ -2,7 +2,12 @@ import { chromium } from "playwright";
 import * as fs from "fs";
 import * as path from "path";
 
-export async function generatePDF(html: string): Promise<void> {
+export async function generatePDF(
+  html: string,
+  outPath = "report.pdf",
+  landscape = true,
+  pageNumbers = false
+): Promise<void> {
   const browser = await chromium.launch({
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
@@ -15,12 +20,26 @@ export async function generatePDF(html: string): Promise<void> {
 
   await page.goto(`file://${tmpPath}`, { waitUntil: "networkidle" });
 
+  const footerTemplate = `
+    <div style="width:100%;padding:0 28px;display:flex;justify-content:space-between;align-items:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:9px;color:#9ca3af;">
+      <span>Product Count Report &mdash; Confidential</span>
+      <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
+    </div>`;
+
   await page.pdf({
-    path: "report.pdf",
+    path: outPath,
     format: "A4",
-    landscape: true,
+    landscape,
     printBackground: true,
-    margin: { top: "20px", bottom: "20px", left: "20px", right: "20px" },
+    displayHeaderFooter: pageNumbers,
+    headerTemplate: "<span></span>",
+    footerTemplate: pageNumbers ? footerTemplate : "<span></span>",
+    margin: {
+      top: "20px",
+      bottom: pageNumbers ? "36px" : "20px",
+      left: "20px",
+      right: "20px",
+    },
   });
 
   await browser.close();
