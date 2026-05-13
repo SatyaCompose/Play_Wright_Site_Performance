@@ -45,16 +45,10 @@ const VITALS_SCRIPT = `
 let shuttingDown = false;
 // index.ts owns the process exit — runner just needs to know to stop
 // launching new pages. Do NOT call process.exit() here; that's index.ts's job.
-process.on("SIGINT", () => {
-  shuttingDown = true;
-});
-process.on("SIGTERM", () => {
-  shuttingDown = true;
-});
+process.on("SIGINT", () => { shuttingDown = true; });
+process.on("SIGTERM", () => { shuttingDown = true; });
 
-// Allow runner to be reset between audit runs
-
-// ── Browser pool: one instance per engine, shared across all pages ────────
+// ── Browser pool: one instance per engine, shared across all sessions ─────
 const browserPool = new Map<string, Browser>();
 
 async function getBrowser(
@@ -72,23 +66,11 @@ async function getBrowser(
   return browser;
 }
 
-async function closeAllBrowsers() {
+export async function closeAllBrowsers() {
   for (const [, browser] of browserPool) {
-    try {
-      await browser.close();
-    } catch {}
+    try { await browser.close(); } catch {}
   }
   browserPool.clear();
-}
-
-// Called by index.ts before each new audit run
-export function resetShuttingDown() {
-  shuttingDown = false;
-}
-
-// Called by index.ts when the user clicks Stop in the UI
-export function cancelAudit() {
-  shuttingDown = true;
 }
 
 // ── Resolve which engine a profile needs ─────────────────────────────────
@@ -493,6 +475,7 @@ export async function runAudit(
     onScreenshot?: (url: string, profileId: string, png: string) => void;
     quickMode?: boolean;
     auditMode?: "full" | "products" | "lcp";
+    signal?: { cancelled: boolean };
   } = {}
 ): Promise<AuditProgress[]> {
   const {
@@ -503,6 +486,7 @@ export async function runAudit(
     onScreenshot,
     quickMode = false,
     auditMode = "full",
+    signal,
   } = options;
 
   if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
@@ -517,7 +501,7 @@ export async function runAudit(
 
   const tasks = urls.map((url) =>
     limit(async () => {
-      if (shuttingDown) {
+      if (shuttingDown || signal?.cancelled) {
         const p: AuditProgress = { url, status: "failed" };
         allProgress.push(p);
         onProgress?.(p);
@@ -566,11 +550,6 @@ export async function runAudit(
     })
   );
 
-  try {
-    await Promise.allSettled(tasks);
-  } finally {
-    await closeAllBrowsers();
-  }
-
+  await Promise.allSettled(tasks);
   return allProgress;
 }
