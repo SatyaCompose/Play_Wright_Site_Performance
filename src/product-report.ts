@@ -20,6 +20,7 @@ export function generateProductReportHTML(results: PageResult[]): string {
 
   const allUrls = [...urlMap.values()];
   const measured = allUrls.filter((u) => u.productCount !== undefined);
+  const failed = allUrls.filter((u) => u.productCount === undefined);
   const withProducts = measured.filter((u) => u.productCount! > 0);
   const zeroProducts = measured.filter((u) => u.productCount === 0);
   const totalProducts = withProducts.reduce((s, u) => s + u.productCount!, 0);
@@ -29,23 +30,22 @@ export function generateProductReportHTML(results: PageResult[]): string {
     ? Math.round((withProducts.length / measured.length) * 100)
     : 0;
 
-  // Sort: highest count first, zeros at the end
+  // Sort measured: highest count first, zeros at the end
   const sorted = [...measured].sort((a, b) => {
     if (a.productCount === 0 && b.productCount !== 0) return 1;
     if (b.productCount === 0 && a.productCount !== 0) return -1;
     return b.productCount! - a.productCount!;
   });
 
-  // Build rows with a separator before the zero-product section
+  // Build rows with separators before zero-product and failed sections
   const rowParts: string[] = [];
   let zeroSepInserted = false;
   sorted.forEach((u, i) => {
     const isZero = u.productCount === 0;
     if (isZero && !zeroSepInserted) {
       zeroSepInserted = true;
-      const colspan = 4;
       rowParts.push(
-        `<tr class="sep-row"><td colspan="${colspan}">Zero-Product URLs &mdash; For Reference Only</td></tr>`
+        `<tr class="sep-row"><td colspan="4">Zero-Product URLs &mdash; For Reference Only</td></tr>`
       );
     }
     const barWidth =
@@ -65,6 +65,28 @@ export function generateProductReportHTML(results: PageResult[]): string {
         </td>
       </tr>`);
   });
+
+  // Append failed URLs at the bottom
+  if (failed.length > 0) {
+    rowParts.push(
+      `<tr class="sep-row sep-row-failed"><td colspan="4">Failed to Measure &mdash; Product Count Could Not Be Extracted</td></tr>`
+    );
+    failed.forEach((u, i) => {
+      rowParts.push(`
+        <tr class="failed-row">
+          <td class="col-num">${sorted.length + i + 1}</td>
+          <td class="col-url">
+            <span class="url-text" title="${u.url}">${u.url}</span>
+          </td>
+          <td class="col-count">
+            <span class="count-val failed-dash">&mdash;</span>
+          </td>
+          <td class="col-badge">
+            <span class="badge badge-failed">Failed</span>
+          </td>
+        </tr>`);
+    });
+  }
 
   const generatedAt = new Date().toLocaleString("en-AU", {
     day: "2-digit",
@@ -113,7 +135,7 @@ body{
 .report-meta strong{color:#374151;font-weight:600;}
 
 /* ── Summary cards ── */
-.summary{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:40px;}
+.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:40px;}
 .card{border:1px solid #e5e7eb;border-radius:8px;padding:18px 20px;background:#f9fafb;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .card-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:#6b7280;margin-bottom:10px;}
 .card-value{font-size:27px;font-weight:700;letter-spacing:-1px;line-height:1;color:#111827;}
@@ -173,6 +195,9 @@ td{padding:9px 12px;vertical-align:middle;}
 }
 .badge-ok{background:#dcfce7;color:#15803d;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .badge-zero{background:#fee2e2;color:#dc2626;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.badge-failed{background:#f3f4f6;color:#6b7280;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.count-val.failed-dash{font-size:13px;font-weight:500;color:#d1d5db;}
+tbody tr.failed-row td{opacity:.6;}
 
 /* ── Separator row ── */
 .sep-row td{
@@ -185,6 +210,12 @@ td{padding:9px 12px;vertical-align:middle;}
   border-bottom:1px solid #fde68a;
   opacity:1 !important;
   -webkit-print-color-adjust:exact;print-color-adjust:exact;
+}
+.sep-row-failed td{
+  background:#f9fafb;
+  color:#6b7280;
+  border-top:1px solid #e5e7eb;
+  border-bottom:1px solid #e5e7eb;
 }
 
 /* ── Footer ── */
@@ -217,7 +248,7 @@ td{padding:9px 12px;vertical-align:middle;}
     </div>
     <div class="report-meta">
       <div>Generated <strong>${generatedAt}</strong></div>
-      <div>${measured.length.toLocaleString()} URLs measured</div>
+      <div>${allUrls.length.toLocaleString()} URLs &middot; ${failed.length > 0 ? `${failed.length} failed` : 'all measured'}</div>
     </div>
   </div>
 
@@ -242,6 +273,11 @@ td{padding:9px 12px;vertical-align:middle;}
       <div class="card-value">${zeroProducts.length.toLocaleString()}</div>
       <div class="card-note">need attention</div>
     </div>
+    <div class="card">
+      <div class="card-label">Failed to Measure</div>
+      <div class="card-value" style="color:#9ca3af">${failed.length.toLocaleString()}</div>
+      <div class="card-note">count not extracted</div>
+    </div>
   </div>
 
   <div class="section-title">All URLs &mdash; sorted by product count</div>
@@ -263,7 +299,7 @@ td{padding:9px 12px;vertical-align:middle;}
 
   <div class="report-footer">
     <span>Product Count Report &mdash; ${generatedAt}</span>
-    <span>${withProducts.length} with products &middot; ${zeroProducts.length} empty</span>
+    <span>${withProducts.length} with products &middot; ${zeroProducts.length} empty &middot; ${failed.length} failed</span>
   </div>
 
 </div>
