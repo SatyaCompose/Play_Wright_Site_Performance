@@ -2243,6 +2243,8 @@
             <h3>📊 Audit Report</h3>
             <a class="report-dl-btn" href="/report.html" download="audit-report.html">⬇ Download HTML</a>
             <a class="report-dl-btn" href="/report.pdf" download="audit-report.pdf" id="pdf-dl-btn">⬇ Download PDF</a>
+            <a class="report-dl-btn" href="/product-report.pdf" download="product-report.pdf" id="product-pdf-dl-btn" style="border-color:rgba(37,99,235,.4);color:#2563eb;background:rgba(37,99,235,.07)">⬇ Product Report PDF</a>
+            <a class="report-dl-btn" href="/product-report.html" download="product-report.html" id="product-html-dl-btn" style="color:#6b7280">⬇ Product Report HTML</a>
             <button class="report-close" onclick="closeReport()">✕</button>
         </div>
         <iframe class="report-frame" id="report-frame" src="about:blank"></iframe>
@@ -2468,6 +2470,8 @@
             frame.src = '/report';
             panel.classList.add('open');
             document.getElementById('pdf-dl-btn').style.display = hasPdf ? '' : 'none';
+            document.getElementById('product-pdf-dl-btn').style.display = hasPdf ? '' : 'none';
+            document.getElementById('product-html-dl-btn').style.display = hasPdf ? '' : 'none';
         }
         function closeReport() {
             document.getElementById('report-panel').classList.remove('open');
