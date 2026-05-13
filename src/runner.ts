@@ -264,7 +264,8 @@ async function auditPage(
     if (!isLcpMode) {
       const productCountRaw = await page.evaluate((): number | null => {
         // Strategy 0a: gate on page type via __NEXT_DATA__ tastic registry.
-        // If sections.main is present but no product-list tastic found, this
+        // Product-list tastic only ever lives in sections.main.
+        // If sections.main is present but no product-list tastic is found, this
         // page definitively has no product list — return null immediately.
         try {
           const main = (window as any).__NEXT_DATA__?.props?.pageProps?.data?.page?.sections?.main;
