@@ -50,20 +50,34 @@ process.on("SIGTERM", () => { shuttingDown = true; });
 
 // ── Browser pool: one instance per engine, shared across all sessions ─────
 const browserPool = new Map<string, Browser>();
+const browserPending = new Map<string, Promise<Browser>>();
 
 async function getBrowser(
   engineName: "chromium" | "webkit" | "firefox"
 ): Promise<Browser> {
   if (browserPool.has(engineName)) return browserPool.get(engineName)!;
+  if (browserPending.has(engineName)) return browserPending.get(engineName)!;
+
   const engines: Record<string, BrowserType> = { chromium, webkit, firefox };
-  const browser = await engines[engineName].launch({
-    args:
-      engineName === "chromium"
-        ? ["--no-sandbox", "--disable-setuid-sandbox"]
-        : [],
-  });
-  browserPool.set(engineName, browser);
-  return browser;
+  const launch = engines[engineName]
+    .launch({
+      args:
+        engineName === "chromium"
+          ? ["--no-sandbox", "--disable-setuid-sandbox"]
+          : [],
+    })
+    .then((browser) => {
+      browserPool.set(engineName, browser);
+      browserPending.delete(engineName);
+      return browser;
+    })
+    .catch((err) => {
+      browserPending.delete(engineName);
+      throw err;
+    });
+
+  browserPending.set(engineName, launch);
+  return launch;
 }
 
 export async function closeAllBrowsers() {
