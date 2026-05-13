@@ -2129,6 +2129,15 @@
                             <button class="url-chip"        id="pf-brands"     onclick="setProductFilter('brands')">Brand pages</button>
                             <button class="url-chip"        id="pf-categories" onclick="setProductFilter('categories')">Category pages</button>
                         </div>
+                        <div id="category-path-row" style="display:none;margin-top:8px;gap:8px;align-items:center;flex-wrap:wrap">
+                            <span style="font-size:11px;color:var(--muted)">Path prefix</span>
+                            <input id="category-path-input" type="text"
+                                value="/categories/"
+                                placeholder="e.g. /collections/ or /c/"
+                                oninput="applyProductFilter(); buildUrlChips();"
+                                style="background:var(--s2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:10px;padding:3px 8px;outline:none;width:180px">
+                            <span style="font-size:10px;color:var(--muted)">comma-separate for multiple</span>
+                        </div>
                         <div style="margin-top:8px;display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                             <span style="font-size:11px;color:var(--muted);font-weight:600;letter-spacing:.03em">Sub-pages</span>
                             <button class="url-chip active" id="pf-main-only"   onclick="setSubpageMode('main')">Main page only</button>
@@ -2164,12 +2173,30 @@
                     <div class="url-chips" id="url-chips"></div>
                 </div>
 
-                <!-- Step 3: Devices (shown after URL source is set) -->
+                <!-- Step 3: What to measure? (shown after URLs loaded) -->
+                <div class="cfg-section" id="metrics-section" style="display:none">
+                    <div class="cfg-label">
+                        <span
+                            style="background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0"
+                            id="metrics-step-num">3</span>
+                        What to measure?
+                    </div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                        <button class="url-chip active" id="am-full"     onclick="setAuditMode('full')">Full (LCP + Products)</button>
+                        <button class="url-chip"        id="am-products" onclick="setAuditMode('products')">Products only</button>
+                        <button class="url-chip"        id="am-lcp"      onclick="setAuditMode('lcp')">LCP only</button>
+                    </div>
+                    <div id="products-mode-note" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
+                        ⚡ No video · no LCP · ~400 URLs/min · URL count uncapped
+                    </div>
+                </div>
+
+                <!-- Step 4: Devices (shown after URL source is set) -->
                 <div class="cfg-section" id="devices-section" style="display:none">
                     <div class="cfg-label">
                         <span
                             style="background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0"
-                            id="dev-step-num">3</span>
+                            id="dev-step-num">4</span>
                         Devices
                     </div>
                     <div class="dev-cards" id="dev-cards"></div>
@@ -2241,7 +2268,7 @@
     <div class="report-panel" id="report-panel">
         <div class="report-toolbar">
             <h3>📊 Audit Report</h3>
-            <a class="report-dl-btn" href="/report.html" download="audit-report.html">⬇ Download HTML</a>
+            <a class="report-dl-btn" href="/report.html" download="audit-report.html" id="report-html-dl-btn">⬇ Download HTML</a>
             <a class="report-dl-btn" href="/report.pdf" download="audit-report.pdf" id="pdf-dl-btn">⬇ Download PDF</a>
             <a class="report-dl-btn" href="/product-report.pdf" download="product-report.pdf" id="product-pdf-dl-btn" style="border-color:rgba(37,99,235,.4);color:#2563eb;background:rgba(37,99,235,.07)">⬇ Product Report PDF</a>
             <a class="report-dl-btn" href="/product-report.html" download="product-report.html" id="product-html-dl-btn" style="color:#6b7280">⬇ Product Report HTML</a>
@@ -2269,6 +2296,7 @@
         let ws = null;
         let hasReport = false;
         let hasPdf = false;
+        let auditMode = 'full'; // 'full' | 'products' | 'lcp'
 
         // ── Utils ─────────────────────────────────────────────────────────────────
         const pathOf = url => { try { return new URL(url).pathname || '/'; } catch { return url; } };
@@ -2281,7 +2309,8 @@
         const bestProductCount = p => { for (const r of (p.results ?? [])) { if (r.productCount !== undefined) return r.productCount; } return undefined; };
 
         // ── Config panel ──────────────────────────────────────────────────────────
-        const URL_STEPS = [1, 10, 25, 50, 100, 500, 1000, 5000, 10000, 15000];
+        const URL_STEPS_FULL     = [1, 10, 25, 50, 100, 500, 1000, 5000, 10000, 15000];
+        const URL_STEPS_PRODUCTS = [1, 10, 25, 50, 100, 500, 1000, 5000, 10000, 20000, 50000];
         let sourceMode = 'sitemap'; // 'sitemap' | 'manual'
 
         function showConfig() { document.getElementById('cfg-overlay').style.display = 'flex'; }
@@ -2296,17 +2325,39 @@
             document.getElementById('pane-manual').style.display = mode === 'manual' ? '' : 'none';
 
             if (mode === 'manual') {
-                // Manual mode: hide URL chips (not relevant), show devices immediately
+                // Manual mode: hide URL chips (not relevant); metrics=2, devices=3
                 document.getElementById('url-count-section').style.display = 'none';
-                // Step numbers shift: devices becomes step 2
-                document.getElementById('dev-step-num').textContent = '2';
+                document.getElementById('metrics-section').style.display = '';
+                document.getElementById('metrics-step-num').textContent = '2';
+                document.getElementById('dev-step-num').textContent = '3';
                 showDevicesSection();
             } else {
-                document.getElementById('dev-step-num').textContent = '3';
-                // Only show devices section if we already have URLs loaded
-                if (allUrls.length > 0) showDevicesSection();
-                else document.getElementById('devices-section').style.display = 'none';
+                document.getElementById('metrics-step-num').textContent = '3';
+                document.getElementById('dev-step-num').textContent = '4';
+                // Only show devices/metrics section if we already have URLs loaded
+                if (allUrls.length > 0) {
+                    document.getElementById('metrics-section').style.display = '';
+                    showDevicesSection();
+                } else {
+                    document.getElementById('metrics-section').style.display = 'none';
+                    document.getElementById('devices-section').style.display = 'none';
+                }
             }
+            updateConfigSummary();
+        }
+
+        // ── Audit mode (Full / Products only / LCP only) ──────────────────────────
+        function setAuditMode(mode) {
+            auditMode = mode;
+            ['full', 'products', 'lcp'].forEach(m => {
+                document.getElementById('am-' + m).classList.toggle('active', m === mode);
+            });
+            document.getElementById('products-mode-note').style.display = mode === 'products' ? '' : 'none';
+            // Products mode implies quick scan — hide the separate Quick Mode toggle
+            const qs = document.getElementById('quick-section');
+            if (qs) qs.style.display = mode === 'products' ? 'none' : '';
+            // Rebuild URL chips to reflect different step options
+            if (allUrls.length > 0) buildUrlChips();
             updateConfigSummary();
         }
 
@@ -2335,6 +2386,7 @@
             ['all', 'brands', 'categories'].forEach(m => {
                 document.getElementById('pf-' + m).classList.toggle('active', m === mode);
             });
+            document.getElementById('category-path-row').style.display = mode === 'categories' ? 'flex' : 'none';
             applyProductFilter();
             buildUrlChips();
         }
@@ -2347,13 +2399,19 @@
             buildUrlChips();
         }
 
+        function getCategoryPrefixes() {
+            const raw = document.getElementById('category-path-input')?.value?.trim() || '/categories/';
+            return raw.split(',').map(s => s.trim()).filter(Boolean);
+        }
+
         function applyProductFilter() {
             allUrls = allUrlsRaw.slice();
             if (isProductListSitemap) {
                 if (productListFilter === 'brands') {
                     allUrls = allUrls.filter(u => { try { return new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
                 } else if (productListFilter === 'categories') {
-                    allUrls = allUrls.filter(u => { try { const p = new URL(u).pathname; return p.startsWith('/categories/') || p.startsWith('/category/'); } catch { return false; } });
+                    const prefixes = getCategoryPrefixes();
+                    allUrls = allUrls.filter(u => { try { const p = new URL(u).pathname; return prefixes.some(px => p.startsWith(px)); } catch { return false; } });
                 }
                 if (subpageMode === 'main') allUrls = allUrls.filter(isMainPageUrl);
             }
@@ -2379,7 +2437,7 @@
         function showDevicesSection() {
             buildDeviceCards();
             document.getElementById('devices-section').style.display = '';
-            document.getElementById('quick-section').style.display = '';
+            document.getElementById('quick-section').style.display = auditMode === 'products' ? 'none' : '';
         }
 
         // ── Build URL chips after sitemap loads ───────────────────────────────────
@@ -2391,7 +2449,8 @@
 
             badge.textContent = total.toLocaleString() + ' total';
 
-            const available = URL_STEPS.filter(n => n <= total);
+            const steps = auditMode === 'products' ? URL_STEPS_PRODUCTS : URL_STEPS_FULL;
+            const available = steps.filter(n => n <= total);
             if (!available.includes(total)) available.push(total);
 
             chips.innerHTML = available.map(n => {
@@ -2402,7 +2461,8 @@
             section.style.display = '';
             selectUrlCount(total);  // default: all
 
-            // Show devices step after URL chips appear
+            // Show metrics section (step 3) and devices (step 4)
+            document.getElementById('metrics-section').style.display = '';
             showDevicesSection();
         }
 
@@ -2469,9 +2529,10 @@
             const frame = document.getElementById('report-frame');
             frame.src = '/report';
             panel.classList.add('open');
+            document.getElementById('report-html-dl-btn').style.display = hasReport ? '' : 'none';
             document.getElementById('pdf-dl-btn').style.display = hasPdf ? '' : 'none';
             document.getElementById('product-pdf-dl-btn').style.display = hasPdf ? '' : 'none';
-            document.getElementById('product-html-dl-btn').style.display = hasPdf ? '' : 'none';
+            document.getElementById('product-html-dl-btn').style.display = hasReport ? '' : 'none';
         }
         function closeReport() {
             document.getElementById('report-panel').classList.remove('open');
@@ -2505,7 +2566,8 @@
             if (productListFilter === 'brands') {
                 urls = urls.filter(u => { try { return new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
             } else if (productListFilter === 'categories') {
-                urls = urls.filter(u => { try { const p = new URL(u).pathname; return p.startsWith('/categories/') || p.startsWith('/category/'); } catch { return false; } });
+                const prefixes = getCategoryPrefixes();
+                urls = urls.filter(u => { try { const p = new URL(u).pathname; return prefixes.some(px => p.startsWith(px)); } catch { return false; } });
             }
 
             if (subpageMode === 'main') {
@@ -2538,6 +2600,7 @@
                 urlCount: isManual ? 0 : (isFiltered ? 0 : auditUrls.length),
                 manualUrls: isManual ? manualUrls : (isFiltered ? auditUrls : []),
                 quickMode,
+                auditMode,
             }));
 
             hideConfig();

@@ -25,6 +25,7 @@ let auditDone = false;
 let auditRunning = false;
 let allUrls: string[] = [];
 let lastReportHtml = "";
+let lastHasPdf = false;
 // Track videos created in the current session so we can clean them on next run
 let currentSessionVideos: string[] = [];
 
@@ -213,6 +214,7 @@ wss.on("connection", (ws) => {
       running: auditRunning,
       done: auditDone,
       hasReport: !!lastReportHtml,
+      hasPdf: lastHasPdf,
     })
   );
 
@@ -303,6 +305,7 @@ wss.on("connection", (ws) => {
       }
 
       const quickMode: boolean = !!msg.quickMode;
+      const auditMode: "full" | "products" | "lcp" = msg.auditMode ?? "full";
       const selectedProfileIds: string[] =
         msg.profileIds ?? DEVICE_PROFILES.map((p) => p.id);
       const urlCount: number = msg.urlCount ?? allUrls.length;
@@ -336,6 +339,7 @@ wss.on("connection", (ws) => {
       auditRunning = true;
       auditDone = false;
       lastReportHtml = "";
+      lastHasPdf = false;
       progressMap.clear();
       for (const u of urlsToRun)
         progressMap.set(u, { url: u, status: "pending" });
@@ -348,11 +352,17 @@ wss.on("connection", (ws) => {
       setImmediate(async () => {
         try {
           resetShuttingDown();
+          const effectiveConcurrency =
+            auditMode === "products" ? Math.max(concurrency, 20)
+            : quickMode ? Math.max(concurrency, 15)
+            : concurrency;
+
           const allProgress = await runAudit(urlsToRun, {
-            concurrency: quickMode ? Math.max(concurrency, 15) : concurrency,
+            concurrency: effectiveConcurrency,
             videosDir,
             profiles: selectedProfiles,
             quickMode,
+            auditMode,
             onProgress: (progress) => {
               progressMap.set(progress.url, progress);
               const { screenshots, ...rest } = progress;
@@ -399,11 +409,10 @@ wss.on("connection", (ws) => {
           const productReportHtml = generateProductReportHTML(allResults);
           fs.writeFileSync("product-report.html", productReportHtml, "utf-8");
 
-          let hasPdf = false;
           try {
             await generatePDF(lastReportHtml, "report.pdf", true, false);
             await generatePDF(productReportHtml, "product-report.pdf", false, true);
-            hasPdf = true;
+            lastHasPdf = true;
           } catch (e: any) {
             console.warn("  PDF skipped:", e.message);
           }
@@ -412,7 +421,7 @@ wss.on("connection", (ws) => {
             type: "done",
             total: allProgress.length,
             hasReport: true,
-            hasPdf,
+            hasPdf: lastHasPdf,
           });
           console.log(
             `  Done — ${allProgress.length} URLs · ${currentSessionVideos.length} videos`

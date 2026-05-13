@@ -170,71 +170,69 @@ async function auditPage(
   profile: DeviceProfile,
   videosDir: string,
   onScreenshot?: (profileId: string, png: string) => void,
-  quickMode = false
+  quickMode = false,
+  auditMode: "full" | "products" | "lcp" = "full"
 ): Promise<PageResult> {
+  const isProductsMode = auditMode === "products";
+  const isLcpMode = auditMode === "lcp";
+  // Products mode implies quick scan (no video / screenshots)
+  const effectiveQuick = quickMode || isProductsMode;
+
   const engine = engineForProfile(profile);
   const browser = await getBrowser(engine);
   let context: BrowserContext | null = null;
 
   try {
-    context = await browser.newContext(contextOptions(profile, videosDir, quickMode));
+    context = await browser.newContext(contextOptions(profile, videosDir, effectiveQuick));
     const page = await context.newPage();
 
     let stopScreenshots: (() => void) | null = null;
-    if (onScreenshot && !quickMode) {
+    if (onScreenshot && !effectiveQuick) {
       stopScreenshots = startScreenshotStream(page, 800, (png) =>
         onScreenshot(profile.id, png)
       );
     }
 
-    // ── Network interception ──────────────────────────────────────────
-    // Capture ALL responses at the network level so we can:
-    //   • identify SSR calls (api/graphql/next-data) with real status codes
-    //   • provide status codes for CSR fetch/XHR calls via cross-reference
+    // ── Network interception (skipped in products mode) ───────────────
     const ssrApiCalls: ApiCall[] = [];
     const reqStart = new Map<string, number>();
-    // url → { status, serverTiming, duration } — used to enrich CSR entries
     const networkIndex = new Map<
       string,
       { status: number; serverTiming?: string; duration: number }
     >();
 
-    page.on("request", (req) => reqStart.set(req.url(), Date.now()));
+    if (!isProductsMode) {
+      page.on("request", (req) => reqStart.set(req.url(), Date.now()));
 
-    page.on("response", async (res) => {
-      const resUrl = res.url();
-      const duration = Date.now() - (reqStart.get(resUrl) ?? Date.now());
+      page.on("response", async (res) => {
+        const resUrl = res.url();
+        const duration = Date.now() - (reqStart.get(resUrl) ?? Date.now());
 
-      let serverTiming: string | undefined;
-      try {
-        serverTiming = res.headers()["server-timing"] ?? undefined;
-      } catch {}
+        let serverTiming: string | undefined;
+        try {
+          serverTiming = res.headers()["server-timing"] ?? undefined;
+        } catch {}
 
-      // Index every fetch/XHR for CSR status enrichment
-      const reqType = res.request().resourceType();
-      if (reqType === "fetch" || reqType === "xhr") {
-        networkIndex.set(resUrl, {
-          status: res.status(),
-          serverTiming,
-          duration,
-        });
-      }
+        const reqType = res.request().resourceType();
+        if (reqType === "fetch" || reqType === "xhr") {
+          networkIndex.set(resUrl, { status: res.status(), serverTiming, duration });
+        }
 
-      // SSR calls: api / graphql / next-data intercepted during initial page load
-      if (
-        resUrl.includes("/api/") ||
-        resUrl.includes("/graphql") ||
-        resUrl.includes("/_next/data")
-      ) {
-        ssrApiCalls.push({
-          url: resUrl,
-          status: res.status(),
-          duration,
-          type: "ssr",
-          serverTiming,
-        });
-      }
-    });
+        if (
+          resUrl.includes("/api/") ||
+          resUrl.includes("/graphql") ||
+          resUrl.includes("/_next/data")
+        ) {
+          ssrApiCalls.push({
+            url: resUrl,
+            status: res.status(),
+            duration,
+            type: "ssr",
+            serverTiming,
+          });
+        }
+      });
+    }
 
     const errors: string[] = [];
     page.on("console", (msg) => {
@@ -242,27 +240,30 @@ async function auditPage(
     });
     page.on("pageerror", (err) => errors.push(`[PageError] ${err.message}`));
 
-    await page.addInitScript(VITALS_SCRIPT);
+    // Vitals script only needed when measuring LCP/CLS/FCP
+    if (!isProductsMode) {
+      await page.addInitScript(VITALS_SCRIPT);
+    }
 
-    // Navigate with "load" (reliable), then opportunistically wait for
-    // networkidle to catch React/Next.js hydration API calls.
-    // Keeping them separate avoids re-navigating the page if networkidle
-    // times out on busy e-commerce pages (analytics, ads, lazy images).
     const response = await page.goto(url, { waitUntil: "load", timeout: 60000 });
     if (!response) throw new Error("No response received");
     try {
-      await page.waitForLoadState("networkidle", { timeout: quickMode ? 3000 : 15000 });
+      await page.waitForLoadState("networkidle", {
+        timeout: isProductsMode ? 1000 : (quickMode ? 3000 : 15000),
+      });
     } catch {
       // Network never fully idle — continue with what we have
     }
 
-    // Give mobile browsers extra time: WebKit paints later than Chromium,
-    // and CSR frameworks (React, Vue) fire data fetches after initial paint.
-    const settlems = quickMode ? 600 : (engineForProfile(profile) === "webkit" ? 4000 : 2500);
+    const settlems = isProductsMode
+      ? 500
+      : effectiveQuick
+        ? 600
+        : engine === "webkit" ? 4000 : 2500;
     await page.waitForTimeout(settlems);
 
-    // ── Scroll through full page so the video captures all content ───────
-    if (!quickMode) {
+    // Scroll only in full non-quick mode (for video capture)
+    if (!effectiveQuick) {
       await page.evaluate(async () => {
         const totalHeight = document.body.scrollHeight;
         const step = Math.ceil(window.innerHeight * 0.6);
@@ -270,77 +271,65 @@ async function auditPage(
           window.scrollTo({ top: pos, behavior: "smooth" });
           await new Promise((r) => setTimeout(r, 300));
         }
-        // Pause at bottom, then scroll back to top
         await new Promise((r) => setTimeout(r, 500));
         window.scrollTo({ top: 0, behavior: "smooth" });
         await new Promise((r) => setTimeout(r, 400));
       });
     }
 
-    // ── Product count (product-list pages) ──────────────────────────────
-    // Returns the number of loaded product cards, or undefined if the page
-    // doesn't match any known product-listing pattern.
-    const productCountRaw = await page.evaluate((): number | null => {
-      // Strategy 0: __NEXT_DATA__ (fastest — available before hydration)
-      // dataSources is a map of UUID → dataSource objects; find whichever one
-      // carries a productList array and use its length as the product count.
-      try {
-        const dataSources = (window as any).__NEXT_DATA__?.props?.pageProps?.data?.data?.dataSources;
-        if (dataSources && typeof dataSources === 'object') {
-          for (const ds of Object.values(dataSources) as any[]) {
-            if (Array.isArray(ds?.productList)) return ds.productList.length;
+    // ── Product count (skipped in LCP-only mode) ─────────────────────
+    let productCount: number | undefined;
+    if (!isLcpMode) {
+      const productCountRaw = await page.evaluate((): number | null => {
+        try {
+          const dataSources = (window as any).__NEXT_DATA__?.props?.pageProps?.data?.data?.dataSources;
+          if (dataSources && typeof dataSources === 'object') {
+            for (const ds of Object.values(dataSources) as any[]) {
+              if (Array.isArray(ds?.productList)) return ds.productList.length;
+            }
+          }
+        } catch {}
+
+        const textSelectors = [
+          "[data-test*='result']", "[data-testid*='result-count']",
+          "[class*='ResultCount']", "[class*='result-count']",
+          "[class*='ProductCount']", "[class*='product-count']",
+          "[class*='TotalResults']", "[class*='total-results']",
+          "[class*='SearchResultCount']",
+        ];
+        for (const sel of textSelectors) {
+          const el = document.querySelector(sel);
+          if (el?.textContent) {
+            const m = el.textContent.replace(/,/g, "").match(/\b(\d+)\b/);
+            if (m) return parseInt(m[1], 10);
           }
         }
-      } catch {}
-
-      // Strategy 1: extract count from a visible results-count text node
-      // e.g. "1,234 Products", "Showing 48 of 1234 results"
-      const textSelectors = [
-        "[data-test*='result']", "[data-testid*='result-count']",
-        "[class*='ResultCount']", "[class*='result-count']",
-        "[class*='ProductCount']", "[class*='product-count']",
-        "[class*='TotalResults']", "[class*='total-results']",
-        "[class*='SearchResultCount']",
-      ];
-      for (const sel of textSelectors) {
-        const el = document.querySelector(sel);
-        if (el?.textContent) {
-          const m = el.textContent.replace(/,/g, "").match(/\b(\d+)\b/);
-          if (m) return parseInt(m[1], 10);
+        const cardSelectors = [
+          "[data-product-id]", "[data-product]",
+          "[data-testid='product-card']", "[data-testid='product-item']", "[data-testid='product-tile']",
+          "[data-cy='product-card']",
+          "article[class*='roduct']", "li[class*='roduct-item']", "li[class*='roductItem']",
+          "[class*='ProductCard']:not([class*='Skeleton'])",
+          "[class*='ProductItem']:not([class*='Skeleton'])",
+          "[class*='ProductTile']:not([class*='Skeleton'])",
+          "[class*='product-card']:not([class*='skeleton'])",
+          "[class*='product-item']:not([class*='skeleton'])",
+          ".product-card", ".product-item", ".product-tile",
+        ];
+        for (const sel of cardSelectors) {
+          try {
+            const els = document.querySelectorAll(sel);
+            if (els.length > 0) return els.length;
+          } catch {}
         }
-      }
-      // Strategy 2: count rendered product card/tile elements
-      const cardSelectors = [
-        "[data-product-id]",
-        "[data-product]",
-        "[data-testid='product-card']",
-        "[data-testid='product-item']",
-        "[data-testid='product-tile']",
-        "[data-cy='product-card']",
-        "article[class*='roduct']",
-        "li[class*='roduct-item']",
-        "li[class*='roductItem']",
-        "[class*='ProductCard']:not([class*='Skeleton'])",
-        "[class*='ProductItem']:not([class*='Skeleton'])",
-        "[class*='ProductTile']:not([class*='Skeleton'])",
-        "[class*='product-card']:not([class*='skeleton'])",
-        "[class*='product-item']:not([class*='skeleton'])",
-        ".product-card", ".product-item", ".product-tile",
-      ];
-      for (const sel of cardSelectors) {
-        try {
-          const els = document.querySelectorAll(sel);
-          if (els.length > 0) return els.length;
-        } catch {}
-      }
-      return null; // page type not recognised — don't report a count
-    }).catch(() => null);
+        return null;
+      }).catch(() => null);
 
-    const productCount =
-      productCountRaw !== null ? productCountRaw : undefined;
+      productCount = productCountRaw !== null ? productCountRaw : undefined;
+    }
 
     // Final screenshot
-    if (onScreenshot && !quickMode) {
+    if (onScreenshot && !effectiveQuick) {
       try {
         const buf = await page.screenshot({ type: "jpeg", quality: 85 });
         onScreenshot(profile.id, buf.toString("base64"));
@@ -348,76 +337,77 @@ async function auditPage(
     }
     stopScreenshots?.();
 
-    const navTiming = await page.evaluate(() => {
-      const nav = performance.getEntriesByType(
-        "navigation"
-      )[0] as PerformanceNavigationTiming;
-      if (!nav) return { ttfb: 0, totalTime: 0 };
-      return {
-        ttfb: Math.round(nav.responseStart - nav.requestStart),
-        totalTime: Math.round(nav.loadEventEnd - nav.startTime),
-      };
-    });
+    // ── Vitals + API calls (skipped in products mode) ─────────────────
+    let vitals: WebVitals = {};
+    let apiCalls: ApiCall[] = [];
 
-    const observed = await page.evaluate(() => {
-      const v = (window as any).__auditVitals ?? {};
-      return {
-        lcp: Math.round(v.lcp ?? 0),
-        cls: parseFloat((v.cls ?? 0).toFixed(4)),
-        fcp: Math.round(v.fcp ?? 0),
-      };
-    });
-
-    const csrRaw: ApiCall[] = await page.evaluate(() =>
-      (performance.getEntriesByType("resource") as PerformanceResourceTiming[])
-        .filter(
-          (r) =>
-            r.name.includes("/api/") ||
-            r.name.includes("/graphql") ||
-            r.name.includes("/_next/data") ||
-            r.initiatorType === "fetch" ||
-            r.initiatorType === "xmlhttprequest"
-        )
-        .map((r) => ({
-          url: r.name,
-          status: 0,
-          duration: Math.round(r.responseEnd - r.startTime),
-          type: "csr" as const,
-          initiator: r.initiatorType,
-        }))
-    );
-
-    // Enrich CSR entries: cross-reference Resource Timing with network responses
-    // to get real HTTP status codes (Resource Timing API exposes no status codes).
-    const ssrUrls = new Set(ssrApiCalls.map((a) => a.url));
-    const csrEnriched = csrRaw
-      .filter((c) => !ssrUrls.has(c.url))
-      .map((c) => {
-        const net = networkIndex.get(c.url);
+    if (!isProductsMode) {
+      const navTiming = await page.evaluate(() => {
+        const nav = performance.getEntriesByType(
+          "navigation"
+        )[0] as PerformanceNavigationTiming;
+        if (!nav) return { ttfb: 0, totalTime: 0 };
         return {
-          ...c,
-          status: net?.status ?? 0,
-          serverTiming: net?.serverTiming ?? undefined,
-          // Use network-measured duration when available (more accurate than Resource Timing)
-          duration: net?.duration ?? c.duration,
+          ttfb: Math.round(nav.responseStart - nav.requestStart),
+          totalTime: Math.round(nav.loadEventEnd - nav.startTime),
         };
       });
-    const apiCalls = [...ssrApiCalls, ...csrEnriched];
-    const vitals: WebVitals = {
-      ttfb: navTiming.ttfb || undefined,
-      totalTime: navTiming.totalTime || undefined,
-      lcp: observed.lcp || undefined,
-      cls: observed.cls,
-      fcp: observed.fcp || undefined,
-    };
+
+      const observed = await page.evaluate(() => {
+        const v = (window as any).__auditVitals ?? {};
+        return {
+          lcp: Math.round(v.lcp ?? 0),
+          cls: parseFloat((v.cls ?? 0).toFixed(4)),
+          fcp: Math.round(v.fcp ?? 0),
+        };
+      });
+
+      const csrRaw: ApiCall[] = await page.evaluate(() =>
+        (performance.getEntriesByType("resource") as PerformanceResourceTiming[])
+          .filter(
+            (r) =>
+              r.name.includes("/api/") ||
+              r.name.includes("/graphql") ||
+              r.name.includes("/_next/data") ||
+              r.initiatorType === "fetch" ||
+              r.initiatorType === "xmlhttprequest"
+          )
+          .map((r) => ({
+            url: r.name,
+            status: 0,
+            duration: Math.round(r.responseEnd - r.startTime),
+            type: "csr" as const,
+            initiator: r.initiatorType,
+          }))
+      );
+
+      const ssrUrls = new Set(ssrApiCalls.map((a) => a.url));
+      const csrEnriched = csrRaw
+        .filter((c) => !ssrUrls.has(c.url))
+        .map((c) => {
+          const net = networkIndex.get(c.url);
+          return {
+            ...c,
+            status: net?.status ?? 0,
+            serverTiming: net?.serverTiming ?? undefined,
+            duration: net?.duration ?? c.duration,
+          };
+        });
+
+      apiCalls = [...ssrApiCalls, ...csrEnriched];
+      vitals = {
+        ttfb: navTiming.ttfb || undefined,
+        totalTime: navTiming.totalTime || undefined,
+        lcp: observed.lcp || undefined,
+        cls: observed.cls,
+        fcp: observed.fcp || undefined,
+      };
+    }
 
     // ── Save video ───────────────────────────────────────────────────────
     let videoPath: string | undefined;
 
-    if (!quickMode) {
-      // Must call page.video().path() BEFORE closing page/context — Playwright
-      // finalises the file only after context.close(), but the path is locked in
-      // at page creation time. Calling it after close() returns undefined.
+    if (!effectiveQuick) {
       const video = page.video();
 
       await page.close();
@@ -465,7 +455,6 @@ async function auditPage(
       auditedAt: new Date().toISOString(),
     };
   } catch (err: any) {
-    // Still close context so Playwright flushes the partial video
     try {
       await context?.close();
     } catch {}
@@ -492,6 +481,7 @@ export async function runAudit(
     onProgress?: (progress: AuditProgress) => void;
     onScreenshot?: (url: string, profileId: string, png: string) => void;
     quickMode?: boolean;
+    auditMode?: "full" | "products" | "lcp";
   } = {}
 ): Promise<AuditProgress[]> {
   const {
@@ -501,6 +491,7 @@ export async function runAudit(
     onProgress,
     onScreenshot,
     quickMode = false,
+    auditMode = "full",
   } = options;
 
   if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
@@ -539,7 +530,8 @@ export async function runAudit(
                 onScreenshot(url, pid, png);
               }
             : undefined,
-          quickMode
+          quickMode,
+          auditMode
         );
         results.push(result);
         // Broadcast partial progress after each profile
