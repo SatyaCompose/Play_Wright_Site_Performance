@@ -277,60 +277,35 @@ async function auditPage(
     let productCount: number | undefined;
     if (!isLcpMode) {
       const productCountRaw = await page.evaluate((): number | null => {
-        // Strategy 0a: gate on page type via __NEXT_DATA__ tastic registry.
-        // Product-list tastic only ever lives in sections.main.
-        // If sections.main is present but no product-list tastic is found, this
-        // page definitively has no product list — return null immediately.
         try {
-          const main = (window as any).__NEXT_DATA__?.props?.pageProps?.data?.page?.sections?.main;
-          if (main !== undefined) {
-            let found = false;
-            const layoutElements = main?.layoutElements;
-            if (Array.isArray(layoutElements)) {
-              outer: for (const le of layoutElements) {
-                const tastics = le?.tastics;
-                if (!Array.isArray(tastics)) continue;
-                for (const tastic of tastics) {
-                  if (tastic?.tasticType === 'frontastic/ui/products/product-list') {
-                    found = true;
-                    break outer;
-                  }
-                }
+          const nd = (window as any).__NEXT_DATA__;
+          if (!nd) return null;
+
+          // Find the product-list tastic in sections.main to get the dataSourceId
+          const layoutElements =
+            nd?.props?.pageProps?.data?.page?.sections?.main?.layoutElements;
+          if (!Array.isArray(layoutElements)) return null;
+
+          let dataSourceId: string | undefined;
+          outer: for (const le of layoutElements) {
+            for (const t of (le?.tastics ?? [])) {
+              if (t?.tasticType === 'frontastic/ui/products/product-list') {
+                dataSourceId = t?.configuration?.data?.dataSourceId;
+                break outer;
               }
             }
-            if (!found) return null;
           }
-        } catch {}
 
-        // Strategy 0b: __NEXT_DATA__ dataSources (available before hydration)
-        try {
-          const dataSources = (window as any).__NEXT_DATA__?.props?.pageProps?.data?.data?.dataSources;
-          if (dataSources && typeof dataSources === 'object') {
-            for (const ds of Object.values(dataSources) as any[]) {
-              if (Array.isArray(ds?.productList)) return ds.productList.length;
-            }
-          }
-        } catch {}
+          // No product-list tastic → not a product listing page
+          if (!dataSourceId) return null;
 
-        const cardSelectors = [
-          "[data-product-id]", "[data-product]",
-          "[data-testid='product-card']", "[data-testid='product-item']", "[data-testid='product-tile']",
-          "[data-cy='product-card']",
-          "article[class*='roduct']", "li[class*='roduct-item']", "li[class*='roductItem']",
-          "[class*='ProductCard']:not([class*='Skeleton'])",
-          "[class*='ProductItem']:not([class*='Skeleton'])",
-          "[class*='ProductTile']:not([class*='Skeleton'])",
-          "[class*='product-card']:not([class*='skeleton'])",
-          "[class*='product-item']:not([class*='skeleton'])",
-          ".product-card", ".product-item", ".product-tile",
-        ];
-        for (const sel of cardSelectors) {
-          try {
-            const els = document.querySelectorAll(sel);
-            if (els.length > 0) return els.length;
-          } catch {}
+          // Read totalCount from the matching data source
+          const ds = nd?.props?.pageProps?.data?.data?.dataSources?.[dataSourceId];
+          if (!ds) return 0;
+          return typeof ds.totalCount === 'number' ? ds.totalCount : 0;
+        } catch {
+          return null;
         }
-        return null;
       }).catch(() => null);
 
       productCount = productCountRaw !== null ? productCountRaw : undefined;
