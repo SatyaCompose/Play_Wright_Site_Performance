@@ -1,5 +1,9 @@
 import type { PageResult } from "./types";
 
+function escHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 interface UrlProductData {
   url: string;
   productCount: number | undefined;
@@ -54,7 +58,7 @@ export function generateProductReportHTML(results: PageResult[]): string {
       <tr class="${isZero ? "zero-row" : ""}">
         <td class="col-num">${i + 1}</td>
         <td class="col-url">
-          <span class="url-text" title="${u.url}">${u.url}</span>
+          <span class="url-text" title="${escHtml(u.url)}">${escHtml(u.url)}</span>
         </td>
         <td class="col-count">
           <span class="count-val${isZero ? " zero" : ""}">${u.productCount!.toLocaleString()}</span>
@@ -76,7 +80,7 @@ export function generateProductReportHTML(results: PageResult[]): string {
         <tr class="failed-row">
           <td class="col-num">${sorted.length + i + 1}</td>
           <td class="col-url">
-            <span class="url-text" title="${u.url}">${u.url}</span>
+            <span class="url-text" title="${escHtml(u.url)}">${escHtml(u.url)}</span>
           </td>
           <td class="col-count">
             <span class="count-val failed-dash">&mdash;</span>

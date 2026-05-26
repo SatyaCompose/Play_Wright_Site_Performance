@@ -1097,50 +1097,6 @@
             border-radius: 5px;
         }
 
-        /* ── LIVE overlay (mobile only — desktop frames have their own chrome) ── */
-        .live-badge {
-            position: absolute;
-            top: 6px;
-            left: 6px;
-            z-index: 10;
-            background: rgba(240, 67, 90, .92);
-            color: #fff;
-            font-size: 8px;
-            font-weight: 700;
-            letter-spacing: .08em;
-            padding: 2px 6px;
-            border-radius: 3px;
-            display: flex;
-            align-items: center;
-            gap: 3px;
-        }
-
-        .live-dot {
-            width: 5px;
-            height: 5px;
-            border-radius: 50%;
-            background: #fff;
-            animation: blink 1s ease-in-out infinite;
-        }
-
-        .loading-shimmer {
-            position: absolute;
-            inset: 0;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .04), transparent);
-            background-size: 200% 100%;
-            animation: shimmer 1.5s infinite;
-        }
-
-        @keyframes shimmer {
-            0% {
-                background-position: 200% 0;
-            }
-
-            100% {
-                background-position: -200% 0;
-            }
-        }
-
         /* ── LIVE badge overlay ── */
         .live-overlay {
             position: absolute;
@@ -1155,6 +1111,7 @@
             position: absolute;
             top: 6px;
             left: 6px;
+            z-index: 10;
             background: rgba(240, 67, 90, .92);
             color: #fff;
             font-size: 8px;
@@ -2231,6 +2188,7 @@
                 <div class="pf" id="pb" style="width:0%"></div>
             </div>
             <span class="pill" id="ht" style="min-width:60px;text-align:center">0/0</span>
+            <span class="pill" id="he" style="display:none;min-width:44px;text-align:center;font-family:var(--mono)">0:00</span>
             <button class="fb" id="stop-btn" onclick="stopAudit()" style="display:none;margin-left:8px;border-color:#f87171;color:#f87171;" title="Stop audit">■ Stop</button>
             <button class="fb" onclick="showConfig()" style="margin-left:4px" title="New run">⚙ Config</button>
         </div>
@@ -2285,6 +2243,8 @@
         let selectedProfileIds = [];
         let selectedUrlCount = 0;
         let ws = null;
+        let elapsedTimer = null;
+        let elapsedStart = 0;
         let hasReport = false;
         let hasPdf = false;
         let auditMode = 'full'; // 'full' | 'products' | 'lcp'
@@ -2626,7 +2586,8 @@
             };
 
             ws.onmessage = e => {
-                const m = JSON.parse(e.data);
+                let m;
+                try { m = JSON.parse(e.data); } catch { return; }
 
                 // ── Init (server state on connect) ──
                 if (m.type === 'init') {
@@ -2693,6 +2654,7 @@
                     renderAll();
                     const sb = document.getElementById('stop-btn');
                     sb.disabled = false; sb.innerHTML = '■ Stop'; sb.style.display = '';
+                    startElapsedTimer();
                 }
 
                 // ── Per-page progress ──
@@ -2737,6 +2699,7 @@
                     hasReport = m.hasReport ?? false;
                     hasPdf = m.hasPdf ?? false;
                     document.getElementById('stop-btn').style.display = 'none';
+                    stopElapsedTimer();
                     updateHdr();
                     showReportBtn();
                     if (!selUrl) {
@@ -2758,6 +2721,22 @@
             ws.onclose = () => { setTimeout(connect, 2000); updateConfigSummary(); };
         }
         connect();
+
+        function startElapsedTimer() {
+            const el = document.getElementById('he');
+            el.style.display = '';
+            elapsedStart = Date.now();
+            clearInterval(elapsedTimer);
+            elapsedTimer = setInterval(() => {
+                const s = Math.floor((Date.now() - elapsedStart) / 1000);
+                el.textContent = `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+            }, 1000);
+        }
+
+        function stopElapsedTimer() {
+            clearInterval(elapsedTimer);
+            elapsedTimer = null;
+        }
 
         function stopAudit() {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;

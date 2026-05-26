@@ -1,5 +1,9 @@
 import type { PageResult, ApiCall, DeviceProfile } from "./types.js";
 
+function escHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
 // ── CWV thresholds ────────────────────────────────────────────────────────
 function grade(metric: string, val: number): "good" | "ni" | "poor" {
   const thresholds: Record<string, [number, number]> = {
@@ -55,11 +59,11 @@ function apiRows(calls: ApiCall[]): string {
       const durColor =
         dur <= 300 ? "#0cce6b" : dur <= 1000 ? "#ffa400" : "#ff4e42";
       const st_txt = c.serverTiming
-        ? `<div style="font-size:9px;color:#6b7280;font-family:monospace">${c.serverTiming}</div>`
+        ? `<div style="font-size:9px;color:#6b7280;font-family:monospace">${escHtml(c.serverTiming)}</div>`
         : "";
       return `<tr>
       <td style="width:52px">${type}</td>
-      <td style="font-family:monospace;font-size:10px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${c.url}">${c.url}</td>
+      <td style="font-family:monospace;font-size:10px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(c.url)}">${escHtml(c.url)}</td>
       <td style="width:60px;text-align:center">${st}</td>
       <td style="width:80px;text-align:right;font-family:monospace;color:${durColor}">${fmt(dur)}</td>
       <td style="width:180px;font-size:9px">${st_txt}</td>
@@ -140,7 +144,7 @@ function deviceCard(r: PageResult, idx: number, tabId: string): string {
 
   return `
   <div class="dcard" id="dc-${tabId}" style="display:${idx === 0 ? "block" : "none"}">
-    ${r.error ? `<div style="background:rgba(255,78,66,.08);border:1px solid rgba(255,78,66,.25);border-radius:8px;padding:10px 14px;color:#ff4e42;font-size:12px;margin-bottom:14px;font-family:monospace">⚠ ${r.error}</div>` : ""}
+    ${r.error ? `<div style="background:rgba(255,78,66,.08);border:1px solid rgba(255,78,66,.25);border-radius:8px;padding:10px 14px;color:#ff4e42;font-size:12px;margin-bottom:14px;font-family:monospace">⚠ ${escHtml(r.error)}</div>` : ""}
 
     <div style="display:grid;grid-template-columns:repeat(${r.productCount !== undefined ? 6 : 5},1fr);gap:8px;margin-bottom:16px">
       ${vitalsHtml}${productTileHtml}
@@ -210,7 +214,7 @@ function deviceCard(r: PageResult, idx: number, tabId: string): string {
         Console Errors (${r.errors.length})
       </div>
       <div style="border:1px solid rgba(255,78,66,.2);border-top:none;border-radius:0 0 8px 8px">
-        ${r.errors.map((e) => `<div style="padding:5px 12px;font-family:monospace;font-size:10px;color:#ff8080;border-bottom:1px solid rgba(255,78,66,.1)">${e}</div>`).join("")}
+        ${r.errors.map((e) => `<div style="padding:5px 12px;font-family:monospace;font-size:10px;color:#ff8080;border-bottom:1px solid rgba(255,78,66,.1)">${escHtml(e)}</div>`).join("")}
       </div>
     </div>`
         : ""
