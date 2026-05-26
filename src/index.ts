@@ -30,6 +30,7 @@ interface Session {
   lastReportHtml: string;
   lastProductReportHtml: string;
   lastHasPdf: boolean;
+  sessionVideosDir: string;
   currentSessionVideos: string[];
   signal: { cancelled: boolean };
   clients: Set<WebSocket>;
@@ -48,6 +49,7 @@ function getOrCreateSession(id: string): Session {
       lastReportHtml: "",
       lastProductReportHtml: "",
       lastHasPdf: false,
+      sessionVideosDir: path.join(videosDir, id.slice(0, 8)),
       currentSessionVideos: [],
       signal: { cancelled: false },
       clients: new Set(),
@@ -65,11 +67,12 @@ function broadcastToSession(session: Session, msg: object) {
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 function clearSessionVideos(session: Session) {
-  for (const f of session.currentSessionVideos) {
-    try {
-      if (fs.existsSync(f)) fs.unlinkSync(f);
-    } catch {}
-  }
+  // Remove the whole session-specific videos subdirectory
+  try {
+    if (fs.existsSync(session.sessionVideosDir)) {
+      fs.rmSync(session.sessionVideosDir, { recursive: true, force: true });
+    }
+  } catch {}
   session.currentSessionVideos = [];
 }
 
@@ -338,7 +341,7 @@ wss.on("connection", (ws, req) => {
 
           const allProgress = await runAudit(urlsToRun, {
             concurrency: effectiveConcurrency,
-            videosDir,
+            videosDir: session.sessionVideosDir,
             profiles: selectedProfiles,
             quickMode,
             auditMode,
