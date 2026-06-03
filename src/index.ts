@@ -356,6 +356,9 @@ wss.on("connection", (ws, req) => {
             auditMode,
             signal: session.signal,
             onProgress: (progress) => {
+              // After cancellation, don't let stale "running" updates from still-
+              // draining in-flight tasks overwrite the "failed" state we already set.
+              if (session.signal.cancelled && progress.status === "running") return;
               session.progressMap.set(progress.url, progress);
               const { screenshots, ...rest } = progress;
               broadcastToSession(session, { type: "progress", progress: rest });
