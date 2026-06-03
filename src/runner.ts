@@ -504,7 +504,7 @@ export async function runAudit(
       const shots: Record<string, string> = {};
 
       for (const profile of profiles) {
-        if (shuttingDown) break;
+        if (shuttingDown || signal?.cancelled) break;
         const result = await auditPage(
           url,
           profile,
@@ -528,10 +528,11 @@ export async function runAudit(
         });
       }
 
-      const allFailed = results.every((r) => !!r.error);
+      const wasCancelled = !!(signal?.cancelled);
+      const allFailed = results.length === 0 || results.every((r) => !!r.error);
       const progress: AuditProgress = {
         url,
-        status: allFailed ? "failed" : "done",
+        status: wasCancelled ? "failed" : allFailed ? "failed" : "done",
         results,
         screenshots: shots,
       };

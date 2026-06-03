@@ -287,6 +287,15 @@ wss.on("connection", (ws, req) => {
     if (msg.type === "stop_audit") {
       if (session.auditRunning) {
         session.signal.cancelled = true;
+        // Immediately mark all still-running URLs as failed for instant UI feedback
+        // (in-flight auditPage calls may take up to 60s to timeout on their own)
+        for (const prog of session.progressMap.values()) {
+          if (prog.status === "running") {
+            const failed: AuditProgress = { url: prog.url, status: "failed" };
+            session.progressMap.set(prog.url, failed);
+            broadcastToSession(session, { type: "progress", progress: failed });
+          }
+        }
         broadcastToSession(session, { type: "audit_stopping" });
         console.log(`  [${sessionId.slice(0, 8)}] Audit cancellation requested.`);
       }
@@ -362,7 +371,7 @@ wss.on("connection", (ws, req) => {
               ).length;
               process.stdout.write(`\r  [${sessionId.slice(0, 8)}] ${done} / ${urlsToRun.length} done   `);
             },
-            onScreenshot: quickMode ? undefined : (url, profileId, png) => {
+            onScreenshot: (quickMode || auditMode === "products") ? undefined : (url, profileId, png) => {
               broadcastToSession(session, { type: "screenshot", url, profileId, png });
             },
           });
