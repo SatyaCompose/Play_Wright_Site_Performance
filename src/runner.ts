@@ -50,13 +50,23 @@ process.on("SIGINT", () => { shuttingDown = true; });
 process.on("SIGTERM", () => { shuttingDown = true; });
 
 // ── Browser pool: one instance per engine, shared across all sessions ─────
+// Under sustained load (thousands of contexts on one browser) Chromium can
+// crash. If we don't detect the disconnect, callers get a dead reference and
+// browser.newContext() hangs forever — occupying pLimit slots indefinitely
+// and stalling the run. We watch 'disconnected' and also isConnected() before
+// handing back a cached browser.
 const browserPool = new Map<string, Browser>();
 const browserPending = new Map<string, Promise<Browser>>();
 
 async function getBrowser(
   engineName: "chromium" | "webkit" | "firefox"
 ): Promise<Browser> {
-  if (browserPool.has(engineName)) return browserPool.get(engineName)!;
+  const cached = browserPool.get(engineName);
+  if (cached && cached.isConnected()) return cached;
+  if (cached && !cached.isConnected()) {
+    console.warn(`  ⚠ ${engineName} browser is disconnected — relaunching`);
+    browserPool.delete(engineName);
+  }
   if (browserPending.has(engineName)) return browserPending.get(engineName)!;
 
   const engines: Record<string, BrowserType> = { chromium, webkit, firefox };
@@ -68,6 +78,13 @@ async function getBrowser(
           : [],
     })
     .then((browser) => {
+      browser.on("disconnected", () => {
+        // Clear the cached reference so the next getBrowser() relaunches.
+        if (browserPool.get(engineName) === browser) {
+          console.warn(`  ⚠ ${engineName} disconnected — will relaunch on next request`);
+          browserPool.delete(engineName);
+        }
+      });
       browserPool.set(engineName, browser);
       browserPending.delete(engineName);
       return browser;
@@ -603,9 +620,19 @@ export async function runAudit(
       const results: PageResult[] = [];
       const shots: Record<string, string> = {};
 
+      // Hard wall-clock cap per (url × profile). If auditPage() ever hangs —
+      // browser crashed, route handler stuck, TLS handshake stalled — the
+      // outer timeout wins and the pLimit slot is released. Without this a
+      // single hung task can freeze the whole run (seen at ~9500/12000 URLs
+      // when Chromium ran out of memory).
+      const PER_URL_TIMEOUT_MS =
+        auditMode === "pdp-data" ? 45000
+        : auditMode === "products" ? 60000
+        : 120000;
+
       for (const profile of profiles) {
         if (shuttingDown || signal?.cancelled) break;
-        const result = await auditPage(
+        const auditPromise = auditPage(
           url,
           profile,
           videosDir,
@@ -619,6 +646,21 @@ export async function runAudit(
           auditMode,
           pdpChecks
         );
+        const timeoutPromise = new Promise<PageResult>((resolve) => {
+          setTimeout(() => {
+            resolve({
+              url,
+              profile,
+              engine: engineForProfile(profile),
+              error: `Task exceeded ${PER_URL_TIMEOUT_MS}ms wall-clock cap`,
+              vitals: {},
+              apiCalls: [],
+              errors: [],
+              auditedAt: new Date().toISOString(),
+            });
+          }, PER_URL_TIMEOUT_MS).unref();
+        });
+        const result = await Promise.race([auditPromise, timeoutPromise]);
         results.push(result);
         // Broadcast partial progress after each profile
         onProgress?.({
