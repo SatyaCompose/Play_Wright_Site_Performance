@@ -192,10 +192,40 @@ function walkForProduct(nd: any): any {
   return null;
 }
 
+// Full Chrome-realistic headers so WAFs (Cloudflare/Akamai) don't 403 us.
+// A bare axios request with just User-Agent gets flagged as a bot — matching
+// what a real Chrome navigation sends (sec-ch-ua, sec-fetch-*, accept-language)
+// clears most default bot rules.
+function browserHeaders(profile: DeviceProfile, url: string): Record<string, string> {
+  const isChrome = engineForProfile(profile) === "chromium";
+  const origin = (() => { try { return new URL(url).origin; } catch { return undefined; } })();
+  const common: Record<string, string> = {
+    "User-Agent": profile.userAgent ?? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
+    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+    "Accept-Language": "en-AU,en-US;q=0.9,en;q=0.8",
+    "Accept-Encoding": "gzip, deflate, br",
+    "Upgrade-Insecure-Requests": "1",
+    "Sec-Fetch-Dest": "document",
+    "Sec-Fetch-Mode": "navigate",
+    "Sec-Fetch-Site": "none",
+    "Sec-Fetch-User": "?1",
+    "Cache-Control": "max-age=0",
+    Connection: "keep-alive",
+  };
+  if (isChrome) {
+    common["sec-ch-ua"] = '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"';
+    common["sec-ch-ua-mobile"] = "?0";
+    common["sec-ch-ua-platform"] = '"Windows"';
+  }
+  if (origin) common["Referer"] = origin + "/";
+  return common;
+}
+
 async function auditPageFast(
   url: string,
   profile: DeviceProfile,
-  pdpChecks: string[]
+  pdpChecks: string[],
+  abortSignal?: AbortSignal
 ): Promise<PageResult> {
   const engine = engineForProfile(profile);
   const auditedAt = new Date().toISOString();
@@ -207,11 +237,9 @@ async function auditPageFast(
       maxContentLength: Infinity,
       maxBodyLength: Infinity,
       validateStatus: () => true,
-      headers: {
-        "User-Agent": profile.userAgent ?? "Mozilla/5.0 SiteAuditBot/1.0",
-        "Accept-Encoding": "gzip, deflate, br",
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-      },
+      decompress: true,
+      headers: browserHeaders(profile, url),
+      signal: abortSignal,
     });
     const totalTime = Date.now() - startedAt;
     const html = String(response.data);
@@ -641,7 +669,7 @@ export async function runAudit(
     quickMode?: boolean;
     auditMode?: "full" | "products" | "lcp" | "pdp-data";
     pdpChecks?: string[];
-    signal?: { cancelled: boolean };
+    signal?: { cancelled: boolean; aborter?: AbortController };
   } = {}
 ): Promise<AuditProgress[]> {
   const {
@@ -690,7 +718,7 @@ export async function runAudit(
       for (const profile of profiles) {
         if (shuttingDown || signal?.cancelled) break;
         const result = isFastPdpData
-          ? await auditPageFast(url, profile, pdpChecks)
+          ? await auditPageFast(url, profile, pdpChecks, signal?.aborter?.signal)
           : await auditPage(
               url,
               profile,

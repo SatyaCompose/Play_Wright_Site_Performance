@@ -2224,6 +2224,7 @@
             <span class="pill" id="ht" style="min-width:60px;text-align:center">0/0</span>
             <span class="pill" id="he" style="display:none;min-width:44px;text-align:center;font-family:var(--mono)">0:00</span>
             <button class="fb" id="stop-btn" onclick="stopAudit()" style="display:none;margin-left:8px;border-color:#f87171;color:#f87171;" title="Stop audit">■ Stop</button>
+            <button class="fb" id="force-stop-btn" onclick="forceStopAudit()" style="display:none;margin-left:4px;background:#f87171;border-color:#f87171;color:#fff;font-weight:700" title="Abandon run immediately — no report">✕ Force stop</button>
             <button class="fb" onclick="showConfig()" style="margin-left:4px" title="New run">⚙ Config</button>
         </div>
     </header>
@@ -2284,6 +2285,7 @@
         let hasReport = false;
         let hasPdpReport = false;
         let hasPdf = false;
+        let stopping = false; // true after Stop clicked, until `done` fires
         let auditMode = 'full'; // 'full' | 'products' | 'lcp' | 'pdp-data'
         let pdpPageType = 'pdp'; // 'pdp' | 'plp' (plp not yet supported)
 
@@ -2766,8 +2768,11 @@
                     totalUrls = m.urls?.length ?? 0;
                     m.urls?.forEach(u => S.set(u, { url: u, status: 'pending' }));
                     renderAll();
+                    stopping = false;
                     const sb = document.getElementById('stop-btn');
                     sb.disabled = false; sb.innerHTML = '■ Stop'; sb.style.display = '';
+                    const fsb = document.getElementById('force-stop-btn');
+                    if (fsb) { fsb.style.display = 'none'; fsb.disabled = false; }
                     startElapsedTimer();
                 }
 
@@ -2777,6 +2782,7 @@
                     S.set(prog.url, prog);
                     updateRow(prog.url);
                     updateHdr();
+                    if (stopping) updateStoppingLabel();
                     if (selUrl === prog.url) {
                         if ((prog.status === 'done' || prog.status === 'failed') && prog.results?.length) {
                             const activeId2 = selTab ?? profiles[0]?.id;
@@ -2804,8 +2810,12 @@
 
                 // ── Audit stopping (cancellation acknowledged) ──
                 if (m.type === 'audit_stopping') {
+                    stopping = true;
                     const sb = document.getElementById('stop-btn');
-                    sb.disabled = true; sb.innerHTML = '⏳ Stopping…';
+                    sb.disabled = true;
+                    updateStoppingLabel(m.stopped, m.total);
+                    const fsb = document.getElementById('force-stop-btn');
+                    if (fsb) fsb.style.display = '';
                 }
 
                 // ── Done ──
@@ -2813,12 +2823,24 @@
                     hasReport = m.hasReport ?? false;
                     hasPdpReport = m.hasPdpReport ?? false;
                     hasPdf = m.hasPdf ?? false;
+                    const wasForced = !!m.forced;
+                    stopping = false;
                     document.getElementById('stop-btn').style.display = 'none';
+                    const fsb = document.getElementById('force-stop-btn');
+                    if (fsb) fsb.style.display = 'none';
                     stopElapsedTimer();
                     updateHdr();
                     showReportBtn();
                     if (!selUrl) {
-                        document.getElementById('detail').innerHTML = `
+                        if (wasForced) {
+                            document.getElementById('detail').innerHTML = `
+          <div class="de">
+            <div class="big">✕</div>
+            <div style="margin-bottom:6px">Run abandoned</div>
+            <div style="font-size:12px;color:var(--muted)">Force-stopped after ${m.total} URLs — no report generated.</div>
+          </div>`;
+                        } else {
+                            document.getElementById('detail').innerHTML = `
           <div class="de">
             <div class="big">✅</div>
             <div style="margin-bottom:16px">Audit complete — ${m.total} URLs</div>
@@ -2829,6 +2851,7 @@
               📊 View Report
             </button>
           </div>`;
+                        }
                     }
                 }
             };
@@ -2855,10 +2878,36 @@
 
         function stopAudit() {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            stopping = true;
             const btn = document.getElementById('stop-btn');
             btn.disabled = true;
-            btn.textContent = '⏳ Stopping…';
+            updateStoppingLabel();
+            const fsb = document.getElementById('force-stop-btn');
+            if (fsb) fsb.style.display = '';
             ws.send(JSON.stringify({ type: 'stop_audit' }));
+        }
+
+        // Hard cancel — server abandons the run immediately, no report.
+        function forceStopAudit() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            const fsb = document.getElementById('force-stop-btn');
+            if (fsb) { fsb.disabled = true; fsb.textContent = '⏳ Killing…'; }
+            ws.send(JSON.stringify({ type: 'force_stop' }));
+        }
+
+        // Live count of stopped URLs on the Stop button while draining.
+        function updateStoppingLabel(stoppedOverride, totalOverride) {
+            const btn = document.getElementById('stop-btn');
+            if (!btn) return;
+            const total = totalOverride ?? (S.size || totalUrls);
+            let stopped = stoppedOverride;
+            if (stopped == null) {
+                stopped = 0;
+                for (const p of S.values()) {
+                    if (p.status === 'done' || p.status === 'failed') stopped++;
+                }
+            }
+            btn.innerHTML = `⏳ Stopping… <span style="font-family:var(--mono);font-size:10px;opacity:.85;margin-left:4px">${stopped}/${total}</span>`;
         }
 
         function showReportBtn() {

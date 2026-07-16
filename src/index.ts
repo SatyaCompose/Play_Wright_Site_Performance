@@ -34,7 +34,7 @@ interface Session {
   lastHasPdf: boolean;
   sessionVideosDir: string;
   currentSessionVideos: string[];
-  signal: { cancelled: boolean };
+  signal: { cancelled: boolean; aborter?: AbortController };
   clients: Set<WebSocket>;
 }
 
@@ -319,11 +319,14 @@ wss.on("connection", (ws, req) => {
     }
 
     // ── Stop audit ────────────────────────────────────────────────────
+    // Cooperative stop: sets cancelled + aborts in-flight axios (pdp-data mode).
+    // In-flight Playwright pages still need to close naturally, so full mode
+    // may take a few seconds to fully drain. Use force_stop for immediate exit.
     if (msg.type === "stop_audit") {
       if (session.auditRunning) {
         session.signal.cancelled = true;
+        try { session.signal.aborter?.abort(); } catch {}
         // Immediately mark all still-running URLs as failed for instant UI feedback
-        // (in-flight auditPage calls may take up to 60s to timeout on their own)
         for (const prog of session.progressMap.values()) {
           if (prog.status === "running") {
             const failed: AuditProgress = { url: prog.url, status: "failed" };
@@ -331,8 +334,43 @@ wss.on("connection", (ws, req) => {
             broadcastToSession(session, { type: "progress", progress: failed });
           }
         }
-        broadcastToSession(session, { type: "audit_stopping" });
-        console.log(`  [${sessionId.slice(0, 8)}] Audit cancellation requested.`);
+        const total = session.progressMap.size;
+        const stopped = [...session.progressMap.values()].filter(
+          (p) => p.status === "done" || p.status === "failed"
+        ).length;
+        broadcastToSession(session, { type: "audit_stopping", stopped, total });
+        console.log(`  [${sessionId.slice(0, 8)}] Audit cancellation requested (${stopped}/${total}).`);
+      }
+      return;
+    }
+
+    // ── Force stop ─────────────────────────────────────────────────────
+    // Hard cancel — immediately fires `done`, skips report generation, and
+    // marks the session complete regardless of any tasks still draining in
+    // the background. Use when Stop is too slow at high URL counts.
+    if (msg.type === "force_stop") {
+      if (session.auditRunning) {
+        session.signal.cancelled = true;
+        try { session.signal.aborter?.abort(); } catch {}
+        for (const prog of session.progressMap.values()) {
+          if (prog.status === "running" || prog.status === "pending") {
+            const failed: AuditProgress = { url: prog.url, status: "failed" };
+            session.progressMap.set(prog.url, failed);
+            broadcastToSession(session, { type: "progress", progress: failed });
+          }
+        }
+        session.auditRunning = false;
+        session.auditDone = true;
+        const total = session.progressMap.size;
+        broadcastToSession(session, {
+          type: "done",
+          total,
+          hasReport: false,
+          hasPdpReport: false,
+          hasPdf: false,
+          forced: true,
+        });
+        console.log(`  [${sessionId.slice(0, 8)}] Force stop — abandoned run at ${total} URLs.`);
       }
       return;
     }
@@ -367,7 +405,7 @@ wss.on("connection", (ws, req) => {
 
       // Reset session for new run
       clearSessionVideos(session);
-      session.signal = { cancelled: false };
+      session.signal = { cancelled: false, aborter: new AbortController() };
       session.auditRunning = true;
       session.auditDone = false;
       session.lastReportHtml = "";
@@ -419,6 +457,13 @@ wss.on("connection", (ws, req) => {
               broadcastToSession(session, { type: "screenshot", url, profileId, png });
             },
           });
+
+          // If force_stop already fired `done` for this session, don't run
+          // reports or broadcast a second done — the client has moved on.
+          if (session.auditDone && session.signal.cancelled) {
+            console.log(`  [${sessionId.slice(0, 8)}] Drain complete after force stop — skipping reports.`);
+            return;
+          }
 
           session.auditRunning = false;
           session.auditDone = true;
