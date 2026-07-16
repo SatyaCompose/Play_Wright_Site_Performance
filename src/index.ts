@@ -422,7 +422,7 @@ wss.on("connection", (ws, req) => {
       setImmediate(async () => {
         try {
           const effectiveConcurrency =
-            auditMode === "pdp-data" ? Math.max(concurrency, 15)   // Playwright w/ subresource block
+            auditMode === "pdp-data" ? Math.max(concurrency, 25)   // Playwright w/ subresource block + disconnect/timeout guards
             : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;
