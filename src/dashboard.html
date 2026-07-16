@@ -2053,31 +2053,52 @@
                         URL Source
                     </div>
 
-                    <!-- Toggle: Sitemap vs Manual -->
+                    <!-- Toggle: Commercetools vs Manual -->
                     <div class="src-toggle">
                         <button class="src-tab active" id="tab-sitemap" onclick="switchSource('sitemap')">
-                            📋 Sitemap / URL list
+                            🛍 Commercetools products
                         </button>
                         <button class="src-tab" id="tab-manual" onclick="switchSource('manual')">
                             ✏️ Paste URLs manually
                         </button>
                     </div>
 
-                    <!-- Sitemap input pane -->
+                    <!-- Source pane: swaps between CT loader (pdp-data) and sitemap URL input (all other modes) -->
                     <div id="pane-sitemap">
-                        <div class="cfg-input-row">
-                            <input id="sitemap-input" class="cfg-input" type="text"
-                                placeholder="https://example.com/sitemap.xml"
-                                onkeydown="if(event.key==='Enter')loadUrls()">
-                            <button class="load-btn" onclick="loadUrls()" id="load-btn">Load →</button>
+                        <!-- CT loader — visible only for pdp-data mode -->
+                        <div id="ct-loader" style="display:none">
+                            <div style="display:flex;gap:6px;margin-bottom:10px">
+                                <button class="url-chip active" id="ct-env-prod" onclick="setCtEnv('production')">🚀 Production</button>
+                                <button class="url-chip" id="ct-env-stg" onclick="setCtEnv('staging')">🧪 Staging</button>
+                            </div>
+                            <div class="cfg-input-row">
+                                <button class="load-btn" onclick="loadUrls()" id="ct-load-btn" style="flex:1">Fetch product URLs from Commercetools →</button>
+                            </div>
+                            <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6">
+                                Pulls valid PDPs directly from CT:
+                                <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">isDisplay=true</code>,
+                                <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">isInactive=false</code>,
+                                <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">siteKeys contains KWH|T</code>,
+                                and at least one RRP-channel price &gt; 0.
+                                Requires <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">PROD_CTP_*</code> / <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">STG_CTP_*</code> env vars (see .env.example).
+                            </div>
                         </div>
+
+                        <!-- Sitemap loader — default for full/products/lcp modes (used for PLP audits) -->
+                        <div id="sitemap-loader">
+                            <div class="cfg-input-row">
+                                <input id="sitemap-input" class="cfg-input" type="text"
+                                    placeholder="https://example.com/sitemap.xml"
+                                    onkeydown="if(event.key==='Enter')loadUrls()">
+                                <button class="load-btn" onclick="loadUrls()" id="load-btn">Load →</button>
+                            </div>
+                            <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6">
+                                Accepts <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">.xml</code> sitemap,
+                                sitemap index (auto-expanded), plain text URL list (one per line), or a single page URL.
+                            </div>
+                        </div>
+
                         <div class="load-status" id="load-status"></div>
-                        <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6">
-                            Accepts <code
-                                style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">.xml</code>
-                            sitemap,
-                            sitemap index (auto-expanded), plain text URL list (one per line), or a single page URL.
-                        </div>
                     </div>
 
                     <!-- Product-list page-type filter (only shown for sitemap-product-list-pages.xml) -->
@@ -2274,7 +2295,8 @@
         let profiles = [];
         let allUrls = [];
         let allUrlsRaw = [];          // full unfiltered set from server
-        let productListFilter = 'all'; // 'all' | 'brands' | 'categories'
+        let ctEnv = 'production';     // 'production' | 'staging' — which CT credentials to use
+        let productListFilter = 'all'; // 'all' | 'brands' | 'categories' (sitemap PLP audits only)
         let subpageMode = 'main';      // 'main' = no ?p= param | 'all' = include paginated
         let isProductListSitemap = false;
         let selectedProfileIds = [];
@@ -2391,6 +2413,9 @@
                 });
             }
 
+            // Swap CT loader vs sitemap input based on the audit mode.
+            refreshSourcePane();
+
             // Rebuild URL chips to reflect different step options
             if (allUrls.length > 0) buildUrlChips();
             updateConfigSummary();
@@ -2410,26 +2435,41 @@
                 .map(el => el.value);
         }
 
-        // ── Load sitemap from server ───────────────────────────────────────────────
+        // ── URL loaders: CT for pdp-data, sitemap for everything else ────────────
+        function setCtEnv(env) {
+            ctEnv = env;
+            document.getElementById('ct-env-prod').classList.toggle('active', env === 'production');
+            document.getElementById('ct-env-stg').classList.toggle('active', env === 'staging');
+        }
+
+        // Show CT loader for pdp-data mode; show sitemap input for everything else.
+        function refreshSourcePane() {
+            const usingCt = auditMode === 'pdp-data';
+            const ctEl = document.getElementById('ct-loader');
+            const smEl = document.getElementById('sitemap-loader');
+            if (ctEl) ctEl.style.display = usingCt ? '' : 'none';
+            if (smEl) smEl.style.display = usingCt ? 'none' : '';
+        }
+
         function loadUrls() {
-            const source = document.getElementById('sitemap-input').value.trim();
-            if (!source) return;
-            setLoadStatus('loading', 'Fetching ' + source + '…');
-            document.getElementById('load-btn').disabled = true;
-            if (ws?.readyState === WebSocket.OPEN) {
-                ws.send(JSON.stringify({ type: 'load_urls', source }));
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            const usingCt = auditMode === 'pdp-data';
+            if (usingCt) {
+                const label = ctEnv === 'production' ? 'Production' : 'Staging';
+                setLoadStatus('loading', `Fetching product URLs from Commercetools (${label})…`);
+                const btn = document.getElementById('ct-load-btn');
+                if (btn) btn.disabled = true;
+                ws.send(JSON.stringify({ type: 'load_urls', sourceType: 'ct', env: ctEnv }));
+            } else {
+                const source = document.getElementById('sitemap-input').value.trim();
+                if (!source) return;
+                setLoadStatus('loading', 'Fetching ' + source + '…');
+                document.getElementById('load-btn').disabled = true;
+                ws.send(JSON.stringify({ type: 'load_urls', sourceType: 'sitemap', source }));
             }
         }
 
-        function setLoadStatus(type, msg) {
-            const el = document.getElementById('load-status');
-            const color = type === 'ok' ? 'var(--good)' : type === 'error' ? 'var(--poor)' : 'var(--running)';
-            const icon = type === 'ok' ? '✓ ' : type === 'error' ? '✗ ' : '⟳ ';
-            el.style.color = color;
-            el.innerHTML = `<span>${icon}${msg}</span>`;
-        }
-
-        // ── Product-list page-type filter ────────────────────────────────────────
+        // ── Product-list page-type filter (sitemap PLP audits only) ──────────────
         function setProductFilter(mode) {
             productListFilter = mode;
             ['all', 'brands', 'categories'].forEach(m => {
@@ -2447,6 +2487,10 @@
             buildUrlChips();
         }
 
+        function isMainPageUrl(u) {
+            try { return !new URL(u).searchParams.has('p'); } catch { return true; }
+        }
+
         function applyProductFilter() {
             allUrls = allUrlsRaw.slice();
             if (isProductListSitemap) {
@@ -2458,6 +2502,15 @@
                 if (subpageMode === 'main') allUrls = allUrls.filter(isMainPageUrl);
             }
         }
+
+        function setLoadStatus(type, msg) {
+            const el = document.getElementById('load-status');
+            const color = type === 'ok' ? 'var(--good)' : type === 'error' ? 'var(--poor)' : 'var(--running)';
+            const icon = type === 'ok' ? '✓ ' : type === 'error' ? '✗ ' : '⟳ ';
+            el.style.color = color;
+            el.innerHTML = `<span>${icon}${msg}</span>`;
+        }
+
 
         // ── Build device cards (called once) ──────────────────────────────────────
         function buildDeviceCards() {
@@ -2624,25 +2677,20 @@
         }
 
         // ── Start audit ───────────────────────────────────────────────────────────
-        function isMainPageUrl(u) {
-            try { return !new URL(u).searchParams.has('p'); } catch { return true; }
-        }
-
         function getFilteredAuditUrls() {
             // Always derive fresh from allUrlsRaw so we never depend on allUrls
             // being pre-filtered (it can be stale after a WS reconnect).
             let urls = allUrlsRaw;
-
-            if (productListFilter === 'brands') {
-                urls = urls.filter(u => { try { return new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
-            } else if (productListFilter === 'categories') {
-                urls = urls.filter(u => { try { return !new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
+            if (isProductListSitemap) {
+                if (productListFilter === 'brands') {
+                    urls = urls.filter(u => { try { return new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
+                } else if (productListFilter === 'categories') {
+                    urls = urls.filter(u => { try { return !new URL(u).pathname.startsWith('/brands/'); } catch { return false; } });
+                }
+                if (subpageMode === 'main') {
+                    urls = urls.filter(isMainPageUrl);
+                }
             }
-
-            if (subpageMode === 'main') {
-                urls = urls.filter(isMainPageUrl);
-            }
-
             return urls.slice(0, selectedUrlCount || urls.length);
         }
 
@@ -2652,14 +2700,17 @@
             const manualUrls = getManualUrls();
 
             if (allUrlsRaw.length === 0 && manualUrls.length === 0) {
-                setLoadStatus('error', 'Load a sitemap or paste URLs first');
+                const hint = auditMode === 'pdp-data'
+                    ? 'Fetch URLs from Commercetools or paste URLs first'
+                    : 'Load a sitemap or paste URLs first';
+                setLoadStatus('error', hint);
                 switchSource('sitemap');
                 return;
             }
 
             // When a product-list filter is active, send the exact filtered URL list
             // as manualUrls so the server doesn't slice from its own unfiltered list.
-            const isFiltered = !isManual && productListFilter !== 'all';
+            const isFiltered = !isManual && isProductListSitemap && productListFilter !== 'all';
             const auditUrls = isManual ? [] : getFilteredAuditUrls();
 
             const quickMode = document.getElementById('quick-mode')?.checked ?? false;
@@ -2729,27 +2780,42 @@
                     updateConfigSummary();
                 }
 
-                // ── Sitemap URLs loaded ──
+                // ── URLs loaded (from CT or sitemap) ──
                 if (m.type === 'urls_loaded') {
                     allUrlsRaw = m.urls ?? [];
-                    const loadedSource = m.source ?? document.getElementById('sitemap-input').value.trim();
-                    isProductListSitemap = loadedSource.includes('sitemap-product-list-pages.xml');
+                    const src = (m.source ?? '').toString();
+                    const fromCt = src.startsWith('commercetools');
+                    // PLP filters only apply to the KWH product-list sitemap
+                    isProductListSitemap = !fromCt && src.includes('sitemap-product-list-pages.xml');
                     productListFilter = 'all';
                     subpageMode = 'main';
-                    document.getElementById('product-filter-section').style.display = isProductListSitemap ? '' : 'none';
+                    const pf = document.getElementById('product-filter-section');
+                    if (pf) pf.style.display = isProductListSitemap ? '' : 'none';
                     ['all', 'brands', 'categories'].forEach(f => {
-                        document.getElementById('pf-' + f).classList.toggle('active', f === 'all');
+                        const el = document.getElementById('pf-' + f);
+                        if (el) el.classList.toggle('active', f === 'all');
                     });
-                    document.getElementById('pf-main-only').classList.add('active');
-                    document.getElementById('pf-subpages').classList.remove('active');
+                    const pfMain = document.getElementById('pf-main-only');
+                    if (pfMain) pfMain.classList.add('active');
+                    const pfSub = document.getElementById('pf-subpages');
+                    if (pfSub) pfSub.classList.remove('active');
                     applyProductFilter();
-                    document.getElementById('load-btn').disabled = false;
-                    setLoadStatus('ok', `${allUrlsRaw.length.toLocaleString()} URLs loaded`);
+
+                    // Re-enable whichever button was disabled
+                    ['load-btn', 'ct-load-btn'].forEach(id => {
+                        const b = document.getElementById(id);
+                        if (b) b.disabled = false;
+                    });
+
+                    const msg = fromCt
+                        ? `${allUrlsRaw.length.toLocaleString()} URLs loaded from Commercetools (${m.env === 'staging' ? 'Staging' : 'Production'})`
+                        : `${allUrlsRaw.length.toLocaleString()} URLs loaded`;
+                    setLoadStatus('ok', msg);
                     buildUrlChips();
                     updateConfigSummary();
                 }
 
-                // ── Sitemap fetch started / progress ──
+                // ── Load progress ──
                 if (m.type === 'loading_urls') {
                     setLoadStatus('loading', m.message ?? 'Fetching…');
                 }
@@ -2757,8 +2823,10 @@
                 // ── Server error ──
                 if (m.type === 'error') {
                     setLoadStatus('error', m.message);
-                    const lb = document.getElementById('load-btn');
-                    if (lb) lb.disabled = false;
+                    ['load-btn', 'ct-load-btn'].forEach(id => {
+                        const b = document.getElementById(id);
+                        if (b) b.disabled = false;
+                    });
                     updateConfigSummary();
                 }
 

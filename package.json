@@ -9,7 +9,10 @@
         "postinstall": "playwright install chromium webkit"
     },
     "dependencies": {
+        "@commercetools/platform-sdk": "^9.2.0",
+        "@commercetools/sdk-client-v2": "^4.0.0",
         "axios": "^1.6.0",
+        "dotenv": "^17.4.2",
         "open": "^8.4.2",
         "p-limit": "^4.0.0",
         "playwright": "^1.42.0",

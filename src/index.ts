@@ -4,6 +4,8 @@ import * as path from "path";
 import * as crypto from "crypto";
 import { WebSocketServer, WebSocket } from "ws";
 import open from "open";
+import "dotenv/config";
+import { getCTProductUrls, type CTEnv } from "./ct";
 import { getUrlsFromSitemap } from "./sitemap";
 import { runAudit, closeAllBrowsers } from "./runner";
 import { generateHTMLReport } from "./report";
@@ -271,8 +273,50 @@ wss.on("connection", (ws, req) => {
     let msg: any;
     try { msg = JSON.parse(raw.toString()); } catch { return; }
 
-    // ── Load sitemap ──────────────────────────────────────────────────
+    // ── Load URLs ──────────────────────────────────────────────────────
+    // Two sources depending on audit intent:
+    //   - Commercetools (msg.sourceType === "ct"): fetches valid PDPs directly
+    //     from CT. Filters: isInactive=false, isDisplay=true, RRP-price > 0.
+    //     msg.env picks the credential set (production / staging).
+    //   - Sitemap (default, msg.source is a URL): fetches from an XML sitemap,
+    //     sitemap index, plain-text URL list, or single page. Used for PLP /
+    //     full / lcp modes where the sitemap is the source of truth.
     if (msg.type === "load_urls") {
+      const useCt = msg.sourceType === "ct";
+
+      if (useCt) {
+        const ctEnv: CTEnv = msg.env === "staging" ? "staging" : "production";
+        const source = `commercetools-${ctEnv}`;
+        ws.send(JSON.stringify({ type: "loading_urls", source, env: ctEnv }));
+        try {
+          const timeout = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Timed out after 3 min fetching CT products")), 180000)
+          );
+          const urls = await Promise.race([
+            getCTProductUrls(ctEnv, (m) => {
+              ws.send(JSON.stringify({ type: "loading_urls", source, env: ctEnv, message: m }));
+            }),
+            timeout,
+          ]);
+          // CT is the source of truth for uniqueness — getCTProductUrls already
+          // uses a Set. Assign directly.
+          session.allUrls = urls;
+          console.log(`  [${sessionId.slice(0, 8)}] Loaded ${session.allUrls.length} URLs from Commercetools (${ctEnv})`);
+          broadcastToSession(session, {
+            type: "urls_loaded",
+            urls: session.allUrls,
+            total: session.allUrls.length,
+            source,
+            env: ctEnv,
+          });
+        } catch (e: any) {
+          console.error(`  [${sessionId.slice(0, 8)}] load_urls error:`, e.message);
+          ws.send(JSON.stringify({ type: "error", message: e.message }));
+        }
+        return;
+      }
+
+      // ── Sitemap path (PLP / full / lcp modes) ────────────────────────
       const source: string = (msg.source ?? "").trim();
       if (!source) {
         ws.send(JSON.stringify({ type: "error", message: "Enter a sitemap URL or page URL" }));
@@ -280,14 +324,12 @@ wss.on("connection", (ws, req) => {
       }
       ws.send(JSON.stringify({ type: "loading_urls", source }));
       try {
-        // Large PDP sitemap indexes can legitimately take a while — the p-limit(6)
-        // cap in sitemap.ts means N child sitemaps take ceil(N/6) round-trips.
         const timeout = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error("Timed out after 3 min — check the URL is reachable")), 180000)
         );
         const rawUrls = await Promise.race([
-          getUrlsFromSitemap(source, (msg) => {
-            ws.send(JSON.stringify({ type: "loading_urls", source, message: msg }));
+          getUrlsFromSitemap(source, (m) => {
+            ws.send(JSON.stringify({ type: "loading_urls", source, message: m }));
           }),
           timeout,
         ]);
@@ -304,9 +346,8 @@ wss.on("connection", (ws, req) => {
           } catch {}
           return u;
         });
-        // Dedupe while preserving first-seen order. Sitemap indexes commonly
-        // list the same URL in multiple child sitemaps — without this the same
-        // URL runs twice, and its dashboard entry flips between running/done.
+        // Sitemap indexes commonly list the same URL in multiple child sitemaps —
+        // dedupe here (preserve first-seen order) so a URL isn't audited twice.
         const seen = new Set<string>();
         session.allUrls = [];
         for (const u of rewritten) {
