@@ -9,7 +9,6 @@ import {
   type BrowserType,
 } from "playwright";
 import pLimit from "p-limit";
-import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
 import type {
@@ -162,136 +161,6 @@ function startScreenshotStream(
   };
 }
 
-// ── HTTP-only fast path for pdp-data mode ─────────────────────────────────
-// Skips Playwright entirely — just fetches the HTML, extracts the inlined
-// <script id="__NEXT_DATA__"> JSON, and walks the product data structure.
-// Handles ~50-100x more URLs/sec than the browser path.
-const NEXT_DATA_RE = /<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i;
-
-function walkForProduct(nd: any): any {
-  const candidates: any[] = [
-    nd?.props?.pageProps?.data?.data?.dataSources,
-    nd?.props?.pageProps?.data?.dataSources,
-  ];
-  for (const ds of candidates) {
-    if (ds && typeof ds === "object") {
-      for (const entry of Object.values<any>(ds)) {
-        if (entry && typeof entry === "object" && entry.product && typeof entry.product === "object") {
-          return entry.product;
-        }
-      }
-    }
-  }
-  const cfgs = nd?.props?.pageProps?.data?.pageFolder?.dataSourceConfigurations;
-  if (Array.isArray(cfgs)) {
-    for (const c of cfgs) {
-      const p = c?.preloadedValue?.product;
-      if (p && typeof p === "object") return p;
-    }
-  }
-  return null;
-}
-
-// Full Chrome-realistic headers so WAFs (Cloudflare/Akamai) don't 403 us.
-// A bare axios request with just User-Agent gets flagged as a bot — matching
-// what a real Chrome navigation sends (sec-ch-ua, sec-fetch-*, accept-language)
-// clears most default bot rules.
-function browserHeaders(profile: DeviceProfile, url: string): Record<string, string> {
-  const isChrome = engineForProfile(profile) === "chromium";
-  const origin = (() => { try { return new URL(url).origin; } catch { return undefined; } })();
-  const common: Record<string, string> = {
-    "User-Agent": profile.userAgent ?? "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/141.0.0.0 Safari/537.36",
-    Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
-    "Accept-Language": "en-AU,en-US;q=0.9,en;q=0.8",
-    "Accept-Encoding": "gzip, deflate, br",
-    "Upgrade-Insecure-Requests": "1",
-    "Sec-Fetch-Dest": "document",
-    "Sec-Fetch-Mode": "navigate",
-    "Sec-Fetch-Site": "none",
-    "Sec-Fetch-User": "?1",
-    "Cache-Control": "max-age=0",
-    Connection: "keep-alive",
-  };
-  if (isChrome) {
-    common["sec-ch-ua"] = '"Google Chrome";v="141", "Not?A_Brand";v="8", "Chromium";v="141"';
-    common["sec-ch-ua-mobile"] = "?0";
-    common["sec-ch-ua-platform"] = '"Windows"';
-  }
-  if (origin) common["Referer"] = origin + "/";
-  return common;
-}
-
-async function auditPageFast(
-  url: string,
-  profile: DeviceProfile,
-  pdpChecks: string[],
-  abortSignal?: AbortSignal
-): Promise<PageResult> {
-  const engine = engineForProfile(profile);
-  const auditedAt = new Date().toISOString();
-  try {
-    const startedAt = Date.now();
-    const response = await axios.get(url, {
-      timeout: 25000,
-      responseType: "text",
-      maxContentLength: Infinity,
-      maxBodyLength: Infinity,
-      validateStatus: () => true,
-      decompress: true,
-      headers: browserHeaders(profile, url),
-      signal: abortSignal,
-    });
-    const totalTime = Date.now() - startedAt;
-    const html = String(response.data);
-
-    const pdpDataCheck: PdpDataCheck = { checked: pdpChecks, empty: [], productFound: false };
-    const m = html.match(NEXT_DATA_RE);
-    if (m) {
-      try {
-        const nd = JSON.parse(m[1]);
-        const product = walkForProduct(nd);
-        if (product) {
-          pdpDataCheck.productFound = true;
-          for (const key of pdpChecks) {
-            const v = product[key];
-            if (v && typeof v === "object" && !Array.isArray(v)) {
-              const ks = Object.keys(v);
-              if (ks.length === 1 && ks[0] === "h" && typeof v.h === "string") {
-                pdpDataCheck.empty.push(key);
-              }
-            }
-          }
-        }
-      } catch {
-        // JSON parse failure — leave productFound false
-      }
-    }
-
-    return {
-      url,
-      profile,
-      engine,
-      status: response.status,
-      vitals: { totalTime },
-      apiCalls: [],
-      errors: [],
-      pdpDataCheck,
-      auditedAt,
-    };
-  } catch (err: any) {
-    return {
-      url,
-      profile,
-      engine,
-      error: err.message,
-      vitals: {},
-      apiCalls: [],
-      errors: [],
-      auditedAt,
-    };
-  }
-}
-
 // ── Audit a single URL × profile ─────────────────────────────────────────
 async function auditPage(
   url: string,
@@ -315,6 +184,21 @@ async function auditPage(
   try {
     context = await browser.newContext(contextOptions(profile, videosDir, effectiveQuick));
     const page = await context.newPage();
+
+    // ── pdp-data speed boost: block subresources ───────────────────────
+    // We only need the HTML document to parse __NEXT_DATA__. Blocking images,
+    // stylesheets, media, and fonts cuts bytes/second by ~90% and lets us
+    // finish each URL in ~1-2s instead of 6-10s. `document` and `script` are
+    // still allowed since Next.js hydration reads inline JSON via them.
+    if (isPdpDataMode) {
+      await context.route("**/*", (route) => {
+        const t = route.request().resourceType();
+        if (t === "image" || t === "media" || t === "font" || t === "stylesheet") {
+          return route.abort();
+        }
+        return route.continue();
+      });
+    }
 
     let stopScreenshots: (() => void) | null = null;
     if (onScreenshot && !effectiveQuick) {
@@ -375,22 +259,30 @@ async function auditPage(
       await page.addInitScript(VITALS_SCRIPT);
     }
 
-    const response = await page.goto(url, { waitUntil: "load", timeout: 60000 });
+    // pdp-data only needs the SSR HTML — DOMContentLoaded is enough.
+    // Other modes still wait for full load to measure vitals / capture video.
+    const gotoWait = isPdpDataMode ? "domcontentloaded" : "load";
+    const gotoTimeout = isPdpDataMode ? 30000 : 60000;
+    const response = await page.goto(url, { waitUntil: gotoWait, timeout: gotoTimeout });
     if (!response) throw new Error("No response received");
-    try {
-      await page.waitForLoadState("networkidle", {
-        timeout: (isProductsMode || isPdpDataMode) ? 1000 : (quickMode ? 3000 : 15000),
-      });
-    } catch {
-      // Network never fully idle — continue with what we have
+    if (!isPdpDataMode) {
+      try {
+        await page.waitForLoadState("networkidle", {
+          timeout: isProductsMode ? 1000 : (quickMode ? 3000 : 15000),
+        });
+      } catch {
+        // Network never fully idle — continue with what we have
+      }
     }
 
-    const settlems = (isProductsMode || isPdpDataMode)
-      ? 500
-      : effectiveQuick
-        ? 600
-        : engine === "webkit" ? 4000 : 2500;
-    await page.waitForTimeout(settlems);
+    const settlems = isPdpDataMode
+      ? 0                              // __NEXT_DATA__ is inlined; no settle needed
+      : isProductsMode
+        ? 500
+        : effectiveQuick
+          ? 600
+          : engine === "webkit" ? 4000 : 2500;
+    if (settlems > 0) await page.waitForTimeout(settlems);
 
     // Scroll only in full non-quick mode (for video capture)
     if (!effectiveQuick) {
@@ -686,17 +578,13 @@ export async function runAudit(
 
   if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
 
-  const isFastPdpData = auditMode === "pdp-data";
-
-  // Pre-warm browser engines only when we'll actually use Playwright.
-  // pdp-data mode uses the HTTP fast path — no browser needed.
-  if (!isFastPdpData) {
-    const neededEngines = new Set(profiles.map(engineForProfile));
-    console.log(`\n  Launching engines: ${[...neededEngines].join(", ")}`);
-    await Promise.all([...neededEngines].map((e) => getBrowser(e)));
-  } else {
-    console.log(`\n  PDP-data fast path — no browser needed`);
-  }
+  // Pre-warm all needed browser engines.
+  // pdp-data used to have an axios HTTP fast path, but production WAFs
+  // (Cloudflare/Akamai) TLS-fingerprint Node's stack and return 403 regardless
+  // of headers. Playwright's real browser TLS clears the challenge.
+  const neededEngines = new Set(profiles.map(engineForProfile));
+  console.log(`\n  Launching engines: ${[...neededEngines].join(", ")}`);
+  await Promise.all([...neededEngines].map((e) => getBrowser(e)));
 
   const limit = pLimit(concurrency);
   const allProgress: AuditProgress[] = [];
@@ -717,22 +605,20 @@ export async function runAudit(
 
       for (const profile of profiles) {
         if (shuttingDown || signal?.cancelled) break;
-        const result = isFastPdpData
-          ? await auditPageFast(url, profile, pdpChecks, signal?.aborter?.signal)
-          : await auditPage(
-              url,
-              profile,
-              videosDir,
-              onScreenshot
-                ? (pid, png) => {
-                    shots[pid] = png;
-                    onScreenshot(url, pid, png);
-                  }
-                : undefined,
-              quickMode,
-              auditMode,
-              pdpChecks
-            );
+        const result = await auditPage(
+          url,
+          profile,
+          videosDir,
+          onScreenshot
+            ? (pid, png) => {
+                shots[pid] = png;
+                onScreenshot(url, pid, png);
+              }
+            : undefined,
+          quickMode,
+          auditMode,
+          pdpChecks
+        );
         results.push(result);
         // Broadcast partial progress after each profile
         onProgress?.({

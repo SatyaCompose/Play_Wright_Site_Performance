@@ -319,9 +319,10 @@ wss.on("connection", (ws, req) => {
     }
 
     // ── Stop audit ────────────────────────────────────────────────────
-    // Cooperative stop: sets cancelled + aborts in-flight axios (pdp-data mode).
-    // In-flight Playwright pages still need to close naturally, so full mode
-    // may take a few seconds to fully drain. Use force_stop for immediate exit.
+    // Cooperative stop: sets cancelled + aborts the run's AbortController.
+    // Queued tasks in pLimit see signal.cancelled and skip. In-flight
+    // Playwright pages still need to close naturally, so a large batch may
+    // take a few seconds to fully drain. Use force_stop for immediate exit.
     if (msg.type === "stop_audit") {
       if (session.auditRunning) {
         session.signal.cancelled = true;
@@ -421,7 +422,7 @@ wss.on("connection", (ws, req) => {
       setImmediate(async () => {
         try {
           const effectiveConcurrency =
-            auditMode === "pdp-data" ? Math.max(concurrency, 40)   // HTTP-only fast path
+            auditMode === "pdp-data" ? Math.max(concurrency, 15)   // Playwright w/ subresource block
             : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;
