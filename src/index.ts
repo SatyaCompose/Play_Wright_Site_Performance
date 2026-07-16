@@ -8,6 +8,7 @@ import { getUrlsFromSitemap } from "./sitemap";
 import { runAudit, closeAllBrowsers } from "./runner";
 import { generateHTMLReport } from "./report";
 import { generateProductReportHTML } from "./product-report";
+import { generatePdpReportHTML } from "./pdp-report";
 import { generatePDF } from "./pdf";
 import type { AuditProgress } from "./types";
 import { DEVICE_PROFILES } from "./types";
@@ -29,6 +30,7 @@ interface Session {
   allUrls: string[];
   lastReportHtml: string;
   lastProductReportHtml: string;
+  lastPdpReportHtml: string;
   lastHasPdf: boolean;
   sessionVideosDir: string;
   currentSessionVideos: string[];
@@ -48,6 +50,7 @@ function getOrCreateSession(id: string): Session {
       allUrls: [],
       lastReportHtml: "",
       lastProductReportHtml: "",
+      lastPdpReportHtml: "",
       lastHasPdf: false,
       sessionVideosDir: path.join(videosDir, id.slice(0, 8)),
       currentSessionVideos: [],
@@ -174,6 +177,30 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  if (rawPath === "/pdp-report.html") {
+    const html = session?.lastPdpReportHtml ?? "";
+    if (!html) { res.writeHead(404); res.end("No PDP report yet"); return; }
+    res.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Disposition": "attachment; filename=pdp-report.html",
+    });
+    res.end(html);
+    return;
+  }
+
+  if (rawPath === "/pdp-report.pdf") {
+    const p = path.join(process.cwd(), `pdp-report-${sessionId}.pdf`);
+    if (!sessionId || !fs.existsSync(p)) { res.writeHead(404); res.end("No PDP report PDF yet"); return; }
+    const stat = fs.statSync(p);
+    res.writeHead(200, {
+      "Content-Type": "application/pdf",
+      "Content-Length": stat.size,
+      "Content-Disposition": "attachment; filename=pdp-report.pdf",
+    });
+    fs.createReadStream(p).pipe(res);
+    return;
+  }
+
   // Video streaming + optional download
   if (rawPath.startsWith("/videos/")) {
     const fp = path.join(process.cwd(), rawPath);
@@ -234,6 +261,7 @@ wss.on("connection", (ws, req) => {
       running: session.auditRunning,
       done: session.auditDone,
       hasReport: !!session.lastReportHtml,
+      hasPdpReport: !!session.lastPdpReportHtml,
       hasPdf: session.lastHasPdf,
     })
   );
@@ -252,10 +280,17 @@ wss.on("connection", (ws, req) => {
       }
       ws.send(JSON.stringify({ type: "loading_urls", source }));
       try {
+        // Large PDP sitemap indexes can legitimately take a while — the p-limit(6)
+        // cap in sitemap.ts means N child sitemaps take ceil(N/6) round-trips.
         const timeout = new Promise<never>((_, reject) =>
-          setTimeout(() => reject(new Error("Timed out after 45s — check the URL is reachable")), 45000)
+          setTimeout(() => reject(new Error("Timed out after 3 min — check the URL is reachable")), 180000)
         );
-        const rawUrls = await Promise.race([getUrlsFromSitemap(source), timeout]);
+        const rawUrls = await Promise.race([
+          getUrlsFromSitemap(source, (msg) => {
+            ws.send(JSON.stringify({ type: "loading_urls", source, message: msg }));
+          }),
+          timeout,
+        ]);
         const sourceOrigin = new URL(source).origin;
         session.allUrls = rawUrls.map((u) => {
           try {
@@ -310,7 +345,10 @@ wss.on("connection", (ws, req) => {
       }
 
       const quickMode: boolean = !!msg.quickMode;
-      const auditMode: "full" | "products" | "lcp" = msg.auditMode ?? "full";
+      const auditMode: "full" | "products" | "lcp" | "pdp-data" = msg.auditMode ?? "full";
+      const pdpChecks: string[] = Array.isArray(msg.pdpChecks)
+        ? msg.pdpChecks.filter((k: unknown): k is string => typeof k === "string")
+        : [];
       const selectedProfileIds: string[] = msg.profileIds ?? DEVICE_PROFILES.map((p) => p.id);
       const urlCount: number = msg.urlCount ?? session.allUrls.length;
       const selectedProfiles = DEVICE_PROFILES.filter((p) => selectedProfileIds.includes(p.id));
@@ -334,6 +372,7 @@ wss.on("connection", (ws, req) => {
       session.auditDone = false;
       session.lastReportHtml = "";
       session.lastProductReportHtml = "";
+      session.lastPdpReportHtml = "";
       session.lastHasPdf = false;
       session.progressMap.clear();
       for (const u of urlsToRun) session.progressMap.set(u, { url: u, status: "pending" });
@@ -344,7 +383,8 @@ wss.on("connection", (ws, req) => {
       setImmediate(async () => {
         try {
           const effectiveConcurrency =
-            auditMode === "products" ? Math.max(concurrency, 20)
+            auditMode === "pdp-data" ? Math.max(concurrency, 40)   // HTTP-only fast path
+            : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;
 
@@ -354,6 +394,7 @@ wss.on("connection", (ws, req) => {
             profiles: selectedProfiles,
             quickMode,
             auditMode,
+            pdpChecks,
             signal: session.signal,
             onProgress: (progress) => {
               // After cancellation, don't let stale "running" updates from still-
@@ -374,7 +415,7 @@ wss.on("connection", (ws, req) => {
               ).length;
               process.stdout.write(`\r  [${sessionId.slice(0, 8)}] ${done} / ${urlsToRun.length} done   `);
             },
-            onScreenshot: (quickMode || auditMode === "products") ? undefined : (url, profileId, png) => {
+            onScreenshot: (quickMode || auditMode === "products" || auditMode === "pdp-data") ? undefined : (url, profileId, png) => {
               broadcastToSession(session, { type: "screenshot", url, profileId, png });
             },
           });
@@ -393,12 +434,20 @@ wss.on("connection", (ws, req) => {
           console.log(`\n\n  [${sessionId.slice(0, 8)}] Generating reports…`);
           const allResults = allProgress.flatMap((p) => p.results ?? []);
 
-          session.lastReportHtml = generateHTMLReport(allResults);
-          session.lastProductReportHtml = generateProductReportHTML(allResults);
+          if (auditMode === "pdp-data") {
+            session.lastPdpReportHtml = generatePdpReportHTML(allResults, pdpChecks);
+          } else {
+            session.lastReportHtml = generateHTMLReport(allResults);
+            session.lastProductReportHtml = generateProductReportHTML(allResults);
+          }
 
           try {
-            await generatePDF(session.lastReportHtml, `report-${sessionId}.pdf`, true, false);
-            await generatePDF(session.lastProductReportHtml, `product-report-${sessionId}.pdf`, false, true);
+            if (auditMode === "pdp-data") {
+              await generatePDF(session.lastPdpReportHtml, `pdp-report-${sessionId}.pdf`, false, true, "PDP Empty-Data Report");
+            } else {
+              await generatePDF(session.lastReportHtml, `report-${sessionId}.pdf`, true, false, "Audit Report");
+              await generatePDF(session.lastProductReportHtml, `product-report-${sessionId}.pdf`, false, true, "Product Count Report");
+            }
             session.lastHasPdf = true;
           } catch (e: any) {
             console.warn(`  [${sessionId.slice(0, 8)}] PDF skipped:`, e.message);
@@ -407,7 +456,8 @@ wss.on("connection", (ws, req) => {
           broadcastToSession(session, {
             type: "done",
             total: allProgress.length,
-            hasReport: true,
+            hasReport: auditMode !== "pdp-data",
+            hasPdpReport: auditMode === "pdp-data",
             hasPdf: session.lastHasPdf,
           });
           console.log(`  [${sessionId.slice(0, 8)}] Done — ${allProgress.length} URLs · ${session.currentSessionVideos.length} videos`);

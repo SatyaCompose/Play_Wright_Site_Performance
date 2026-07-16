@@ -9,6 +9,7 @@ import {
   type BrowserType,
 } from "playwright";
 import pLimit from "p-limit";
+import axios from "axios";
 import * as fs from "fs";
 import * as path from "path";
 import type {
@@ -17,6 +18,7 @@ import type {
   WebVitals,
   AuditProgress,
   DeviceProfile,
+  PdpDataCheck,
 } from "./types";
 import { DEVICE_PROFILES } from "./types";
 
@@ -160,6 +162,108 @@ function startScreenshotStream(
   };
 }
 
+// ── HTTP-only fast path for pdp-data mode ─────────────────────────────────
+// Skips Playwright entirely — just fetches the HTML, extracts the inlined
+// <script id="__NEXT_DATA__"> JSON, and walks the product data structure.
+// Handles ~50-100x more URLs/sec than the browser path.
+const NEXT_DATA_RE = /<script[^>]*id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i;
+
+function walkForProduct(nd: any): any {
+  const candidates: any[] = [
+    nd?.props?.pageProps?.data?.data?.dataSources,
+    nd?.props?.pageProps?.data?.dataSources,
+  ];
+  for (const ds of candidates) {
+    if (ds && typeof ds === "object") {
+      for (const entry of Object.values<any>(ds)) {
+        if (entry && typeof entry === "object" && entry.product && typeof entry.product === "object") {
+          return entry.product;
+        }
+      }
+    }
+  }
+  const cfgs = nd?.props?.pageProps?.data?.pageFolder?.dataSourceConfigurations;
+  if (Array.isArray(cfgs)) {
+    for (const c of cfgs) {
+      const p = c?.preloadedValue?.product;
+      if (p && typeof p === "object") return p;
+    }
+  }
+  return null;
+}
+
+async function auditPageFast(
+  url: string,
+  profile: DeviceProfile,
+  pdpChecks: string[]
+): Promise<PageResult> {
+  const engine = engineForProfile(profile);
+  const auditedAt = new Date().toISOString();
+  try {
+    const startedAt = Date.now();
+    const response = await axios.get(url, {
+      timeout: 25000,
+      responseType: "text",
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      validateStatus: () => true,
+      headers: {
+        "User-Agent": profile.userAgent ?? "Mozilla/5.0 SiteAuditBot/1.0",
+        "Accept-Encoding": "gzip, deflate, br",
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      },
+    });
+    const totalTime = Date.now() - startedAt;
+    const html = String(response.data);
+
+    const pdpDataCheck: PdpDataCheck = { checked: pdpChecks, empty: [], productFound: false };
+    const m = html.match(NEXT_DATA_RE);
+    if (m) {
+      try {
+        const nd = JSON.parse(m[1]);
+        const product = walkForProduct(nd);
+        if (product) {
+          pdpDataCheck.productFound = true;
+          for (const key of pdpChecks) {
+            const v = product[key];
+            if (v && typeof v === "object" && !Array.isArray(v)) {
+              const ks = Object.keys(v);
+              if (ks.length === 1 && ks[0] === "h" && typeof v.h === "string") {
+                pdpDataCheck.empty.push(key);
+              }
+            }
+          }
+        }
+      } catch {
+        // JSON parse failure — leave productFound false
+      }
+    }
+
+    return {
+      url,
+      profile,
+      engine,
+      status: response.status,
+      vitals: { totalTime },
+      apiCalls: [],
+      errors: [],
+      pdpDataCheck,
+      auditedAt,
+    };
+  } catch (err: any) {
+    return {
+      url,
+      profile,
+      engine,
+      error: err.message,
+      vitals: {},
+      apiCalls: [],
+      errors: [],
+      auditedAt,
+    };
+  }
+}
+
 // ── Audit a single URL × profile ─────────────────────────────────────────
 async function auditPage(
   url: string,
@@ -167,12 +271,14 @@ async function auditPage(
   videosDir: string,
   onScreenshot?: (profileId: string, png: string) => void,
   quickMode = false,
-  auditMode: "full" | "products" | "lcp" = "full"
+  auditMode: "full" | "products" | "lcp" | "pdp-data" = "full",
+  pdpChecks: string[] = []
 ): Promise<PageResult> {
   const isProductsMode = auditMode === "products";
   const isLcpMode = auditMode === "lcp";
-  // Products mode implies quick scan (no video / screenshots)
-  const effectiveQuick = quickMode || isProductsMode;
+  const isPdpDataMode = auditMode === "pdp-data";
+  // Products & PDP-data modes imply quick scan (no video / screenshots / vitals)
+  const effectiveQuick = quickMode || isProductsMode || isPdpDataMode;
 
   const engine = engineForProfile(profile);
   const browser = await getBrowser(engine);
@@ -197,7 +303,7 @@ async function auditPage(
       { status: number; serverTiming?: string; duration: number }
     >();
 
-    if (!isProductsMode) {
+    if (!isProductsMode && !isPdpDataMode) {
       page.on("request", (req) => reqStart.set(req.url(), Date.now()));
 
       page.on("response", async (res) => {
@@ -237,7 +343,7 @@ async function auditPage(
     page.on("pageerror", (err) => errors.push(`[PageError] ${err.message}`));
 
     // Vitals script only needed when measuring LCP/CLS/FCP
-    if (!isProductsMode) {
+    if (!isProductsMode && !isPdpDataMode) {
       await page.addInitScript(VITALS_SCRIPT);
     }
 
@@ -245,13 +351,13 @@ async function auditPage(
     if (!response) throw new Error("No response received");
     try {
       await page.waitForLoadState("networkidle", {
-        timeout: isProductsMode ? 1000 : (quickMode ? 3000 : 15000),
+        timeout: (isProductsMode || isPdpDataMode) ? 1000 : (quickMode ? 3000 : 15000),
       });
     } catch {
       // Network never fully idle — continue with what we have
     }
 
-    const settlems = isProductsMode
+    const settlems = (isProductsMode || isPdpDataMode)
       ? 500
       : effectiveQuick
         ? 600
@@ -273,9 +379,77 @@ async function auditPage(
       });
     }
 
-    // ── Product count (skipped in LCP-only mode) ─────────────────────
+    // ── PDP empty-data check (only in pdp-data mode) ─────────────────
+    let pdpDataCheck: PdpDataCheck | undefined;
+    if (isPdpDataMode) {
+      pdpDataCheck = await page.evaluate((keys: string[]): PdpDataCheck => {
+        const result: PdpDataCheck = { checked: keys, empty: [], productFound: false };
+        try {
+          // Prefer the inlined <script id="__NEXT_DATA__"> — SSR always writes it.
+          // window.__NEXT_DATA__ depends on Next.js client runtime succeeding,
+          // which can fail on pages with third-party auth/analytics 401s.
+          let nd: any = null;
+          const scriptEl = document.getElementById('__NEXT_DATA__');
+          if (scriptEl?.textContent) {
+            try { nd = JSON.parse(scriptEl.textContent); } catch { nd = null; }
+          }
+          if (!nd) nd = (window as any).__NEXT_DATA__;
+          if (!nd) return result;
+
+          // The `product` object can live at several observed paths depending
+          // on the Frontastic build. Walk all of them and take the first hit.
+          //   1. props.pageProps.data.data.dataSources.<id>.product   (SSR-hydrated)
+          //   2. props.pageProps.data.dataSources.<id>.product        (older layout)
+          //   3. props.pageProps.data.pageFolder.dataSourceConfigurations[].preloadedValue.product
+          const candidates: any[] = [
+            nd?.props?.pageProps?.data?.data?.dataSources,
+            nd?.props?.pageProps?.data?.dataSources,
+          ];
+          let product: any = null;
+          for (const ds of candidates) {
+            if (product) break;
+            if (ds && typeof ds === 'object') {
+              for (const entry of Object.values<any>(ds)) {
+                if (entry && typeof entry === 'object' && entry.product && typeof entry.product === 'object') {
+                  product = entry.product;
+                  break;
+                }
+              }
+            }
+          }
+          if (!product) {
+            const cfgs = nd?.props?.pageProps?.data?.pageFolder?.dataSourceConfigurations;
+            if (Array.isArray(cfgs)) {
+              for (const c of cfgs) {
+                const p = c?.preloadedValue?.product;
+                if (p && typeof p === 'object') { product = p; break; }
+              }
+            }
+          }
+          if (!product) return result;
+          result.productFound = true;
+
+          // A field is "empty" when it's exactly { h: "<string>" } — the API's
+          // placeholder for undefined/empty content.
+          for (const key of keys) {
+            const v = product[key];
+            if (v && typeof v === 'object' && !Array.isArray(v)) {
+              const ks = Object.keys(v);
+              if (ks.length === 1 && ks[0] === 'h' && typeof (v as any).h === 'string') {
+                result.empty.push(key);
+              }
+            }
+          }
+          return result;
+        } catch {
+          return result;
+        }
+      }, pdpChecks).catch(() => ({ checked: pdpChecks, empty: [], productFound: false }));
+    }
+
+    // ── Product count (skipped in LCP-only mode and PDP-data mode) ─────
     let productCount: number | undefined;
-    if (!isLcpMode) {
+    if (!isLcpMode && !isPdpDataMode) {
       const productCountRaw = await page.evaluate((): number | null => {
         try {
           const nd = (window as any).__NEXT_DATA__;
@@ -324,7 +498,7 @@ async function auditPage(
     let vitals: WebVitals = {};
     let apiCalls: ApiCall[] = [];
 
-    if (!isProductsMode) {
+    if (!isProductsMode && !isPdpDataMode) {
       const navTiming = await page.evaluate(() => {
         const nav = performance.getEntriesByType(
           "navigation"
@@ -435,6 +609,7 @@ async function auditPage(
       errors,
       videoPath,
       productCount,
+      pdpDataCheck,
       auditedAt: new Date().toISOString(),
     };
   } catch (err: any) {
@@ -464,7 +639,8 @@ export async function runAudit(
     onProgress?: (progress: AuditProgress) => void;
     onScreenshot?: (url: string, profileId: string, png: string) => void;
     quickMode?: boolean;
-    auditMode?: "full" | "products" | "lcp";
+    auditMode?: "full" | "products" | "lcp" | "pdp-data";
+    pdpChecks?: string[];
     signal?: { cancelled: boolean };
   } = {}
 ): Promise<AuditProgress[]> {
@@ -476,15 +652,23 @@ export async function runAudit(
     onScreenshot,
     quickMode = false,
     auditMode = "full",
+    pdpChecks = [],
     signal,
   } = options;
 
   if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
 
-  // Pre-warm all needed browser engines
-  const neededEngines = new Set(profiles.map(engineForProfile));
-  console.log(`\n  Launching engines: ${[...neededEngines].join(", ")}`);
-  await Promise.all([...neededEngines].map((e) => getBrowser(e)));
+  const isFastPdpData = auditMode === "pdp-data";
+
+  // Pre-warm browser engines only when we'll actually use Playwright.
+  // pdp-data mode uses the HTTP fast path — no browser needed.
+  if (!isFastPdpData) {
+    const neededEngines = new Set(profiles.map(engineForProfile));
+    console.log(`\n  Launching engines: ${[...neededEngines].join(", ")}`);
+    await Promise.all([...neededEngines].map((e) => getBrowser(e)));
+  } else {
+    console.log(`\n  PDP-data fast path — no browser needed`);
+  }
 
   const limit = pLimit(concurrency);
   const allProgress: AuditProgress[] = [];
@@ -505,19 +689,22 @@ export async function runAudit(
 
       for (const profile of profiles) {
         if (shuttingDown || signal?.cancelled) break;
-        const result = await auditPage(
-          url,
-          profile,
-          videosDir,
-          onScreenshot
-            ? (pid, png) => {
-                shots[pid] = png;
-                onScreenshot(url, pid, png);
-              }
-            : undefined,
-          quickMode,
-          auditMode
-        );
+        const result = isFastPdpData
+          ? await auditPageFast(url, profile, pdpChecks)
+          : await auditPage(
+              url,
+              profile,
+              videosDir,
+              onScreenshot
+                ? (pid, png) => {
+                    shots[pid] = png;
+                    onScreenshot(url, pid, png);
+                  }
+                : undefined,
+              quickMode,
+              auditMode,
+              pdpChecks
+            );
         results.push(result);
         // Broadcast partial progress after each profile
         onProgress?.({

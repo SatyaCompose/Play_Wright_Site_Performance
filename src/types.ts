@@ -27,6 +27,16 @@ export interface PageResult {
   profile: DeviceProfile;
   engine?: string;
   productCount?: number; // null-ish absent means "not measured"; 0 means measured and empty
+  pdpDataCheck?: PdpDataCheck; // absent means "not measured" for this mode
+}
+
+// Per-URL result for the PDP empty-data check: which requested fields were
+// hash-only (empty). `checked` records the keys the user asked us to inspect
+// so the report can distinguish "checked and OK" from "not checked".
+export interface PdpDataCheck {
+  checked: string[];
+  empty: string[];
+  productFound: boolean;
 }
 
 export type AuditStatus = "pending" | "running" | "done" | "failed";

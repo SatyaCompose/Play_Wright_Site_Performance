@@ -2135,9 +2135,41 @@
                         <button class="url-chip active" id="am-full"     onclick="setAuditMode('full')">Full (LCP + Products)</button>
                         <button class="url-chip"        id="am-products" onclick="setAuditMode('products')">Products only</button>
                         <button class="url-chip"        id="am-lcp"      onclick="setAuditMode('lcp')">LCP only</button>
+                        <button class="url-chip"        id="am-pdp-data" onclick="setAuditMode('pdp-data')">PDP Data</button>
                     </div>
                     <div id="products-mode-note" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
                         ⚡ No video · no LCP · ~400 URLs/min · URL count uncapped
+                    </div>
+                    <div id="pdp-data-mode-note" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
+                        ⚡ No video · no LCP · desktop only · flags buy-box fields that came back as hash-only placeholders
+                    </div>
+
+                    <!-- PDP Data extras -->
+                    <div id="pdp-data-config" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2)">
+                        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:8px">Page type</div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+                            <button class="url-chip active" id="pdp-pt-pdp" onclick="setPdpPageType('pdp')">PDP</button>
+                            <button class="url-chip" id="pdp-pt-plp" onclick="setPdpPageType('plp')" disabled style="opacity:.4;cursor:not-allowed" title="Coming soon">PLP (soon)</button>
+                        </div>
+
+                        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:8px">Fields to check</div>
+                        <div style="display:flex;flex-direction:column;gap:8px">
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+                                <input type="checkbox" class="pdp-check" value="buyBoxShippingMessage" checked
+                                    style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" onchange="updateConfigSummary()">
+                                <span>Shipping <code style="font-size:11px;color:var(--muted)">buyBoxShippingMessage</code></span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+                                <input type="checkbox" class="pdp-check" value="buyBoxCNCMessage" checked
+                                    style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" onchange="updateConfigSummary()">
+                                <span>Click &amp; Collect <code style="font-size:11px;color:var(--muted)">buyBoxCNCMessage</code></span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+                                <input type="checkbox" class="pdp-check" value="buyBoxMoneyBackGuaranteeMessage" checked
+                                    style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" onchange="updateConfigSummary()">
+                                <span>Money-back Guarantee <code style="font-size:11px;color:var(--muted)">buyBoxMoneyBackGuaranteeMessage</code></span>
+                            </label>
+                        </div>
                     </div>
                 </div>
 
@@ -2223,6 +2255,8 @@
             <a class="report-dl-btn" id="pdf-dl-btn">⬇ Download PDF</a>
             <a class="report-dl-btn" id="product-pdf-dl-btn" style="border-color:rgba(37,99,235,.4);color:#2563eb;background:rgba(37,99,235,.07)">⬇ Product Report PDF</a>
             <a class="report-dl-btn" id="product-html-dl-btn" style="color:#6b7280">⬇ Product Report HTML</a>
+            <a class="report-dl-btn" id="pdp-pdf-dl-btn" style="border-color:rgba(220,38,38,.4);color:#dc2626;background:rgba(220,38,38,.07)">⬇ PDP Report PDF</a>
+            <a class="report-dl-btn" id="pdp-html-dl-btn" style="color:#6b7280">⬇ PDP Report HTML</a>
             <button class="report-close" onclick="closeReport()">✕</button>
         </div>
         <iframe class="report-frame" id="report-frame" src="about:blank"></iframe>
@@ -2248,8 +2282,10 @@
         let elapsedTimer = null;
         let elapsedStart = 0;
         let hasReport = false;
+        let hasPdpReport = false;
         let hasPdf = false;
-        let auditMode = 'full'; // 'full' | 'products' | 'lcp'
+        let auditMode = 'full'; // 'full' | 'products' | 'lcp' | 'pdp-data'
+        let pdpPageType = 'pdp'; // 'pdp' | 'plp' (plp not yet supported)
 
         // ── Session ID (per-tab, persists across refreshes) ───────────────────────
         let sessionId = sessionStorage.getItem('auditSessionId');
@@ -2267,6 +2303,27 @@
         const lcpG = ms => !ms ? 'poor' : ms <= 2500 ? 'good' : ms <= 4000 ? 'warn' : 'poor';
         const bestLcp = p => { const l = (p.results ?? []).map(r => r.vitals?.lcp).filter(Boolean); return l.length ? Math.min(...l) : undefined; };
         const bestProductCount = p => { for (const r of (p.results ?? [])) { if (r.productCount !== undefined) return r.productCount; } return undefined; };
+        // Returns the pdpDataCheck result from the first result that has one, or null
+        // if this URL wasn't audited in PDP-data mode.
+        const bestPdpCheck = p => { for (const r of (p.results ?? [])) { if (r.pdpDataCheck) return r.pdpDataCheck; } return null; };
+        const PDP_FIELD_LABELS = {
+            buyBoxCNCMessage: 'Click & Collect',
+            buyBoxMoneyBackGuaranteeMessage: 'Money-back Guarantee',
+            buyBoxShippingMessage: 'Shipping',
+        };
+        // Severity: shipping + CNC are critical (error), money-back is less
+        // critical (warning). Unknown keys default to error to be safe.
+        const PDP_FIELD_SEVERITY = {
+            buyBoxCNCMessage: 'error',
+            buyBoxShippingMessage: 'error',
+            buyBoxMoneyBackGuaranteeMessage: 'warn',
+        };
+        const pdpLabel = k => PDP_FIELD_LABELS[k] ?? k;
+        const pdpSev = k => PDP_FIELD_SEVERITY[k] ?? 'error';
+        const splitEmpty = empty => ({
+            errors: (empty ?? []).filter(k => pdpSev(k) === 'error'),
+            warns: (empty ?? []).filter(k => pdpSev(k) === 'warn'),
+        });
 
         // ── Config panel ──────────────────────────────────────────────────────────
         const URL_STEPS_FULL     = [1, 10, 25, 50, 100, 500, 1000, 5000, 10000, 15000];
@@ -2306,19 +2363,49 @@
             updateConfigSummary();
         }
 
-        // ── Audit mode (Full / Products only / LCP only) ──────────────────────────
+        // ── Audit mode (Full / Products only / LCP only / PDP Data) ───────────────
         function setAuditMode(mode) {
             auditMode = mode;
-            ['full', 'products', 'lcp'].forEach(m => {
-                document.getElementById('am-' + m).classList.toggle('active', m === mode);
+            ['full', 'products', 'lcp', 'pdp-data'].forEach(m => {
+                const el = document.getElementById('am-' + m);
+                if (el) el.classList.toggle('active', m === mode);
             });
             document.getElementById('products-mode-note').style.display = mode === 'products' ? '' : 'none';
-            // Products mode implies quick scan — hide the separate Quick Mode toggle
+            const pdpNote = document.getElementById('pdp-data-mode-note');
+            if (pdpNote) pdpNote.style.display = mode === 'pdp-data' ? '' : 'none';
+            const pdpCfg = document.getElementById('pdp-data-config');
+            if (pdpCfg) pdpCfg.style.display = mode === 'pdp-data' ? '' : 'none';
+            // Quick / high-throughput modes hide the Quick Mode toggle
             const qs = document.getElementById('quick-section');
-            if (qs) qs.style.display = mode === 'products' ? 'none' : '';
+            if (qs) qs.style.display = (mode === 'products' || mode === 'pdp-data') ? 'none' : '';
+
+            // PDP Data forces desktop-only profile selection
+            if (mode === 'pdp-data' && profiles.length) {
+                const desktopIds = profiles.filter(p => p.id.startsWith('desktop-')).map(p => p.id);
+                selectedProfileIds = desktopIds.length ? [desktopIds[0]] : [profiles[0].id];
+                profiles.forEach(p => {
+                    const card = document.getElementById('dc-' + p.id);
+                    if (card) card.classList.toggle('active', selectedProfileIds.includes(p.id));
+                });
+            }
+
             // Rebuild URL chips to reflect different step options
             if (allUrls.length > 0) buildUrlChips();
             updateConfigSummary();
+        }
+
+        function setPdpPageType(type) {
+            if (type !== 'pdp') return; // PLP not supported yet
+            pdpPageType = type;
+            document.getElementById('pdp-pt-pdp').classList.toggle('active', type === 'pdp');
+            document.getElementById('pdp-pt-plp').classList.toggle('active', type === 'plp');
+            updateConfigSummary();
+        }
+
+        function getSelectedPdpChecks() {
+            return [...document.querySelectorAll('.pdp-check')]
+                .filter(el => el.checked)
+                .map(el => el.value);
         }
 
         // ── Load sitemap from server ───────────────────────────────────────────────
@@ -2390,7 +2477,8 @@
         function showDevicesSection() {
             buildDeviceCards();
             document.getElementById('devices-section').style.display = '';
-            document.getElementById('quick-section').style.display = auditMode === 'products' ? 'none' : '';
+            document.getElementById('quick-section').style.display =
+                (auditMode === 'products' || auditMode === 'pdp-data') ? 'none' : '';
         }
 
         // ── Build URL chips after sitemap loads ───────────────────────────────────
@@ -2402,7 +2490,7 @@
 
             badge.textContent = total.toLocaleString() + ' total';
 
-            const steps = auditMode === 'products' ? URL_STEPS_PRODUCTS : URL_STEPS_FULL;
+            const steps = (auditMode === 'products' || auditMode === 'pdp-data') ? URL_STEPS_PRODUCTS : URL_STEPS_FULL;
             const available = steps.filter(n => n <= total);
             if (!available.includes(total)) available.push(total);
 
@@ -2481,12 +2569,17 @@
             const panel = document.getElementById('report-panel');
             const frame = document.getElementById('report-frame');
             const q = `?session=${sessionId}`;
-            frame.src = `/report${q}`;
+
+            // PDP-data audits produce a different report — preview + download that one instead
+            const previewPath = hasPdpReport ? '/pdp-report.html' : '/report';
+            frame.src = `${previewPath}${q}`;
 
             const htmlBtn = document.getElementById('report-html-dl-btn');
             const pdfBtn = document.getElementById('pdf-dl-btn');
             const prodPdfBtn = document.getElementById('product-pdf-dl-btn');
             const prodHtmlBtn = document.getElementById('product-html-dl-btn');
+            const pdpPdfBtn = document.getElementById('pdp-pdf-dl-btn');
+            const pdpHtmlBtn = document.getElementById('pdp-html-dl-btn');
 
             htmlBtn.href = `/report.html${q}`;
             htmlBtn.download = 'audit-report.html';
@@ -2496,12 +2589,18 @@
             prodPdfBtn.download = 'product-report.pdf';
             prodHtmlBtn.href = `/product-report.html${q}`;
             prodHtmlBtn.download = 'product-report.html';
+            pdpPdfBtn.href = `/pdp-report.pdf${q}`;
+            pdpPdfBtn.download = 'pdp-report.pdf';
+            pdpHtmlBtn.href = `/pdp-report.html${q}`;
+            pdpHtmlBtn.download = 'pdp-report.html';
 
             panel.classList.add('open');
             htmlBtn.style.display = hasReport ? '' : 'none';
-            pdfBtn.style.display = hasPdf ? '' : 'none';
-            prodPdfBtn.style.display = hasPdf ? '' : 'none';
+            pdfBtn.style.display = (hasReport && hasPdf) ? '' : 'none';
+            prodPdfBtn.style.display = (hasReport && hasPdf) ? '' : 'none';
             prodHtmlBtn.style.display = hasReport ? '' : 'none';
+            pdpPdfBtn.style.display = (hasPdpReport && hasPdf) ? '' : 'none';
+            pdpHtmlBtn.style.display = hasPdpReport ? '' : 'none';
         }
         function closeReport() {
             document.getElementById('report-panel').classList.remove('open');
@@ -2562,6 +2661,13 @@
             const auditUrls = isManual ? [] : getFilteredAuditUrls();
 
             const quickMode = document.getElementById('quick-mode')?.checked ?? false;
+            const pdpChecks = auditMode === 'pdp-data' ? getSelectedPdpChecks() : [];
+
+            if (auditMode === 'pdp-data' && pdpChecks.length === 0) {
+                setLoadStatus('error', 'Select at least one PDP field to check');
+                return;
+            }
+
             ws.send(JSON.stringify({
                 type: 'start',
                 profileIds: selectedProfileIds,
@@ -2569,6 +2675,7 @@
                 manualUrls: isManual ? manualUrls : (isFiltered ? auditUrls : []),
                 quickMode,
                 auditMode,
+                pdpChecks,
             }));
 
             hideConfig();
@@ -2601,7 +2708,12 @@
                         buildDeviceCards();
                     }
                     if (m.urls?.length) { allUrlsRaw = m.urls; allUrls = m.urls; buildUrlChips(); }
-                    if (m.hasReport) { hasReport = true; hasPdf = !!m.hasPdf; showReportBtn(); }
+                    if (m.hasReport || m.hasPdpReport) {
+                        hasReport = !!m.hasReport;
+                        hasPdpReport = !!m.hasPdpReport;
+                        hasPdf = !!m.hasPdf;
+                        showReportBtn();
+                    }
 
                     if (m.running) {
                         hideConfig();
@@ -2635,9 +2747,9 @@
                     updateConfigSummary();
                 }
 
-                // ── Sitemap fetch started ──
+                // ── Sitemap fetch started / progress ──
                 if (m.type === 'loading_urls') {
-                    setLoadStatus('loading', `Fetching…`);
+                    setLoadStatus('loading', m.message ?? 'Fetching…');
                 }
 
                 // ── Server error ──
@@ -2699,6 +2811,7 @@
                 // ── Done ──
                 if (m.type === 'done') {
                     hasReport = m.hasReport ?? false;
+                    hasPdpReport = m.hasPdpReport ?? false;
                     hasPdf = m.hasPdf ?? false;
                     document.getElementById('stop-btn').style.display = 'none';
                     stopElapsedTimer();
@@ -2749,7 +2862,7 @@
         }
 
         function showReportBtn() {
-            if (!hasReport) return;
+            if (!hasReport && !hasPdpReport) return;
             let btn = document.getElementById('view-report-hdr');
             if (!btn) {
                 btn = document.createElement('button');
@@ -2778,12 +2891,32 @@
             const pcHtml = pc !== undefined
                 ? `<span style="font-family:var(--mono);font-size:9px;flex-shrink:0;color:${pc === 0 ? 'var(--poor)' : 'var(--muted)'}" title="Product count">${pc === 0 ? '⚠ 0p' : pc + 'p'}</span>`
                 : '';
+            // PDP-data mode indicator: red for errors, amber for warnings only, green tick otherwise
+            const pdpCheck = bestPdpCheck(p);
+            let pdpHtml = '';
+            if (pdpCheck) {
+                if (!pdpCheck.productFound) {
+                    pdpHtml = `<span style="font-family:var(--mono);font-size:9px;flex-shrink:0;color:var(--muted)" title="No product data in __NEXT_DATA__">— no PDP</span>`;
+                } else {
+                    const { errors, warns } = splitEmpty(pdpCheck.empty);
+                    if (errors.length > 0) {
+                        const total = errors.length + warns.length;
+                        const title = `${errors.length} error${errors.length === 1 ? '' : 's'}${warns.length ? ` + ${warns.length} warn` : ''}: ${[...errors, ...warns].map(pdpLabel).join(', ')}`;
+                        pdpHtml = `<span style="font-family:var(--mono);font-size:9px;flex-shrink:0;color:var(--poor)" title="${title}">✗ ${total}x empty</span>`;
+                    } else if (warns.length > 0) {
+                        pdpHtml = `<span style="font-family:var(--mono);font-size:9px;flex-shrink:0;color:var(--warn)" title="${warns.length} warning: ${warns.map(pdpLabel).join(', ')}">! ${warns.length}x warn</span>`;
+                    } else {
+                        pdpHtml = `<span style="font-family:var(--mono);font-size:9px;flex-shrink:0;color:var(--good)" title="All checked fields OK">✓ ok</span>`;
+                    }
+                }
+            }
             return `<div class="ur ${p.status}" data-url="${p.url}" onclick="sel(this.dataset.url)">
     <span class="sd ${p.status}"></span>
     <span class="up" title="${p.url}">${pathOf(p.url)}</span>
     ${pdots(p)}
     ${lcp ? `<span style="font-family:var(--mono);font-size:9px;color:${lc};flex-shrink:0">${fmtMs(lcp)}</span>` : ''}
     ${pcHtml}
+    ${pdpHtml}
   </div>`;
         }
         function renderAll() {
@@ -3198,13 +3331,121 @@
 
                 const hb = activeResult.status ? `<span class="${activeResult.status >= 400 ? 'herr' : 'hok'}">${activeResult.status}</span>` : '';
 
+                // ── Always-visible Page Info summary ─────────────────────────────
+                // Shows even when vitals/API calls weren't measured (e.g. pdp-data mode).
+                const infoStatus = activeResult.status
+                    ? `<span style="color:${activeResult.status >= 400 ? 'var(--poor)' : activeResult.status >= 300 ? 'var(--warn)' : 'var(--good)'};font-family:var(--mono);font-weight:600">${activeResult.status}</span>`
+                    : '<span style="color:var(--muted)">—</span>';
+                const infoLoad = activeResult.vitals?.totalTime
+                    ? `<span style="font-family:var(--mono);font-weight:600">${fmtMs(activeResult.vitals.totalTime)}</span>`
+                    : '<span style="color:var(--muted)">—</span>';
+                const infoTtfb = activeResult.vitals?.ttfb
+                    ? `<span style="font-family:var(--mono);font-weight:600">${fmtMs(activeResult.vitals.ttfb)}</span>`
+                    : '<span style="color:var(--muted)">—</span>';
+                const infoErrs = activeResult.errors?.length
+                    ? `<span style="color:var(--poor);font-family:var(--mono);font-weight:600">${activeResult.errors.length}</span>`
+                    : `<span style="color:var(--good);font-family:var(--mono);font-weight:600">0</span>`;
+                const pageInfoHtml = `
+        <div class="sec">
+          <div class="sechd">Page Info<span class="meta">${activeResult.engine ?? ''}</span></div>
+          <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 7px 7px;padding:10px 14px;display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:11px">
+            <div><div style="color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-size:9px;margin-bottom:2px">HTTP</div>${infoStatus}</div>
+            <div><div style="color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-size:9px;margin-bottom:2px">TTFB</div>${infoTtfb}</div>
+            <div><div style="color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-size:9px;margin-bottom:2px">Load</div>${infoLoad}</div>
+            <div><div style="color:var(--muted);text-transform:uppercase;letter-spacing:.05em;font-size:9px;margin-bottom:2px">Console errors</div>${infoErrs}</div>
+          </div>
+        </div>`;
+
+                // ── PDP data-check panel (only present when audited in pdp-data mode) ──
+                const pdpCheck = activeResult.pdpDataCheck;
+                const isPdpDataResult = !!pdpCheck || auditMode === 'pdp-data';
+                let pdpSectionHtml = '';
+                if (pdpCheck) {
+                    if (!pdpCheck.productFound) {
+                        pdpSectionHtml = `
+        <div class="sec">
+          <div class="sechd" style="border-color:rgba(240,158,80,.4);color:#f59e0b">PDP Data Check<span class="meta">No product data</span></div>
+          <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 7px 7px;padding:14px;color:var(--muted);font-size:12px;line-height:1.7">
+            <div>⚠ No <code>product</code> object found in <code>__NEXT_DATA__</code>.</div>
+            <div style="margin-top:4px">This URL may not be a PDP, or the page did not finish loading.</div>
+          </div>
+        </div>`;
+                    } else {
+                        const empty = pdpCheck.empty ?? [];
+                        const { errors: errKeys, warns: warnKeys } = splitEmpty(empty);
+                        const okKeys = (pdpCheck.checked ?? []).filter(k => !empty.includes(k));
+
+                        let statusLabel, borderColor;
+                        if (errKeys.length > 0) {
+                            statusLabel = `<span style="background:rgba(240,67,90,.18);color:#f0435a;padding:2px 10px;border-radius:10px;font-size:10px;font-weight:700">${errKeys.length} ERROR${errKeys.length === 1 ? '' : 'S'}${warnKeys.length ? ` · ${warnKeys.length} WARN` : ''}</span>`;
+                            borderColor = 'rgba(240,67,90,.4)';
+                        } else if (warnKeys.length > 0) {
+                            statusLabel = `<span style="background:rgba(234,179,8,.18);color:#eab308;padding:2px 10px;border-radius:10px;font-size:10px;font-weight:700">${warnKeys.length} WARNING${warnKeys.length === 1 ? '' : 'S'}</span>`;
+                            borderColor = 'rgba(234,179,8,.4)';
+                        } else {
+                            statusLabel = `<span style="background:rgba(34,197,94,.18);color:#22c55e;padding:2px 10px;border-radius:10px;font-size:10px;font-weight:700">ALL OK</span>`;
+                            borderColor = 'rgba(34,197,94,.4)';
+                        }
+
+                        const errChips = errKeys.map(k => `
+          <span style="background:rgba(240,67,90,.12);color:#f0435a;padding:5px 11px;border-radius:14px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
+            ✗ ${pdpLabel(k)}
+            <code style="opacity:.55;font-size:9px;font-family:var(--mono)">${k}</code>
+          </span>`).join('');
+                        const warnChips = warnKeys.map(k => `
+          <span style="background:rgba(234,179,8,.14);color:#eab308;padding:5px 11px;border-radius:14px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
+            ! ${pdpLabel(k)}
+            <code style="opacity:.55;font-size:9px;font-family:var(--mono)">${k}</code>
+          </span>`).join('');
+                        const okChips = okKeys.map(k => `
+          <span style="background:rgba(34,197,94,.10);color:#22c55e;padding:5px 11px;border-radius:14px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
+            ✓ ${pdpLabel(k)}
+            <code style="opacity:.55;font-size:9px;font-family:var(--mono)">${k}</code>
+          </span>`).join('');
+
+                        pdpSectionHtml = `
+        <div class="sec">
+          <div class="sechd" style="border-color:${borderColor}">PDP Data Check<span class="meta">${statusLabel}</span></div>
+          <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 7px 7px;padding:12px 14px">
+            ${errKeys.length ? `<div style="margin-bottom:${(warnKeys.length || okKeys.length) ? '12px' : '0'}">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#f0435a;margin-bottom:8px;font-weight:700">Error — critical field empty <code style="font-family:var(--mono);font-size:9px;color:var(--muted);opacity:.7;font-weight:400">{ h: "…" }</code></div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">${errChips}</div>
+            </div>` : ''}
+            ${warnKeys.length ? `<div style="margin-bottom:${okKeys.length ? '12px' : '0'}">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#eab308;margin-bottom:8px;font-weight:700">Warning — non-critical field empty</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">${warnChips}</div>
+            </div>` : ''}
+            ${okKeys.length ? `<div>
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px;font-weight:600">Real data present</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">${okChips}</div>
+            </div>` : ''}
+          </div>
+        </div>`;
+                    }
+                }
+
+                // Fallback for pdp-data mode results that predate the check field
+                // (e.g. a page loaded before the runner change; also defends against
+                // any future extract failure that returns undefined).
+                const pdpFallbackHtml = (isPdpDataResult && !pdpCheck) ? `
+        <div class="sec">
+          <div class="sechd" style="border-color:rgba(240,158,80,.4);color:#f59e0b">PDP Data Check<span class="meta">No data captured</span></div>
+          <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 7px 7px;padding:14px;color:var(--muted);font-size:12px;line-height:1.7">
+            <div>⚠ This result has no <code>pdpDataCheck</code> field.</div>
+            <div style="margin-top:4px">The audit likely ran before the check was added — hard-refresh (⌘⇧R) and re-run to capture it.</div>
+          </div>
+        </div>` : '';
+
                 tabContent = `
       ${activeResult.error ? `<div class="errb">⚠ ${activeResult.error}</div>` : ''}
       ${recordingFrame || finalShotFrame}
-      <div class="vg">${vhtml}${pcCard}</div>
-      ${apis.length ? `<div class="sec"><div class="sechd">API calls<span class="meta">SSR:${ssrN} · CSR:${csrN}</span></div>
+      ${pageInfoHtml}
+      ${pdpSectionHtml}
+      ${pdpFallbackHtml}
+      ${isPdpDataResult ? '' : `<div class="vg">${vhtml}${pcCard}</div>`}
+      ${(isPdpDataResult || !apis.length) ? '' : `<div class="sec"><div class="sechd">API calls<span class="meta">SSR:${ssrN} · CSR:${csrN}</span></div>
       <div class="tbwrap"><table><thead><tr><th class="ct">Type</th><th class="cu">URL</th><th class="cs">Status</th><th class="cm">Time</th><th class="cst">Server-Timing</th></tr></thead>
-      <tbody>${arows}</tbody></table></div></div>` : ''}
+      <tbody>${arows}</tbody></table></div></div>`}
       ${errHtml}`;
             } else {
                 tabContent = `<div style="color:var(--muted);text-align:center;padding:40px;font-size:11px">No data yet</div>`;

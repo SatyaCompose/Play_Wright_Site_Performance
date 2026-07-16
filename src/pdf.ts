@@ -6,7 +6,8 @@ export async function generatePDF(
   html: string,
   outPath = "report.pdf",
   landscape = true,
-  pageNumbers = false
+  pageNumbers = false,
+  footerTitle = "Audit Report"
 ): Promise<void> {
   const browser = await chromium.launch({
     args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -22,7 +23,7 @@ export async function generatePDF(
 
   const footerTemplate = `
     <div style="width:100%;padding:0 28px;display:flex;justify-content:space-between;align-items:center;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;font-size:9px;color:#9ca3af;">
-      <span>Product Count Report &mdash; Confidential</span>
+      <span>${footerTitle} &mdash; Confidential</span>
       <span>Page <span class="pageNumber"></span> of <span class="totalPages"></span></span>
     </div>`;
 
