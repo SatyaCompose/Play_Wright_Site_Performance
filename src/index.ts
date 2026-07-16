@@ -292,7 +292,7 @@ wss.on("connection", (ws, req) => {
           timeout,
         ]);
         const sourceOrigin = new URL(source).origin;
-        session.allUrls = rawUrls.map((u) => {
+        const rewritten = rawUrls.map((u) => {
           try {
             const parsed = new URL(u);
             if (parsed.origin !== sourceOrigin) {
@@ -304,7 +304,19 @@ wss.on("connection", (ws, req) => {
           } catch {}
           return u;
         });
-        console.log(`  [${sessionId.slice(0, 8)}] Loaded ${session.allUrls.length} URLs from ${source}`);
+        // Dedupe while preserving first-seen order. Sitemap indexes commonly
+        // list the same URL in multiple child sitemaps — without this the same
+        // URL runs twice, and its dashboard entry flips between running/done.
+        const seen = new Set<string>();
+        session.allUrls = [];
+        for (const u of rewritten) {
+          if (!seen.has(u)) { seen.add(u); session.allUrls.push(u); }
+        }
+        const dupCount = rewritten.length - session.allUrls.length;
+        console.log(
+          `  [${sessionId.slice(0, 8)}] Loaded ${session.allUrls.length} URLs from ${source}` +
+          (dupCount > 0 ? ` (${dupCount} duplicate${dupCount === 1 ? "" : "s"} removed)` : "")
+        );
         broadcastToSession(session, {
           type: "urls_loaded",
           urls: session.allUrls,
