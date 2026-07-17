@@ -2051,12 +2051,13 @@
                         <span
                             style="background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">1</span>
                         URL Source
+                        <span id="src-mode-badge" style="margin-left:auto;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(59,130,246,.15);color:#3b82f6;letter-spacing:.03em">SITEMAP</span>
                     </div>
 
-                    <!-- Toggle: Commercetools vs Manual -->
+                    <!-- Toggle: Auto source (CT for PDP, sitemap for everything else) vs Manual paste -->
                     <div class="src-toggle">
                         <button class="src-tab active" id="tab-sitemap" onclick="switchSource('sitemap')">
-                            🛍 Commercetools products
+                            <span id="tab-sitemap-label">📋 Sitemap / URL list</span>
                         </button>
                         <button class="src-tab" id="tab-manual" onclick="switchSource('manual')">
                             ✏️ Paste URLs manually
@@ -2066,7 +2067,8 @@
                     <!-- Source pane: swaps between CT loader (pdp-data) and sitemap URL input (all other modes) -->
                     <div id="pane-sitemap">
                         <!-- CT loader — visible only for pdp-data mode -->
-                        <div id="ct-loader" style="display:none">
+                        <div id="ct-loader" style="display:none;padding:12px;border:1px solid rgba(168,85,247,.3);border-radius:8px;background:rgba(168,85,247,.05)">
+                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#a855f7;font-weight:700;margin-bottom:8px">🛍 Commercetools · PDP source</div>
                             <div style="display:flex;gap:6px;margin-bottom:10px">
                                 <button class="url-chip active" id="ct-env-prod" onclick="setCtEnv('production')">🚀 Production</button>
                                 <button class="url-chip" id="ct-env-stg" onclick="setCtEnv('staging')">🧪 Staging</button>
@@ -2074,30 +2076,32 @@
                             <div class="cfg-input-row">
                                 <button class="load-btn" onclick="loadUrls()" id="ct-load-btn" style="flex:1">Fetch product URLs from Commercetools →</button>
                             </div>
-                            <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6">
+                            <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">
                                 Pulls valid PDPs directly from CT:
                                 <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">isDisplay=true</code>,
                                 <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">isInactive=false</code>,
                                 <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">siteKeys contains KWH|T</code>,
-                                and at least one RRP-channel price &gt; 0.
+                                RRP-channel price &gt; 0.
                                 Requires <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">PROD_CTP_*</code> / <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">STG_CTP_*</code> env vars (see .env.example).
                             </div>
                         </div>
 
                         <!-- Sitemap loader — default for full/products/lcp modes (used for PLP audits) -->
-                        <div id="sitemap-loader">
+                        <div id="sitemap-loader" style="padding:12px;border:1px solid rgba(59,130,246,.3);border-radius:8px;background:rgba(59,130,246,.05)">
+                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#3b82f6;font-weight:700;margin-bottom:8px">📋 Sitemap · PLP / LCP / Full source</div>
                             <div class="cfg-input-row">
                                 <input id="sitemap-input" class="cfg-input" type="text"
                                     placeholder="https://example.com/sitemap.xml"
                                     onkeydown="if(event.key==='Enter')loadUrls()">
                                 <button class="load-btn" onclick="loadUrls()" id="load-btn">Load →</button>
                             </div>
-                            <div style="font-size:11px;color:var(--muted);margin-top:6px;line-height:1.6">
+                            <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">
                                 Accepts <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">.xml</code> sitemap,
                                 sitemap index (auto-expanded), plain text URL list (one per line), or a single page URL.
                             </div>
                         </div>
 
+                        <div id="src-mode-hint" style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;font-style:italic"></div>
                         <div class="load-status" id="load-status"></div>
                     </div>
 
@@ -2443,12 +2447,37 @@
         }
 
         // Show CT loader for pdp-data mode; show sitemap input for everything else.
+        // Also updates the source-mode badge, tab label, and hint text so the
+        // user can see at a glance which loader is currently active.
         function refreshSourcePane() {
             const usingCt = auditMode === 'pdp-data';
             const ctEl = document.getElementById('ct-loader');
             const smEl = document.getElementById('sitemap-loader');
             if (ctEl) ctEl.style.display = usingCt ? '' : 'none';
             if (smEl) smEl.style.display = usingCt ? 'none' : '';
+
+            const badge = document.getElementById('src-mode-badge');
+            if (badge) {
+                if (usingCt) {
+                    badge.textContent = 'COMMERCETOOLS';
+                    badge.style.background = 'rgba(168,85,247,.15)';
+                    badge.style.color = '#a855f7';
+                } else {
+                    badge.textContent = 'SITEMAP';
+                    badge.style.background = 'rgba(59,130,246,.15)';
+                    badge.style.color = '#3b82f6';
+                }
+            }
+
+            const tabLabel = document.getElementById('tab-sitemap-label');
+            if (tabLabel) tabLabel.textContent = usingCt ? '🛍 Commercetools products' : '📋 Sitemap / URL list';
+
+            const hint = document.getElementById('src-mode-hint');
+            if (hint) {
+                hint.textContent = usingCt
+                    ? 'PDP Data audits pull URLs from Commercetools — no sitemap URL needed. Change the audit mode below to switch back to a sitemap source.'
+                    : 'Sitemap source active. Switch to PDP Data mode (step 3) to pull URLs from Commercetools instead.';
+            }
         }
 
         function loadUrls() {
@@ -2927,6 +2956,7 @@
             ws.onclose = () => { setTimeout(connect, 2000); updateConfigSummary(); };
         }
         connect();
+        refreshSourcePane();  // seed badge/label/hint with initial audit mode
 
         function startElapsedTimer() {
             const el = document.getElementById('he');
