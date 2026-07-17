@@ -2045,11 +2045,61 @@
             </div>
             <div class="cfg-body">
 
-                <!-- Step 1: URL Source -->
+                <!-- Step 1: What are you auditing? (moved here from step 3 — it dictates the source in step 2) -->
+                <div class="cfg-section" id="metrics-section">
+                    <div class="cfg-label">
+                        <span
+                            style="background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0"
+                            id="metrics-step-num">1</span>
+                        What are you auditing?
+                    </div>
+                    <div style="display:flex;gap:6px;flex-wrap:wrap">
+                        <button class="url-chip"        id="am-pdp-data" onclick="setAuditMode('pdp-data')">🛍 PDP · Data check</button>
+                        <button class="url-chip"        id="am-products" onclick="setAuditMode('products')">📋 PLP · Product count</button>
+                        <button class="url-chip active" id="am-full"     onclick="setAuditMode('full')">🌐 Full (LCP + Products)</button>
+                        <button class="url-chip"        id="am-lcp"      onclick="setAuditMode('lcp')">⚡ LCP only</button>
+                    </div>
+                    <div id="products-mode-note" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
+                        ⚡ No video · no LCP · ~400 URLs/min · URL count uncapped
+                    </div>
+                    <div id="pdp-data-mode-note" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
+                        ⚡ No video · no LCP · desktop only · flags buy-box fields that came back as hash-only placeholders
+                    </div>
+
+                    <!-- PDP Data extras -->
+                    <div id="pdp-data-config" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2)">
+                        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:8px">Page type</div>
+                        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
+                            <button class="url-chip active" id="pdp-pt-pdp" onclick="setPdpPageType('pdp')">PDP</button>
+                            <button class="url-chip" id="pdp-pt-plp" onclick="setPdpPageType('plp')" disabled style="opacity:.4;cursor:not-allowed" title="Coming soon">PLP (soon)</button>
+                        </div>
+
+                        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:8px">Fields to check</div>
+                        <div style="display:flex;flex-direction:column;gap:8px">
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+                                <input type="checkbox" class="pdp-check" value="buyBoxShippingMessage" checked
+                                    style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" onchange="updateConfigSummary()">
+                                <span>Shipping <code style="font-size:11px;color:var(--muted)">buyBoxShippingMessage</code></span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+                                <input type="checkbox" class="pdp-check" value="buyBoxCNCMessage" checked
+                                    style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" onchange="updateConfigSummary()">
+                                <span>Click &amp; Collect <code style="font-size:11px;color:var(--muted)">buyBoxCNCMessage</code></span>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
+                                <input type="checkbox" class="pdp-check" value="buyBoxMoneyBackGuaranteeMessage" checked
+                                    style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" onchange="updateConfigSummary()">
+                                <span>Money-back Guarantee <code style="font-size:11px;color:var(--muted)">buyBoxMoneyBackGuaranteeMessage</code></span>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Step 2: URL Source (auto-picks CT vs sitemap based on step 1) -->
                 <div class="cfg-section">
                     <div class="cfg-label">
                         <span
-                            style="background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">1</span>
+                            style="background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">2</span>
                         URL Source
                         <span id="src-mode-badge" style="margin-left:auto;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px;background:rgba(59,130,246,.15);color:#3b82f6;letter-spacing:.03em">SITEMAP</span>
                     </div>
@@ -2137,65 +2187,15 @@
                     </div>
                 </div>
 
-                <!-- Step 2: URL count (only shown after sitemap loads) -->
+                <!-- Step 3: URL count (only shown after URLs load) -->
                 <div class="cfg-section" id="url-count-section" style="display:none">
                     <div class="cfg-label">
                         <span
-                            style="background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">2</span>
+                            style="background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0">3</span>
                         How many URLs?
                         <span class="cfg-label-badge" id="total-badge"></span>
                     </div>
                     <div class="url-chips" id="url-chips"></div>
-                </div>
-
-                <!-- Step 3: What to measure? (shown after URLs loaded) -->
-                <div class="cfg-section" id="metrics-section" style="display:none">
-                    <div class="cfg-label">
-                        <span
-                            style="background:var(--accent);color:#fff;width:20px;height:20px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;flex-shrink:0"
-                            id="metrics-step-num">3</span>
-                        What to measure?
-                    </div>
-                    <div style="display:flex;gap:6px;flex-wrap:wrap">
-                        <button class="url-chip active" id="am-full"     onclick="setAuditMode('full')">Full (LCP + Products)</button>
-                        <button class="url-chip"        id="am-products" onclick="setAuditMode('products')">Products only</button>
-                        <button class="url-chip"        id="am-lcp"      onclick="setAuditMode('lcp')">LCP only</button>
-                        <button class="url-chip"        id="am-pdp-data" onclick="setAuditMode('pdp-data')">PDP Data</button>
-                    </div>
-                    <div id="products-mode-note" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
-                        ⚡ No video · no LCP · ~400 URLs/min · URL count uncapped
-                    </div>
-                    <div id="pdp-data-mode-note" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
-                        ⚡ No video · no LCP · desktop only · flags buy-box fields that came back as hash-only placeholders
-                    </div>
-
-                    <!-- PDP Data extras -->
-                    <div id="pdp-data-config" style="display:none;margin-top:12px;padding:12px;border:1px solid var(--border);border-radius:8px;background:var(--bg-2)">
-                        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:8px">Page type</div>
-                        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px">
-                            <button class="url-chip active" id="pdp-pt-pdp" onclick="setPdpPageType('pdp')">PDP</button>
-                            <button class="url-chip" id="pdp-pt-plp" onclick="setPdpPageType('plp')" disabled style="opacity:.4;cursor:not-allowed" title="Coming soon">PLP (soon)</button>
-                        </div>
-
-                        <div style="font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;font-weight:600;margin-bottom:8px">Fields to check</div>
-                        <div style="display:flex;flex-direction:column;gap:8px">
-                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
-                                <input type="checkbox" class="pdp-check" value="buyBoxShippingMessage" checked
-                                    style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" onchange="updateConfigSummary()">
-                                <span>Shipping <code style="font-size:11px;color:var(--muted)">buyBoxShippingMessage</code></span>
-                            </label>
-                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
-                                <input type="checkbox" class="pdp-check" value="buyBoxCNCMessage" checked
-                                    style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" onchange="updateConfigSummary()">
-                                <span>Click &amp; Collect <code style="font-size:11px;color:var(--muted)">buyBoxCNCMessage</code></span>
-                            </label>
-                            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px">
-                                <input type="checkbox" class="pdp-check" value="buyBoxMoneyBackGuaranteeMessage" checked
-                                    style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" onchange="updateConfigSummary()">
-                                <span>Money-back Guarantee <code style="font-size:11px;color:var(--muted)">buyBoxMoneyBackGuaranteeMessage</code></span>
-                            </label>
-                        </div>
-                    </div>
                 </div>
 
                 <!-- Step 4: Devices (shown after URL source is set) -->
@@ -2339,12 +2339,13 @@
             buyBoxMoneyBackGuaranteeMessage: 'Money-back Guarantee',
             buyBoxShippingMessage: 'Shipping',
         };
-        // Severity: shipping + CNC are critical (error), money-back is less
-        // critical (warning). Unknown keys default to error to be safe.
+        // Every buy-box message that comes back as { h: "..." } is an error —
+        // the field is meant to render on the PDP; hash-only means the copy
+        // never resolved. Unknown keys default to error to be safe.
         const PDP_FIELD_SEVERITY = {
             buyBoxCNCMessage: 'error',
             buyBoxShippingMessage: 'error',
-            buyBoxMoneyBackGuaranteeMessage: 'warn',
+            buyBoxMoneyBackGuaranteeMessage: 'error',
         };
         const pdpLabel = k => PDP_FIELD_LABELS[k] ?? k;
         const pdpSev = k => PDP_FIELD_SEVERITY[k] ?? 'error';
@@ -2391,8 +2392,11 @@
             updateConfigSummary();
         }
 
-        // ── Audit mode (Full / Products only / LCP only / PDP Data) ───────────────
+        // ── Audit mode (Full / PLP / LCP / PDP) ──────────────────────────────────
         function setAuditMode(mode) {
+            const prevMode = auditMode;
+            const crossedCtBoundary = (prevMode === 'pdp-data') !== (mode === 'pdp-data');
+
             auditMode = mode;
             ['full', 'products', 'lcp', 'pdp-data'].forEach(m => {
                 const el = document.getElementById('am-' + m);
@@ -2407,6 +2411,12 @@
             const qs = document.getElementById('quick-section');
             if (qs) qs.style.display = (mode === 'products' || mode === 'pdp-data') ? 'none' : '';
 
+            // PLP-specific brand/category filter — only relevant when a sitemap
+            // is loaded AND we're in a sitemap-consuming mode. Hide unconditionally
+            // when PDP mode is picked, since CT provides only PDP URLs.
+            const pf = document.getElementById('product-filter-section');
+            if (pf && mode === 'pdp-data') pf.style.display = 'none';
+
             // PDP Data forces desktop-only profile selection
             if (mode === 'pdp-data' && profiles.length) {
                 const desktopIds = profiles.filter(p => p.id.startsWith('desktop-')).map(p => p.id);
@@ -2415,6 +2425,19 @@
                     const card = document.getElementById('dc-' + p.id);
                     if (card) card.classList.toggle('active', selectedProfileIds.includes(p.id));
                 });
+            }
+
+            // Crossing the CT/sitemap boundary invalidates the loaded URL set —
+            // CT returns PDP URLs, sitemap returns whatever the file lists.
+            // Clear so the user re-loads from the correct source.
+            if (crossedCtBoundary && allUrlsRaw.length > 0) {
+                allUrlsRaw = [];
+                allUrls = [];
+                isProductListSitemap = false;
+                document.getElementById('url-count-section').style.display = 'none';
+                document.getElementById('devices-section').style.display = 'none';
+                if (qs) qs.style.display = 'none';
+                setLoadStatus('info', 'URL set cleared — re-fetch from the correct source for this audit mode');
             }
 
             // Swap CT loader vs sitemap input based on the audit mode.
@@ -2534,8 +2557,14 @@
 
         function setLoadStatus(type, msg) {
             const el = document.getElementById('load-status');
-            const color = type === 'ok' ? 'var(--good)' : type === 'error' ? 'var(--poor)' : 'var(--running)';
-            const icon = type === 'ok' ? '✓ ' : type === 'error' ? '✗ ' : '⟳ ';
+            const color = type === 'ok' ? 'var(--good)'
+                        : type === 'error' ? 'var(--poor)'
+                        : type === 'info' ? 'var(--muted)'
+                        : 'var(--running)';
+            const icon = type === 'ok' ? '✓ '
+                       : type === 'error' ? '✗ '
+                       : type === 'info' ? 'ℹ '
+                       : '⟳ ';
             el.style.color = color;
             el.innerHTML = `<span>${icon}${msg}</span>`;
         }

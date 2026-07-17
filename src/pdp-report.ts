@@ -12,12 +12,14 @@ const KEY_LABELS: Record<string, string> = {
   buyBoxShippingMessage: "Shipping",
 };
 
-// Shipping + CNC are critical (error). Money-back is less critical (warning).
-// Unknown keys default to error.
+// Every buy-box message that comes back as a hash-only placeholder (an
+// object with just `{ h: "..." }`) is an error — the field is meant to be
+// rendered on the PDP and a hash-only value means the copy never resolved.
+// Unknown keys also default to error.
 const KEY_SEVERITY: Record<string, "error" | "warn"> = {
   buyBoxCNCMessage: "error",
   buyBoxShippingMessage: "error",
-  buyBoxMoneyBackGuaranteeMessage: "warn",
+  buyBoxMoneyBackGuaranteeMessage: "error",
 };
 
 function labelFor(key: string): string {
