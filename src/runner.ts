@@ -685,5 +685,17 @@ export async function runAudit(
   );
 
   await Promise.allSettled(tasks);
+
+  // Recycle the browser pool between audits. On long-lived hosts (e.g. Railway
+  // containers with capped pids.max), leaked Chromium helper processes from
+  // crashed contexts accumulate over time and eventually trigger EAGAIN on the
+  // next launch. Closing here trades ~1–3s relaunch on the next run for a
+  // stable PID/memory footprint.
+  try {
+    await closeAllBrowsers();
+  } catch (err) {
+    console.warn("  ⚠ closeAllBrowsers() failed after audit:", err);
+  }
+
   return allProgress;
 }
