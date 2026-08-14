@@ -366,13 +366,40 @@ async function auditPage(
           if (!product) return result;
           result.productFound = true;
 
-          // A field is "empty" when it's exactly { h: "<string>" } — the API's
-          // placeholder for undefined/empty content.
+          // A field is "empty" when either:
+          //   1. the shape is exactly { h: "<string>" } — the API's placeholder
+          //      for undefined/empty content, OR
+          //   2. `h` contains only empty HTML that renders blank in the buy box
+          //      (e.g. "<p></p>", "<p>&nbsp;</p>", "<p><br></p>", "  ").
+          //      The CMS keeps a rich-text wrapper even when the author cleared
+          //      the value, so the string is non-empty but visually blank.
+          const isVisuallyEmptyHtml = (html: string): boolean => {
+            if (!html) return true;
+            const div = document.createElement('div');
+            div.innerHTML = html;
+            const text = (div.textContent || '')
+              .replace(/[\u00A0\u200B\u200C\u200D\uFEFF]/g, '')
+              .trim();
+            return text.length === 0;
+          };
+
           for (const key of keys) {
             const v = product[key];
-            if (v && typeof v === 'object' && !Array.isArray(v)) {
+            if (v == null) {
+              result.empty.push(key);
+              continue;
+            }
+            if (typeof v === 'string') {
+              if (isVisuallyEmptyHtml(v)) result.empty.push(key);
+              continue;
+            }
+            if (typeof v === 'object' && !Array.isArray(v)) {
+              const h = (v as any).h;
               const ks = Object.keys(v);
-              if (ks.length === 1 && ks[0] === 'h' && typeof (v as any).h === 'string') {
+              const isOnlyH = ks.length === 1 && ks[0] === 'h' && typeof h === 'string';
+              if (isOnlyH) {
+                result.empty.push(key);
+              } else if (typeof h === 'string' && isVisuallyEmptyHtml(h)) {
                 result.empty.push(key);
               }
             }
