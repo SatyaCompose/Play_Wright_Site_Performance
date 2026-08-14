@@ -2250,6 +2250,7 @@
             <span class="pill" id="he" style="display:none;min-width:44px;text-align:center;font-family:var(--mono)">0:00</span>
             <button class="fb" id="stop-btn" onclick="stopAudit()" style="display:none;margin-left:8px;border-color:#f87171;color:#f87171;" title="Stop audit">■ Stop</button>
             <button class="fb" id="force-stop-btn" onclick="forceStopAudit()" style="display:none;margin-left:4px;background:#f87171;border-color:#f87171;color:#fff;font-weight:700" title="Abandon run immediately — no report">✕ Force stop</button>
+            <button class="fb" id="retest-failed-btn" onclick="retestFailed()" style="display:none;margin-left:8px;border-color:#f59e0b;color:#f59e0b" title="Re-audit URLs that failed or came back with empty fields">↻ Retest failed <span id="retest-failed-count" style="opacity:.7"></span></button>
             <button class="fb" onclick="showConfig()" style="margin-left:4px" title="New run">⚙ Config</button>
         </div>
     </header>
@@ -2899,6 +2900,23 @@
                     sb.disabled = false; sb.innerHTML = '■ Stop'; sb.style.display = '';
                     const fsb = document.getElementById('force-stop-btn');
                     if (fsb) { fsb.style.display = 'none'; fsb.disabled = false; }
+                    // Retest button is a post-run affordance — hide while running.
+                    const rtb = document.getElementById('retest-failed-btn');
+                    if (rtb) rtb.style.display = 'none';
+                    startElapsedTimer();
+                }
+
+                // ── Retest kicked off (subset of URLs, keeps existing state) ──
+                if (m.type === 'retest_start') {
+                    // Retested URLs get flipped back to 'pending' via subsequent
+                    // 'progress' messages; nothing else needs clearing here.
+                    stopping = false;
+                    const sb = document.getElementById('stop-btn');
+                    sb.disabled = false; sb.innerHTML = '■ Stop'; sb.style.display = '';
+                    const fsb = document.getElementById('force-stop-btn');
+                    if (fsb) { fsb.style.display = 'none'; fsb.disabled = false; }
+                    const rtb = document.getElementById('retest-failed-btn');
+                    if (rtb) rtb.style.display = 'none';
                     startElapsedTimer();
                 }
 
@@ -2950,6 +2968,7 @@
                     hasPdpReport = m.hasPdpReport ?? false;
                     hasPdf = m.hasPdf ?? false;
                     const wasForced = !!m.forced;
+                    const wasRetest = !!m.retest;
                     stopping = false;
                     document.getElementById('stop-btn').style.display = 'none';
                     const fsb = document.getElementById('force-stop-btn');
@@ -2957,6 +2976,11 @@
                     stopElapsedTimer();
                     updateHdr();
                     showReportBtn();
+                    updateRetestButton();
+                    // On retest completion, keep the user on whatever URL they
+                    // were inspecting — don't overwrite the detail pane with a
+                    // fresh "Audit complete" splash.
+                    if (wasRetest) return;
                     if (!selUrl) {
                         if (wasForced) {
                             document.getElementById('detail').innerHTML = `
@@ -3012,6 +3036,49 @@
             const fsb = document.getElementById('force-stop-btn');
             if (fsb) fsb.style.display = '';
             ws.send(JSON.stringify({ type: 'stop_audit' }));
+        }
+
+        // ── Retest helpers ────────────────────────────────────────────────
+        // A URL "needs retest" when the previous run either errored, or (in
+        // PDP-data mode) came back with any empty check or no product found.
+        function urlNeedsRetest(p) {
+            if (!p) return false;
+            if (p.status === 'failed') return true;
+            const pdp = bestPdpCheck(p);
+            if (pdp) {
+                if (!pdp.productFound) return true;
+                if ((pdp.empty ?? []).length > 0) return true;
+            }
+            return false;
+        }
+        function collectFailedUrls() {
+            const out = [];
+            for (const p of S.values()) if (urlNeedsRetest(p)) out.push(p.url);
+            return out;
+        }
+        function updateRetestButton() {
+            const btn = document.getElementById('retest-failed-btn');
+            if (!btn) return;
+            const failed = collectFailedUrls();
+            const cntEl = document.getElementById('retest-failed-count');
+            if (cntEl) cntEl.textContent = failed.length ? `(${failed.length})` : '';
+            // Show only when we have something to retest AND no run is in flight.
+            const running = document.getElementById('stop-btn').style.display !== 'none';
+            btn.style.display = (!running && failed.length > 0) ? '' : 'none';
+        }
+        function retestUrls(urls) {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            if (!Array.isArray(urls) || urls.length === 0) return;
+            ws.send(JSON.stringify({ type: 'retest_urls', urls }));
+        }
+        function retestFailed() {
+            const urls = collectFailedUrls();
+            if (!urls.length) return;
+            retestUrls(urls);
+        }
+        function retestOne(url) {
+            if (!url) return;
+            retestUrls([url]);
         }
 
         // Hard cancel — server abandons the run immediately, no report.
@@ -3086,6 +3153,13 @@
                     }
                 }
             }
+            // Per-row retest icon — only worth showing once a URL has finished
+            // (done or failed). Suppressed while queued/running to avoid double
+            // triggering during a live run.
+            const canRetest = p.status === 'done' || p.status === 'failed';
+            const retestBtn = canRetest
+                ? `<span class="ur-retest" title="Retest this URL" onclick="event.stopPropagation();retestOne(this.parentElement.dataset.url)" style="cursor:pointer;font-family:var(--mono);font-size:11px;color:var(--muted);flex-shrink:0;padding:2px 4px;border-radius:4px" onmouseover="this.style.color='#f59e0b';this.style.background='rgba(245,158,11,.1)'" onmouseout="this.style.color='var(--muted)';this.style.background='transparent'">↻</span>`
+                : '';
             return `<div class="ur ${p.status}" data-url="${p.url}" onclick="sel(this.dataset.url)">
     <span class="sd ${p.status}"></span>
     <span class="up" title="${p.url}">${pathOf(p.url)}</span>
@@ -3093,6 +3167,7 @@
     ${lcp ? `<span style="font-family:var(--mono);font-size:9px;color:${lc};flex-shrink:0">${fmtMs(lcp)}</span>` : ''}
     ${pcHtml}
     ${pdpHtml}
+    ${retestBtn}
   </div>`;
         }
         function renderAll() {
@@ -3627,8 +3702,12 @@
                 tabContent = `<div style="color:var(--muted);text-align:center;padding:40px;font-size:11px">No data yet</div>`;
             }
 
+            const canRetestDetail = p.status === 'done' || p.status === 'failed';
+            const detailRetestBtn = canRetestDetail
+                ? `<button onclick="retestOne('${url.replace(/'/g, "\\'")}')" title="Re-audit this URL with the same settings as the last run" style="margin-left:12px;padding:4px 10px;font-family:var(--sans);font-size:11px;font-weight:600;color:#f59e0b;background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.4);border-radius:6px;cursor:pointer">↻ Retest</button>`
+                : '';
             detail.innerHTML = `<div class="di">
-    <div class="durl"><a href="${url}" target="_blank" rel="noopener">${url}</a></div>
+    <div class="durl" style="display:flex;align-items:center;gap:4px"><a href="${url}" target="_blank" rel="noopener" style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${url}</a>${detailRetestBtn}</div>
     <div class="dtabs">${tabsHtml}</div>
     ${profs.length > 1 && p.results?.length ? `<div class="sec" style="margin-bottom:14px">
       <div class="sechd">LCP across devices</div>

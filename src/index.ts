@@ -24,6 +24,13 @@ const port = parseInt(process.env.PORT ?? process.argv[3] ?? "7331", 10);
 const videosDir = process.env.VIDEOS_DIR ?? "./videos";
 
 // ── Per-session state ─────────────────────────────────────────────────────
+interface LastRunOptions {
+  profileIds: string[];
+  auditMode: "full" | "products" | "lcp" | "pdp-data";
+  pdpChecks: string[];
+  quickMode: boolean;
+}
+
 interface Session {
   id: string;
   progressMap: Map<string, AuditProgress>;
@@ -38,6 +45,7 @@ interface Session {
   currentSessionVideos: string[];
   signal: { cancelled: boolean; aborter?: AbortController };
   clients: Set<WebSocket>;
+  lastRunOptions?: LastRunOptions;
 }
 
 const sessions = new Map<string, Session>();
@@ -468,6 +476,14 @@ wss.on("connection", (ws, req) => {
       session.lastHasPdf = false;
       session.progressMap.clear();
       for (const u of urlsToRun) session.progressMap.set(u, { url: u, status: "pending" });
+      // Remember the exact config so a later retest reuses the same profiles,
+      // audit mode, and PDP checks without asking the client to re-send them.
+      session.lastRunOptions = {
+        profileIds: selectedProfiles.map((p) => p.id),
+        auditMode,
+        pdpChecks,
+        quickMode,
+      };
 
       broadcastToSession(session, { type: "start", urls: urlsToRun, profiles: selectedProfiles });
       console.log(`\n  [${sessionId.slice(0, 8)}] Audit: ${urlsToRun.length} URLs × ${selectedProfiles.length} profiles`);
@@ -565,6 +581,125 @@ wss.on("connection", (ws, req) => {
           console.error(`\n  [${sessionId.slice(0, 8)}] Audit error:`, e.message);
           broadcastToSession(session, { type: "error", message: `Audit failed: ${e.message}` });
           broadcastToSession(session, { type: "done", total: 0, hasReport: false, hasPdf: false });
+        }
+      });
+    }
+
+    // ── Retest specific URLs (uses last-run options) ─────────────────────
+    if (msg.type === "retest_urls") {
+      if (session.auditRunning) {
+        ws.send(JSON.stringify({ type: "error", message: "An audit is already running in this session" }));
+        return;
+      }
+      if (!session.lastRunOptions) {
+        ws.send(JSON.stringify({ type: "error", message: "No previous run to retest. Start a fresh audit first." }));
+        return;
+      }
+
+      const requested: string[] = Array.isArray(msg.urls)
+        ? msg.urls.filter((u: unknown): u is string => typeof u === "string" && u.startsWith("http"))
+        : [];
+      // Only retest URLs that were part of the previous run so a stale client
+      // can't smuggle arbitrary URLs through.
+      const urlsToRun = requested.filter((u) => session.progressMap.has(u));
+      if (!urlsToRun.length) {
+        ws.send(JSON.stringify({ type: "error", message: "No matching URLs to retest" }));
+        return;
+      }
+
+      const { profileIds, auditMode, pdpChecks, quickMode } = session.lastRunOptions;
+      const selectedProfiles = DEVICE_PROFILES.filter((p) => profileIds.includes(p.id));
+      if (!selectedProfiles.length) {
+        ws.send(JSON.stringify({ type: "error", message: "Last run's device profiles are no longer available" }));
+        return;
+      }
+
+      // Reset only the retested URLs' progress; leave everything else intact.
+      for (const u of urlsToRun) session.progressMap.set(u, { url: u, status: "pending" });
+      session.signal = { cancelled: false, aborter: new AbortController() };
+      session.auditRunning = true;
+      session.auditDone = false;
+
+      broadcastToSession(session, { type: "retest_start", urls: urlsToRun });
+      // Emit a pending progress for each so the client immediately shows them
+      // as queued rather than keeping their stale "done/failed" chip.
+      for (const u of urlsToRun) {
+        broadcastToSession(session, { type: "progress", progress: { url: u, status: "pending" } });
+      }
+      console.log(`\n  [${sessionId.slice(0, 8)}] Retest: ${urlsToRun.length} URLs × ${selectedProfiles.length} profiles`);
+
+      setImmediate(async () => {
+        try {
+          const effectiveConcurrency =
+            auditMode === "pdp-data" ? Math.max(concurrency, 25)
+            : auditMode === "products" ? Math.max(concurrency, 20)
+            : quickMode ? Math.max(concurrency, 15)
+            : concurrency;
+
+          await runAudit(urlsToRun, {
+            concurrency: effectiveConcurrency,
+            videosDir: session.sessionVideosDir,
+            profiles: selectedProfiles,
+            quickMode,
+            auditMode,
+            pdpChecks,
+            signal: session.signal,
+            onProgress: (progress) => {
+              if (session.signal.cancelled && progress.status === "running") return;
+              session.progressMap.set(progress.url, progress);
+              const { screenshots, ...rest } = progress;
+              broadcastToSession(session, { type: "progress", progress: rest });
+
+              for (const r of progress.results ?? []) {
+                if (r.videoPath && !session.currentSessionVideos.includes(r.videoPath)) {
+                  session.currentSessionVideos.push(r.videoPath);
+                }
+              }
+            },
+            onScreenshot: (quickMode || auditMode === "products" || auditMode === "pdp-data") ? undefined : (url, profileId, png) => {
+              broadcastToSession(session, { type: "screenshot", url, profileId, png });
+            },
+          });
+
+          session.auditRunning = false;
+          session.auditDone = true;
+
+          // Regenerate report from the merged progress map so retested rows
+          // replace their old counterparts in the downloadable HTML/PDF.
+          const mergedResults = [...session.progressMap.values()].flatMap((p) => p.results ?? []);
+          if (auditMode === "pdp-data") {
+            session.lastPdpReportHtml = generatePdpReportHTML(mergedResults, pdpChecks);
+          } else {
+            session.lastReportHtml = generateHTMLReport(mergedResults);
+            session.lastProductReportHtml = generateProductReportHTML(mergedResults);
+          }
+
+          try {
+            if (auditMode === "pdp-data") {
+              await generatePDF(session.lastPdpReportHtml, `pdp-report-${sessionId}.pdf`, false, true, "PDP Empty-Data Report");
+            } else {
+              await generatePDF(session.lastReportHtml, `report-${sessionId}.pdf`, true, false, "Audit Report");
+              await generatePDF(session.lastProductReportHtml, `product-report-${sessionId}.pdf`, false, true, "Product Count Report");
+            }
+            session.lastHasPdf = true;
+          } catch (e: any) {
+            console.warn(`  [${sessionId.slice(0, 8)}] PDF skipped:`, e.message);
+          }
+
+          broadcastToSession(session, {
+            type: "done",
+            total: session.progressMap.size,
+            hasReport: auditMode !== "pdp-data",
+            hasPdpReport: auditMode === "pdp-data",
+            hasPdf: session.lastHasPdf,
+            retest: true,
+          });
+          console.log(`  [${sessionId.slice(0, 8)}] Retest complete — ${urlsToRun.length} URLs`);
+        } catch (e: any) {
+          session.auditRunning = false;
+          console.error(`\n  [${sessionId.slice(0, 8)}] Retest error:`, e.message);
+          broadcastToSession(session, { type: "error", message: `Retest failed: ${e.message}` });
+          broadcastToSession(session, { type: "done", total: session.progressMap.size, hasReport: false, hasPdf: false, retest: true });
         }
       });
     }
