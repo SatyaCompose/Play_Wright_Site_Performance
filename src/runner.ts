@@ -569,7 +569,7 @@ async function auditPage(
     let strapiCheck: StrapiCheck | undefined;
     if (isStrapiMode) {
       strapiCheck = await page.evaluate((): StrapiCheck => {
-        const out: StrapiCheck = { found: false, datasources: [] };
+        const out: StrapiCheck = { found: false, datasources: [], totalSeen: 0 };
         try {
           let nd: any = null;
           const scriptEl = document.getElementById("__NEXT_DATA__");
@@ -592,6 +592,7 @@ async function auditPage(
             null;
           if (dsMap && typeof dsMap === "object") {
             for (const [id, entry] of Object.entries<any>(dsMap)) {
+              out.totalSeen = (out.totalSeen ?? 0) + 1;
               const t = entry?.dataSource ?? entry?.dataSourceType ?? entry?.type;
               if (matches(t)) {
                 out.datasources.push({ id, type: t as string, location: "dataSources" });
@@ -602,6 +603,7 @@ async function auditPage(
           const cfgs = nd?.props?.pageProps?.data?.pageFolder?.dataSourceConfigurations;
           if (Array.isArray(cfgs)) {
             cfgs.forEach((c: any, i: number) => {
+              out.totalSeen = (out.totalSeen ?? 0) + 1;
               const t = c?.type ?? c?.dataSource ?? c?.dataSourceType;
               if (matches(t)) {
                 out.datasources.push({
@@ -618,7 +620,7 @@ async function auditPage(
         } catch {
           return out;
         }
-      }).catch(() => ({ found: false, datasources: [] as any[] }));
+      }).catch(() => ({ found: false, datasources: [] as any[], totalSeen: 0 }));
     }
 
     // ── Product count (skipped in LCP-only, PDP-data, and Strapi modes) ─

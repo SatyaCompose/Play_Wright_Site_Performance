@@ -51,6 +51,11 @@ export interface PdpDataCheck {
 export interface StrapiCheck {
   found: boolean;
   datasources: StrapiDatasource[];
+  // Diagnostic — total number of datasource entries the walker saw on the
+  // page (regardless of whether any matched the strapi/builder keywords).
+  // Used to distinguish "real page, no strapi" (totalSeen > 0, matches = 0)
+  // from "WAF challenge / no __NEXT_DATA__" (totalSeen = 0).
+  totalSeen?: number;
 }
 
 export interface StrapiDatasource {

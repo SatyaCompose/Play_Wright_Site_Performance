@@ -3985,7 +3985,9 @@
             </div>` : ''}
             ${(!strapiDs.length && !builderDs.length) ? `<div style="color:var(--muted);font-size:12px;line-height:1.7">
               <div>No <code>strapi/*</code> or <code>builder/component</code> datasources found in <code>__NEXT_DATA__</code>.</div>
-              <div style="margin-top:4px">${dss.length ? `${dss.length} other datasource(s) present on the page but neither matched.` : `<code>__NEXT_DATA__</code> either had no datasources or wasn't served (WAF block?).`}</div>
+              <div style="margin-top:4px">${(strapiCheck.totalSeen ?? 0) > 0
+                ? `Walker inspected <strong>${strapiCheck.totalSeen}</strong> datasource entry/entries on this page but none matched.`
+                : `<code>__NEXT_DATA__</code> was empty or missing entirely (likely a WAF challenge that didn't fully render).`}</div>
             </div>` : ''}
           </div>
         </div>`;
