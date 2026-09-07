@@ -3,7 +3,7 @@
     "version": "2.1.0",
     "type": "commonjs",
     "scripts": {
-        "build": "tsc && cp src/dashboard.html dist/dashboard.html",
+        "build": "tsc && cp src/dashboard.html dist/dashboard.html && cp src/logo.svg dist/logo.svg",
         "start": "node dist/index.js",
         "dev": "tsx src/index.ts",
         "postinstall": "playwright install chromium webkit"

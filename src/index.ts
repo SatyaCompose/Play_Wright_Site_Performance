@@ -162,6 +162,15 @@ const dashboardHtml = fs.readFileSync(
   path.join(__dirname, "dashboard.html"),
   "utf-8"
 );
+// Read logo once at boot — it's a tiny static asset served alongside the
+// dashboard and used as the SVG favicon.
+const logoSvg = (() => {
+  try {
+    return fs.readFileSync(path.join(__dirname, "logo.svg"), "utf-8");
+  } catch {
+    return "";
+  }
+})();
 
 const httpServer = http.createServer((req, res) => {
   const [rawPath, rawQuery] = (req.url ?? "/").split("?");
@@ -172,6 +181,16 @@ const httpServer = http.createServer((req, res) => {
   if (rawPath === "/" || rawPath === "/dashboard") {
     res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
     res.end(dashboardHtml);
+    return;
+  }
+
+  if (rawPath === "/logo.svg") {
+    if (!logoSvg) { res.writeHead(404); res.end("logo missing"); return; }
+    res.writeHead(200, {
+      "Content-Type": "image/svg+xml; charset=utf-8",
+      "Cache-Control": "public, max-age=86400",
+    });
+    res.end(logoSvg);
     return;
   }
 
