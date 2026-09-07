@@ -246,18 +246,19 @@ async function auditPage(
     );
     const page = await context.newPage();
 
-    // ── SSR-only speed boost: block subresources ──────────────────────
-    // We only need the HTML document to parse __NEXT_DATA__. Blocking images,
-    // stylesheets, media, and fonts cuts bytes/second by ~90% and lets us
-    // finish each URL in ~1-2s instead of 6-10s. `document` and `script` are
-    // still allowed since Next.js hydration reads inline JSON via them.
+    // ── SSR-only speed boost: block EVERYTHING except the HTML doc ─────
+    // __NEXT_DATA__ is inlined in the SSR HTML — no JS execution needed to
+    // read it, no CSS/image/font needed to parse it. Aborting every
+    // non-document request:
+    //   1. Saves ~90% bytes/CPU per URL (~4s per audit at c=8)
+    //   2. Denies the WAF the chance to 403 JS chunks (previously the
+    //      script requests triggered Cloudflare's "harder" bot challenge
+    //      once the first request in a burst passed, cluttering audits
+    //      with wall-of-403 noise even though the doc itself was 200)
     if (isSsrOnlyMode) {
       await context.route("**/*", (route) => {
-        const t = route.request().resourceType();
-        if (t === "image" || t === "media" || t === "font" || t === "stylesheet") {
-          return route.abort();
-        }
-        return route.continue();
+        if (route.request().resourceType() === "document") return route.continue();
+        return route.abort();
       });
     }
 
@@ -310,10 +311,17 @@ async function auditPage(
     }
 
     const errors: string[] = [];
-    page.on("console", (msg) => {
-      if (msg.type() === "error") errors.push(msg.text());
-    });
-    page.on("pageerror", (err) => errors.push(`[PageError] ${err.message}`));
+    // Skip console/pageerror capture in SSR-only modes. Aborting every
+    // non-document request generates a wall of "Failed to load resource:
+    // net::ERR_FAILED" console errors that are purely our own doing — not
+    // real page errors — and the pdp-data / strapi reports don't use the
+    // errors[] array anyway.
+    if (!isSsrOnlyMode) {
+      page.on("console", (msg) => {
+        if (msg.type() === "error") errors.push(msg.text());
+      });
+      page.on("pageerror", (err) => errors.push(`[PageError] ${err.message}`));
+    }
 
     // Vitals script only needed when measuring LCP/CLS/FCP
     if (!isProductsMode && !isSsrOnlyMode) {
