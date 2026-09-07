@@ -255,8 +255,7 @@ async function auditPage(
   onScreenshot?: (profileId: string, png: string) => void,
   quickMode = false,
   auditMode: "full" | "products" | "lcp" | "pdp-data" | "strapi" = "full",
-  pdpChecks: string[] = [],
-  warmupCookies?: any[]
+  pdpChecks: string[] = []
 ): Promise<PageResult> {
   const isProductsMode = auditMode === "products";
   const isLcpMode = auditMode === "lcp";
@@ -279,27 +278,22 @@ async function auditPage(
     context = await browser.newContext(
       contextOptions(profile, videosDir, effectiveQuick)
     );
-    // Seed warmup cookies (cf_clearance etc.) if we have them for this origin —
-    // the run's warmup step earned them once, they're valid across contexts on
-    // the same IP + TLS fingerprint. Drops WAF failure rate from ~10% to <1%.
-    if (warmupCookies && warmupCookies.length) {
-      await context.addCookies(warmupCookies).catch(() => {});
-    }
     const page = await context.newPage();
 
-    // ── SSR-only speed boost: block EVERYTHING except the HTML doc ─────
-    // __NEXT_DATA__ is inlined in the SSR HTML — no JS execution needed to
-    // read it, no CSS/image/font needed to parse it. Aborting every
-    // non-document request:
-    //   1. Saves ~90% bytes/CPU per URL (~4s per audit at c=8)
-    //   2. Denies the WAF the chance to 403 JS chunks (previously the
-    //      script requests triggered Cloudflare's "harder" bot challenge
-    //      once the first request in a burst passed, cluttering audits
-    //      with wall-of-403 noise even though the doc itself was 200)
+    // ── SSR-only speed boost: block heavy non-executable subresources ──
+    // We only need the initial HTML doc + inline __NEXT_DATA__ parsed, but
+    // blocking scripts made Cloudflare escalate its bot challenge (a real
+    // browser fetches scripts even if we don't wait for them). So block
+    // only the heavy passive assets — images, media, fonts, stylesheets —
+    // and let scripts request normally. The page still finishes fast
+    // because we return at DOMContentLoaded without waiting for JS to run.
     if (isSsrOnlyMode) {
       await context.route("**/*", (route) => {
-        if (route.request().resourceType() === "document") return route.continue();
-        return route.abort();
+        const t = route.request().resourceType();
+        if (t === "image" || t === "media" || t === "font" || t === "stylesheet") {
+          return route.abort();
+        }
+        return route.continue();
       });
     }
 
@@ -823,54 +817,6 @@ export async function runAudit(
     throw err;
   }
 
-  // ── WAF warmup: earn Cloudflare's cf_clearance cookie ONCE per origin ────
-  // Prod WAFs hand out cf_clearance (and friends) only after a "legit"
-  // session — full page load, JS execution, no aggressive parallelism. When
-  // every audit URL starts with a fresh cookieless context, each one has to
-  // pass the challenge from scratch, and 5–15% get rejected. Fetching the
-  // origin homepage once with a full-fat context, then seeding every audit
-  // context with the resulting cookies, gets that trust score to compound.
-  const origins = new Set<string>();
-  for (const u of urls) {
-    try { origins.add(new URL(u).origin); } catch {}
-  }
-  const primaryEngine = engineForProfile(profiles[0] ?? DEVICE_PROFILES[0]);
-  const primaryProfile = profiles[0] ?? DEVICE_PROFILES[0];
-  const warmupCookies = new Map<string, any[]>();
-  await Promise.all(
-    [...origins].map(async (origin) => {
-      if (shuttingDown || signal?.cancelled) return;
-      const browser = await getBrowser(primaryEngine);
-      // Warmup context is deliberately full-fat: no route blocking, real UA,
-      // client hints — this is the ONE request per origin that has to look
-      // maximally human so Cloudflare grants cf_clearance.
-      const ctx = await browser.newContext(contextOptions(primaryProfile, videosDir, true));
-      try {
-        const page = await ctx.newPage();
-        try {
-          await page.goto(origin + "/", { waitUntil: "domcontentloaded", timeout: 30000 });
-          // Give Cloudflare's challenge JS ~2s to run and set cf_clearance.
-          await page.waitForTimeout(2000);
-        } catch (e: any) {
-          console.warn(`  ⚠ warmup failed for ${origin}: ${e.message}`);
-        }
-        const cookies = await ctx.cookies().catch(() => []);
-        if (cookies.length) {
-          warmupCookies.set(origin, cookies);
-          const cfCookies = cookies.filter((c: any) =>
-            c.name === "cf_clearance" || c.name.startsWith("__cf")
-          );
-          console.log(
-            `  Warmup ${origin} → ${cookies.length} cookie(s)` +
-            (cfCookies.length ? ` (cf: ${cfCookies.map((c: any) => c.name).join(", ")})` : "")
-          );
-        }
-      } finally {
-        await ctx.close().catch(() => {});
-      }
-    })
-  );
-
   const limit = pLimit(concurrency);
   const allProgress: AuditProgress[] = [];
 
@@ -899,12 +845,6 @@ export async function runAudit(
         : auditMode === "products" ? 60000
         : 120000;
 
-      // Grab the origin's warmup cookies (if any) once per URL — same origin
-      // implies same cf_clearance regardless of path.
-      let urlOrigin = "";
-      try { urlOrigin = new URL(url).origin; } catch {}
-      const cookiesForUrl = warmupCookies.get(urlOrigin);
-
       for (const profile of profiles) {
         if (shuttingDown || signal?.cancelled) break;
         const auditPromise = auditPage(
@@ -919,8 +859,7 @@ export async function runAudit(
             : undefined,
           quickMode,
           auditMode,
-          pdpChecks,
-          cookiesForUrl
+          pdpChecks
         );
         const timeoutPromise = new Promise<PageResult>((resolve) => {
           setTimeout(() => {
