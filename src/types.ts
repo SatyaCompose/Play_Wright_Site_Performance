@@ -29,6 +29,10 @@ export interface PageResult {
   productCount?: number; // null-ish absent means "not measured"; 0 means measured and empty
   pdpDataCheck?: PdpDataCheck; // absent means "not measured" for this mode
   strapiCheck?: StrapiCheck; // absent means "not measured" for this mode
+  // True when Playwright saw Cloudflare's "Just a moment..." interstitial
+  // and the challenge JS didn't resolve in time. HTTP status is misleading
+  // in this case (usually 200) — the audit didn't observe the real page.
+  wafChallenged?: boolean;
 }
 
 // Per-URL result for the PDP empty-data check: which requested fields were

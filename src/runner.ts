@@ -397,6 +397,32 @@ async function auditPage(
         }
       }
     }
+
+    // Cloudflare "Just a moment..." interstitial: the WAF returns 200 with
+    // a JS-challenge page instead of the real content. Since we allow
+    // scripts to load, the challenge can solve itself in a few seconds —
+    // wait up to 12s for __NEXT_DATA__ to appear (either the challenge
+    // resolves and Next.js hydrates, or navigation replaces the doc).
+    // We track whether we ever saw the challenge, and whether it cleared,
+    // so the aggregator can flip the URL to "failed" honestly.
+    let wafChallenged = false;
+    if (isSsrOnlyMode) {
+      const challenged = await page.evaluate(() =>
+        document.title === "Just a moment..." && !document.getElementById("__NEXT_DATA__")
+      ).catch(() => false);
+      if (challenged) {
+        try {
+          await page.waitForFunction(
+            () => !!document.getElementById("__NEXT_DATA__"),
+            { timeout: 12000, polling: 500 }
+          );
+        } catch {
+          // Challenge never cleared — mark this result as WAF-challenged
+          // so the URL surfaces as failed in the retest queue.
+          wafChallenged = true;
+        }
+      }
+    }
     if (!isSsrOnlyMode) {
       try {
         await page.waitForLoadState("networkidle", {
@@ -752,6 +778,7 @@ async function auditPage(
       productCount,
       pdpDataCheck,
       strapiCheck,
+      wafChallenged: wafChallenged || undefined,
       auditedAt: new Date().toISOString(),
     };
   } catch (err: any) {
@@ -892,9 +919,13 @@ export async function runAudit(
       // result is unreliable. Marking it "failed" surfaces it in the Retest
       // Failed queue so the user can requeue without hunting through 200s.
       const any403 = results.some((r) => r.status === 403);
+      // Same for the "Just a moment..." challenge — the runner explicitly
+      // flags results where the interstitial never resolved. Status will
+      // typically be 200 (misleading), so we need this dedicated signal.
+      const anyChallenge = results.some((r) => r.wafChallenged);
       const progress: AuditProgress = {
         url,
-        status: (wasCancelled || allFailed || any403) ? "failed" : "done",
+        status: (wasCancelled || allFailed || any403 || anyChallenge) ? "failed" : "done",
         results,
         screenshots: shots,
       };
