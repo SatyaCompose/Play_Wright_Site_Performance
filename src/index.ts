@@ -789,12 +789,12 @@ wss.on("connection", (ws, req) => {
       setImmediate(async () => {
         try {
           const effectiveConcurrency =
-            // SSR-only modes fan out to 25 — KWH's Cloudflare occasionally
-            // 403s a request under sustained load, but the runner retries
-            // once with backoff on 403, so the effective failure rate is
-            // near zero and full throughput is preserved.
-            auditMode === "pdp-data" ? Math.max(concurrency, 25)
-            : auditMode === "strapi" ? Math.max(concurrency, 25)
+            // SSR-only modes cap at 8. At c=25 KWH's Cloudflare sends
+            // enough 403/503 to make retest useless (the retest hits the
+            // same wall). At c=8 with sec-ch-ua headers + retry-on-403,
+            // the run is clean and only ~2× slower than an uncapped one.
+            auditMode === "pdp-data" ? Math.min(Math.max(concurrency, 8), 8)
+            : auditMode === "strapi" ? Math.min(Math.max(concurrency, 8), 8)
             : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;
@@ -942,10 +942,9 @@ wss.on("connection", (ws, req) => {
       setImmediate(async () => {
         try {
           const effectiveConcurrency =
-            // Full throughput restored — the runner retries once on 403, so
-            // occasional Cloudflare rate-limits don't lose URLs.
-            auditMode === "pdp-data" ? Math.max(concurrency, 25)
-            : auditMode === "strapi" ? Math.max(concurrency, 25)
+            // Match start-path: cap SSR-only at 8 to survive WAF fingerprinting.
+            auditMode === "pdp-data" ? Math.min(Math.max(concurrency, 8), 8)
+            : auditMode === "strapi" ? Math.min(Math.max(concurrency, 8), 8)
             : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;

@@ -127,8 +127,35 @@ function engineForProfile(
   return profile.engine ?? "chromium";
 }
 
+// ── WAF-friendly HTTP headers ─────────────────────────────────────────────
+// Cloudflare and similar WAFs fingerprint requests by the sec-ch-ua family
+// and sec-fetch-* headers. Playwright's default Chromium sends them, but
+// only when the UA is left as Playwright's default. Overriding userAgent
+// (which we do to pin Chrome/141) suppresses the auto-generated hints, so
+// the request looks like "Chrome that forgot to send its client hints" —
+// exactly what the WAF's accept-ch response header flags as suspicious.
+// Re-adding them explicitly for SSR-only modes clears 5xx/403 spikes.
+const CHROME_141_CLIENT_HINTS = {
+  "Accept-Language": "en-AU,en;q=0.9",
+  Accept:
+    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
+  "sec-ch-ua": '"Google Chrome";v="141", "Chromium";v="141", "Not?A_Brand";v="24"',
+  "sec-ch-ua-mobile": "?0",
+  "sec-ch-ua-platform": '"Windows"',
+  "sec-fetch-dest": "document",
+  "sec-fetch-mode": "navigate",
+  "sec-fetch-site": "none",
+  "sec-fetch-user": "?1",
+  "upgrade-insecure-requests": "1",
+};
+
 // ── Build Playwright newContext() options for a profile ───────────────────
-function contextOptions(profile: DeviceProfile, videosDir: string, quickMode = false) {
+function contextOptions(
+  profile: DeviceProfile,
+  videosDir: string,
+  quickMode = false,
+  sendClientHints = false
+) {
   // Start from Playwright device descriptor if specified
   const deviceDesc = profile.playwrightDevice
     ? { ...devices[profile.playwrightDevice] }
@@ -153,6 +180,7 @@ function contextOptions(profile: DeviceProfile, videosDir: string, quickMode = f
 
   return {
     ...merged,
+    ...(sendClientHints ? { extraHTTPHeaders: CHROME_141_CLIENT_HINTS } : {}),
     ...(quickMode ? {} : {
       recordVideo: {
         dir: videosDir,
@@ -211,7 +239,11 @@ async function auditPage(
   let context: BrowserContext | null = null;
 
   try {
-    context = await browser.newContext(contextOptions(profile, videosDir, effectiveQuick));
+    // SSR-only modes talk to production WAFs — send Chrome client hints so
+    // the request doesn't get flagged as "Chrome UA without matching hints".
+    context = await browser.newContext(
+      contextOptions(profile, videosDir, effectiveQuick, isSsrOnlyMode)
+    );
     const page = await context.newPage();
 
     // ── SSR-only speed boost: block subresources ──────────────────────
@@ -295,15 +327,20 @@ async function auditPage(
     let response = await page.goto(url, { waitUntil: gotoWait, timeout: gotoTimeout });
     if (!response) throw new Error("No response received");
 
-    // WAF-aware retry: KWH production's Cloudflare rules rate-limit bursts of
-    // parallel requests from the same IP and hand back a 403 that clears on
-    // its own within a few seconds. One backoff+retry catches these without
-    // masking real 403s (a truly blocked URL still 403s after the retry).
-    // SSR-only modes see this most often because they run at high concurrency.
-    if (response.status() === 403 && isSsrOnlyMode) {
+    // WAF-aware retry: KWH production's Cloudflare rules rate-limit bursts
+    // of parallel requests from the same IP with a 403 (bot block) or 503
+    // (challenge), both of which clear on their own within a few seconds.
+    // One backoff+retry catches these without masking real errors (a truly
+    // blocked/broken URL still returns non-2xx after the retry).
+    if (isSsrOnlyMode && (response.status() === 403 || response.status() === 503)) {
       await page.waitForTimeout(2500 + Math.floor(Math.random() * 1500));
-      const retryRes = await page.goto(url, { waitUntil: gotoWait, timeout: gotoTimeout });
-      if (retryRes) response = retryRes;
+      try {
+        const retryRes = await page.goto(url, { waitUntil: gotoWait, timeout: gotoTimeout });
+        if (retryRes) response = retryRes;
+      } catch {
+        // Retry navigation itself failed — keep the original response and
+        // let downstream code report the WAF status honestly.
+      }
     }
     if (!isSsrOnlyMode) {
       try {
