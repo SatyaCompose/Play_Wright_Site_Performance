@@ -722,12 +722,12 @@ wss.on("connection", (ws, req) => {
       setImmediate(async () => {
         try {
           const effectiveConcurrency =
-            // SSR-only modes used to fan out to 25, but KWH's Cloudflare
-            // rules now rate-limit bursts past ~8 parallel requests from
-            // the same IP with a 403. Cap here; the runner also retries
-            // once on 403 to catch stragglers that slip through.
-            auditMode === "pdp-data" ? Math.min(Math.max(concurrency, 8), 8)
-            : auditMode === "strapi" ? Math.min(Math.max(concurrency, 8), 8)
+            // SSR-only modes fan out to 25 — KWH's Cloudflare occasionally
+            // 403s a request under sustained load, but the runner retries
+            // once with backoff on 403, so the effective failure rate is
+            // near zero and full throughput is preserved.
+            auditMode === "pdp-data" ? Math.max(concurrency, 25)
+            : auditMode === "strapi" ? Math.max(concurrency, 25)
             : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;
@@ -875,9 +875,10 @@ wss.on("connection", (ws, req) => {
       setImmediate(async () => {
         try {
           const effectiveConcurrency =
-            // See start-path comment for why SSR-only modes are capped at 8.
-            auditMode === "pdp-data" ? Math.min(Math.max(concurrency, 8), 8)
-            : auditMode === "strapi" ? Math.min(Math.max(concurrency, 8), 8)
+            // Full throughput restored — the runner retries once on 403, so
+            // occasional Cloudflare rate-limits don't lose URLs.
+            auditMode === "pdp-data" ? Math.max(concurrency, 25)
+            : auditMode === "strapi" ? Math.max(concurrency, 25)
             : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;
