@@ -71,9 +71,8 @@ Play_wright/
 | `PORT` | `7331` | HTTP + WebSocket listen port |
 | `CONCURRENCY` | `3` | Parallel URL audit limit |
 | `VIDEOS_DIR` | `./videos` | Directory for recorded session videos |
-| `PROXY_URL` | — | Route Playwright traffic through a proxy (needed on Railway/AWS/DO/GCP — datacenter IPs get 403'd by Cloudflare). Also honoured: `HTTPS_PROXY`, `HTTP_PROXY`. Auth via embedded creds or `PROXY_USERNAME` / `PROXY_PASSWORD`. |
 
-No API keys or secrets required for the audit itself — this tool audits publicly accessible URLs. A proxy is only needed if the origin's WAF blocks your host's IP range.
+No API keys or secrets required — this tool audits publicly accessible URLs.
 
 ## Architecture Overview
 
