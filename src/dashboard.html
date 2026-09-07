@@ -2424,6 +2424,10 @@
         // Returns the pdpDataCheck result from the first result that has one, or null
         // if this URL wasn't audited in PDP-data mode.
         const bestPdpCheck = p => { for (const r of (p.results ?? [])) { if (r.pdpDataCheck) return r.pdpDataCheck; } return null; };
+        // Same for strapi mode — pulls the first result carrying a strapiCheck.
+        const bestStrapiCheck = p => { for (const r of (p.results ?? [])) { if (r.strapiCheck) return r.strapiCheck; } return null; };
+        const isStrapiDs = d => (d?.type ?? '').toLowerCase().includes('strapi');
+        const isBuilderDs = d => (d?.type ?? '').toLowerCase().includes('builder/component');
         const PDP_FIELD_LABELS = {
             buyBoxCNCMessage: 'Click & Collect',
             buyBoxMoneyBackGuaranteeMessage: 'Money-back Guarantee',
@@ -3927,14 +3931,74 @@
           </div>
         </div>` : '';
 
+                // ── Strapi datasource-scan panel (strapi mode only) ─────────────────
+                const strapiCheck = activeResult.strapiCheck;
+                const isStrapiResult = !!strapiCheck || auditMode === 'strapi';
+                let strapiSectionHtml = '';
+                if (strapiCheck) {
+                    const dss = strapiCheck.datasources ?? [];
+                    const strapiDs = dss.filter(isStrapiDs);
+                    const builderDs = dss.filter(isBuilderDs);
+                    const otherDs = dss.filter(d => !isStrapiDs(d) && !isBuilderDs(d));
+
+                    let statusLabel, borderColor;
+                    if (strapiDs.length > 0) {
+                        statusLabel = `<span style="background:rgba(124,58,237,.18);color:#7c3aed;padding:2px 10px;border-radius:10px;font-size:10px;font-weight:700">STRAPI · ${strapiDs.length}${builderDs.length ? ` + BUILDER · ${builderDs.length}` : ''}</span>`;
+                        borderColor = 'rgba(124,58,237,.4)';
+                    } else if (builderDs.length > 0) {
+                        statusLabel = `<span style="background:rgba(234,88,12,.18);color:#ea580c;padding:2px 10px;border-radius:10px;font-size:10px;font-weight:700">BUILDER · ${builderDs.length}</span>`;
+                        borderColor = 'rgba(234,88,12,.4)';
+                    } else {
+                        statusLabel = `<span style="background:rgba(107,114,128,.18);color:#6b7280;padding:2px 10px;border-radius:10px;font-size:10px;font-weight:700">NONE MATCHED</span>`;
+                        borderColor = 'rgba(107,114,128,.4)';
+                    }
+
+                    const chipRow = (list, color, bg) => list.map(d => `
+          <span style="background:${bg};color:${color};padding:5px 11px;border-radius:14px;font-size:11px;font-weight:600;display:inline-flex;align-items:center;gap:6px">
+            <code style="font-family:var(--mono);font-size:10px;color:inherit">${d.type}</code>
+            <code style="opacity:.55;font-size:9px;font-family:var(--mono);font-weight:400">${d.id}</code>
+          </span>`).join('');
+
+                    strapiSectionHtml = `
+        <div class="sec">
+          <div class="sechd" style="border-color:${borderColor}">Datasource Scan<span class="meta">${statusLabel}</span></div>
+          <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 7px 7px;padding:12px 14px">
+            ${strapiDs.length ? `<div style="margin-bottom:${(builderDs.length || otherDs.length) ? '12px' : '0'}">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#7c3aed;margin-bottom:8px;font-weight:700">Strapi datasources</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">${chipRow(strapiDs, '#7c3aed', 'rgba(124,58,237,.12)')}</div>
+            </div>` : ''}
+            ${builderDs.length ? `<div style="margin-bottom:${otherDs.length ? '12px' : '0'}">
+              <div style="font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#ea580c;margin-bottom:8px;font-weight:700">Builder/component datasources</div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px">${chipRow(builderDs, '#ea580c', 'rgba(234,88,12,.12)')}</div>
+            </div>` : ''}
+            ${(!strapiDs.length && !builderDs.length) ? `<div style="color:var(--muted);font-size:12px;line-height:1.7">
+              <div>No <code>strapi/*</code> or <code>builder/component</code> datasources found in <code>__NEXT_DATA__</code>.</div>
+              <div style="margin-top:4px">${dss.length ? `${dss.length} other datasource(s) present on the page but neither matched.` : `<code>__NEXT_DATA__</code> either had no datasources or wasn't served (WAF block?).`}</div>
+            </div>` : ''}
+          </div>
+        </div>`;
+                }
+
+                // Fallback for strapi mode results that predate the check
+                const strapiFallbackHtml = (isStrapiResult && !strapiCheck && auditMode === 'strapi') ? `
+        <div class="sec">
+          <div class="sechd" style="border-color:rgba(124,58,237,.4);color:#7c3aed">Datasource Scan<span class="meta">No data captured</span></div>
+          <div style="border:1px solid var(--border);border-top:none;border-radius:0 0 7px 7px;padding:14px;color:var(--muted);font-size:12px;line-height:1.7">
+            <div>⚠ This result has no <code>strapiCheck</code> field.</div>
+            <div style="margin-top:4px">The audit likely ran before the check was added — hard-refresh (⌘⇧R) and re-run to capture it.</div>
+          </div>
+        </div>` : '';
+
                 tabContent = `
       ${activeResult.error ? `<div class="errb">⚠ ${activeResult.error}</div>` : ''}
       ${recordingFrame || finalShotFrame}
       ${pageInfoHtml}
       ${pdpSectionHtml}
       ${pdpFallbackHtml}
-      ${isPdpDataResult ? '' : `<div class="vg">${vhtml}${pcCard}</div>`}
-      ${(isPdpDataResult || !apis.length) ? '' : `<div class="sec"><div class="sechd">API calls<span class="meta">SSR:${ssrN} · CSR:${csrN}</span></div>
+      ${strapiSectionHtml}
+      ${strapiFallbackHtml}
+      ${(isPdpDataResult || isStrapiResult) ? '' : `<div class="vg">${vhtml}${pcCard}</div>`}
+      ${(isPdpDataResult || isStrapiResult || !apis.length) ? '' : `<div class="sec"><div class="sechd">API calls<span class="meta">SSR:${ssrN} · CSR:${csrN}</span></div>
       <div class="tbwrap"><table><thead><tr><th class="ct">Type</th><th class="cu">URL</th><th class="cs">Status</th><th class="cm">Time</th><th class="cst">Server-Timing</th></tr></thead>
       <tbody>${arows}</tbody></table></div></div>`}
       ${errHtml}`;
