@@ -106,6 +106,13 @@ export async function closeAllBrowsers() {
   browserPool.clear();
 }
 
+// ── Active-run counter (shared browser pool ref count) ────────────────────
+// Every runAudit call increments this on entry and decrements in a finally.
+// closeAllBrowsers-on-teardown only fires when the count returns to zero —
+// otherwise a session finishing its audit would rip the browser out from
+// under another session that's still running (retest, or a parallel tab).
+let activeAudits = 0;
+
 // ── Resolve which engine a profile needs ─────────────────────────────────
 function engineForProfile(
   profile: DeviceProfile
@@ -701,13 +708,22 @@ export async function runAudit(
 
   if (!fs.existsSync(videosDir)) fs.mkdirSync(videosDir, { recursive: true });
 
+  // Claim a slot in the shared pool ref count. The paired decrement lives
+  // in a finally so a thrown pre-warm doesn't leak the count.
+  activeAudits++;
+
   // Pre-warm all needed browser engines.
   // pdp-data used to have an axios HTTP fast path, but production WAFs
   // (Cloudflare/Akamai) TLS-fingerprint Node's stack and return 403 regardless
   // of headers. Playwright's real browser TLS clears the challenge.
   const neededEngines = new Set(profiles.map(engineForProfile));
-  console.log(`\n  Launching engines: ${[...neededEngines].join(", ")}`);
-  await Promise.all([...neededEngines].map((e) => getBrowser(e)));
+  console.log(`\n  Launching engines: ${[...neededEngines].join(", ")}  (active audits: ${activeAudits})`);
+  try {
+    await Promise.all([...neededEngines].map((e) => getBrowser(e)));
+  } catch (err) {
+    activeAudits--;
+    throw err;
+  }
 
   const limit = pLimit(concurrency);
   const allProgress: AuditProgress[] = [];
@@ -793,15 +809,23 @@ export async function runAudit(
 
   await Promise.allSettled(tasks);
 
-  // Recycle the browser pool between audits. On long-lived hosts (e.g. Railway
-  // containers with capped pids.max), leaked Chromium helper processes from
-  // crashed contexts accumulate over time and eventually trigger EAGAIN on the
-  // next launch. Closing here trades ~1–3s relaunch on the next run for a
-  // stable PID/memory footprint.
-  try {
-    await closeAllBrowsers();
-  } catch (err) {
-    console.warn("  ⚠ closeAllBrowsers() failed after audit:", err);
+  // Recycle the browser pool ONLY when no other runAudit is still in flight.
+  // Otherwise Session A ending would tear down chromium mid-run for Session B
+  // (retest, parallel tab, or concurrent bulk audit) — every in-flight page
+  // in the other run would fail with "browser disconnected".
+  //
+  // On long-lived hosts (e.g. Railway with capped pids.max), leaked Chromium
+  // helpers from crashed contexts still accumulate. This teardown reclaims
+  // them once the last active audit is done.
+  activeAudits--;
+  if (activeAudits === 0) {
+    try {
+      await closeAllBrowsers();
+    } catch (err) {
+      console.warn("  ⚠ closeAllBrowsers() failed after audit:", err);
+    }
+  } else {
+    console.log(`  Skipping pool teardown — ${activeAudits} audit(s) still running`);
   }
 
   return allProgress;
