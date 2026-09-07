@@ -127,6 +127,28 @@ function engineForProfile(
   return profile.engine ?? "chromium";
 }
 
+// ── Console-error noise filter ────────────────────────────────────────────
+// Errors that are always downstream of a WAF bot-challenge or third-party
+// analytics failure — nothing the site owner can fix, and adding them to
+// the report just buries real errors. Matches by substring against the
+// captured console message. Update sparingly; conservative by default.
+const NOISE_PATTERNS: readonly string[] = [
+  "/qxm9/",                                    // Cloudflare Bot Management challenge script
+  "cloudflareinsights.com",                    // CF Web Analytics beacon (blocked by CORS on some sessions)
+  "challenges.cloudflare.com",                 // CF Turnstile widget assets
+  "dcinfos-cache.abtasty.com",                 // AB Tasty geo/UA lookups (frequently CORS-blocked)
+  "api-data-connector.abtasty.com",            // AB Tasty audience sync
+  "segment.api.useinsider.com",                // Insider segments API (CORS-flaky)
+  "falcon.useinsider.com",                     // Insider tracking
+  "cdn.builder.io/api/v1/track",               // Builder.io telemetry
+];
+function isNoiseError(msg: string): boolean {
+  for (const p of NOISE_PATTERNS) {
+    if (msg.includes(p)) return true;
+  }
+  return false;
+}
+
 // ── WAF-friendly HTTP headers ─────────────────────────────────────────────
 // Cloudflare fingerprints requests missing the sec-ch-ua client-hint family.
 // Chromium sends these automatically, BUT only when the UA is left as
@@ -330,9 +352,14 @@ async function auditPage(
     // errors[] array anyway.
     if (!isSsrOnlyMode) {
       page.on("console", (msg) => {
-        if (msg.type() === "error") errors.push(msg.text());
+        if (msg.type() === "error" && !isNoiseError(msg.text())) {
+          errors.push(msg.text());
+        }
       });
-      page.on("pageerror", (err) => errors.push(`[PageError] ${err.message}`));
+      page.on("pageerror", (err) => {
+        const msg = `[PageError] ${err.message}`;
+        if (!isNoiseError(msg)) errors.push(msg);
+      });
     }
 
     // Vitals script only needed when measuring LCP/CLS/FCP

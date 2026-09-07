@@ -2515,9 +2515,12 @@
             const pf = document.getElementById('product-filter-section');
             if (pf && (mode === 'pdp-data' || mode === 'strapi')) pf.style.display = 'none';
 
-            // PDP Data & Strapi force desktop-chromium-only — both parse SSR HTML,
-            // multi-engine gives no additional signal but multiplies wall-clock time.
-            if ((mode === 'pdp-data' || mode === 'strapi') && profiles.length) {
+            // Products / PDP-data / Strapi force single desktop-chromium and hide
+            // the device picker — all three read SSR-inlined data, so multi-device
+            // parallelism gives no additional signal and just multiplies wall-clock
+            // time (and multiplies the WAF's per-URL fingerprint burden).
+            const singleDeviceMode = mode === 'pdp-data' || mode === 'strapi' || mode === 'products';
+            if (singleDeviceMode && profiles.length) {
                 const desktopIds = profiles.filter(p => p.id.startsWith('desktop-')).map(p => p.id);
                 selectedProfileIds = desktopIds.length ? [desktopIds[0]] : [profiles[0].id];
                 profiles.forEach(p => {
@@ -2525,6 +2528,8 @@
                     if (card) card.classList.toggle('active', selectedProfileIds.includes(p.id));
                 });
             }
+            const devSec = document.getElementById('devices-section');
+            if (devSec && singleDeviceMode) devSec.style.display = 'none';
 
             // Crossing a source-kind boundary invalidates the loaded URL set —
             // each source returns a different shape (CT PDPs, single sitemap, or
@@ -2734,9 +2739,13 @@
 
         function showDevicesSection() {
             buildDeviceCards();
-            document.getElementById('devices-section').style.display = '';
-            document.getElementById('quick-section').style.display =
-                (auditMode === 'products' || auditMode === 'pdp-data' || auditMode === 'strapi') ? 'none' : '';
+            // Single-device modes (products, pdp-data, strapi) hide the device
+            // picker entirely — the single desktop-chromium profile is already
+            // pinned by setAuditMode().
+            const singleDeviceMode =
+                auditMode === 'products' || auditMode === 'pdp-data' || auditMode === 'strapi';
+            document.getElementById('devices-section').style.display = singleDeviceMode ? 'none' : '';
+            document.getElementById('quick-section').style.display = singleDeviceMode ? 'none' : '';
         }
 
         // ── Build URL chips after sitemap loads ───────────────────────────────────
