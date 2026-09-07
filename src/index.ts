@@ -796,7 +796,7 @@ wss.on("connection", (ws, req) => {
             if (auditMode === "pdp-data") {
               await generatePDF(session.lastPdpReportHtml, `pdp-report-${sessionId}.pdf`, false, true, "PDP Empty-Data Report");
             } else if (auditMode === "strapi") {
-              await generatePDF(session.lastStrapiReportHtml, `strapi-report-${sessionId}.pdf`, false, true, "Strapi Datasource Scan");
+              await generatePDF(session.lastStrapiReportHtml, `strapi-report-${sessionId}.pdf`, false, true, "Datasource Scan — Strapi + Builder");
             } else {
               await generatePDF(session.lastReportHtml, `report-${sessionId}.pdf`, true, false, "Audit Report");
               await generatePDF(session.lastProductReportHtml, `product-report-${sessionId}.pdf`, false, true, "Product Count Report");
@@ -923,7 +923,7 @@ wss.on("connection", (ws, req) => {
             if (auditMode === "pdp-data") {
               await generatePDF(session.lastPdpReportHtml, `pdp-report-${sessionId}.pdf`, false, true, "PDP Empty-Data Report");
             } else if (auditMode === "strapi") {
-              await generatePDF(session.lastStrapiReportHtml, `strapi-report-${sessionId}.pdf`, false, true, "Strapi Datasource Scan");
+              await generatePDF(session.lastStrapiReportHtml, `strapi-report-${sessionId}.pdf`, false, true, "Datasource Scan — Strapi + Builder");
             } else {
               await generatePDF(session.lastReportHtml, `report-${sessionId}.pdf`, true, false, "Audit Report");
               await generatePDF(session.lastProductReportHtml, `product-report-${sessionId}.pdf`, false, true, "Product Count Report");

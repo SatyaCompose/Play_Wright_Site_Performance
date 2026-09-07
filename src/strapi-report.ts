@@ -57,6 +57,14 @@ function sourceLabel(s: StrapiUrlSource): string {
   return s === "content" ? "Content" : s === "plp" ? "PLP" : "PDP";
 }
 
+// Datasource classifiers — the detector collects both keyword families in
+// one pass, and the report splits them here so Strapi gets full URL detail
+// and builder/component gets a headline count only.
+const isStrapi = (d: StrapiDatasource): boolean =>
+  d.type.toLowerCase().includes("strapi");
+const isBuilder = (d: StrapiDatasource): boolean =>
+  d.type.toLowerCase().includes("builder/component");
+
 export function generateStrapiReportHTML(
   results: PageResult[],
   sources: Map<string, StrapiUrlSource>
@@ -64,7 +72,10 @@ export function generateStrapiReportHTML(
   const rows = collapse(results, sources);
 
   const measured = rows.filter((r) => r.measured);
-  const withStrapi = rows.filter((r) => r.found);
+  const withStrapi = rows.filter((r) => r.datasources.some(isStrapi));
+  const withBuilder = rows.filter((r) => r.datasources.some(isBuilder));
+  // Per-source counts track Strapi only — Builder/component is a headline
+  // number, no per-source breakdown or URL listing.
   const bySource: Record<StrapiUrlSource, { scanned: number; found: number }> = {
     content: { scanned: 0, found: 0 },
     plp: { scanned: 0, found: 0 },
@@ -72,7 +83,7 @@ export function generateStrapiReportHTML(
   };
   for (const r of rows) {
     bySource[r.source].scanned++;
-    if (r.found) bySource[r.source].found++;
+    if (r.datasources.some(isStrapi)) bySource[r.source].found++;
   }
 
   const sortedFound = [...withStrapi].sort((a, b) => {
@@ -85,7 +96,10 @@ export function generateStrapiReportHTML(
 
   const foundRows = sortedFound
     .map((r, i) => {
+      // URL rows show Strapi datasources only — builder/component matches are
+      // still recorded on the row but rendered as a headline count above.
       const chips = r.datasources
+        .filter(isStrapi)
         .map(
           (d) =>
             `<span class="chip"><code>${escHtml(d.type)}</code><span class="chip-id">${escHtml(
@@ -128,7 +142,7 @@ export function generateStrapiReportHTML(
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Strapi Datasource Scan</title>
+<title>Datasource Scan — Strapi + Builder</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -141,13 +155,14 @@ body{font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
 .report-meta{text-align:right;font-size:11px;color:#6b7280;line-height:1.8;white-space:nowrap;}
 .report-meta strong{color:#374151;font-weight:600;}
 
-.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:32px;}
+.summary{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:32px;}
 .card{border:1px solid #e5e7eb;border-radius:8px;padding:18px 20px;background:#f9fafb;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .card-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:#6b7280;margin-bottom:10px;}
 .card-value{font-size:27px;font-weight:700;letter-spacing:-1px;line-height:1;color:#111827;}
 .card-note{font-size:11px;color:#9ca3af;margin-top:6px;}
 .card.c-purple .card-value{color:#7c3aed;}
 .card.c-blue .card-value{color:#2563eb;}
+.card.c-orange .card-value{color:#ea580c;}
 
 .section-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.1em;color:#6b7280;padding-bottom:8px;margin-bottom:0;border-bottom:1px solid #e5e7eb;}
 
@@ -194,12 +209,12 @@ td{padding:9px 12px;vertical-align:middle;}
 
   <div class="report-header">
     <div>
-      <div class="report-title">Strapi Datasource Scan</div>
-      <div class="report-subtitle">Pages whose <code>__NEXT_DATA__</code> contains a datasource served from Strapi</div>
+      <div class="report-title">Datasource Scan &mdash; Strapi + Builder</div>
+      <div class="report-subtitle">Detects <code>strapi/*</code> and <code>builder/component</code> datasources in each page's <code>__NEXT_DATA__</code>. Full URL list for Strapi only; Builder is a headline count.</div>
     </div>
     <div class="report-meta">
       <div>Generated <strong>${generatedAt}</strong></div>
-      <div>${measured.length.toLocaleString()} URLs scanned &middot; ${withStrapi.length.toLocaleString()} matched</div>
+      <div>${measured.length.toLocaleString()} URLs scanned &middot; Strapi: ${withStrapi.length.toLocaleString()} &middot; Builder: ${withBuilder.length.toLocaleString()}</div>
     </div>
   </div>
 
@@ -207,22 +222,27 @@ td{padding:9px 12px;vertical-align:middle;}
     <div class="card c-purple">
       <div class="card-label">Strapi Found</div>
       <div class="card-value">${withStrapi.length.toLocaleString()}</div>
-      <div class="card-note">across all pages scanned</div>
+      <div class="card-note">URLs listed below</div>
+    </div>
+    <div class="card c-orange">
+      <div class="card-label">Builder/Component Found</div>
+      <div class="card-value">${withBuilder.length.toLocaleString()}</div>
+      <div class="card-note">count only &mdash; no URL list</div>
     </div>
     <div class="card">
       <div class="card-label">Total Scanned</div>
       <div class="card-value">${measured.length.toLocaleString()}</div>
       <div class="card-note">${rows.length.toLocaleString()} requested</div>
     </div>
-    ${sourceCard("Content Pages", "content")}
-    ${sourceCard("PLPs", "plp")}
-    ${sourceCard("PDPs", "pdp")}
+    ${sourceCard("Content · Strapi", "content")}
+    ${sourceCard("PLP · Strapi", "plp")}
+    ${sourceCard("PDP · Strapi", "pdp")}
   </div>
 
   <div class="section-title" style="margin-bottom:14px;">URLs with Strapi datasources</div>
   ${
     withStrapi.length === 0
-      ? `<div class="empty-state"><strong>No Strapi datasources found</strong>None of the ${measured.length.toLocaleString()} scanned pages returned a datasource whose type contains "strapi".</div>`
+      ? `<div class="empty-state"><strong>No Strapi datasources found</strong>None of the ${measured.length.toLocaleString()} scanned pages returned a datasource whose type contains "strapi". ${withBuilder.length.toLocaleString()} page${withBuilder.length === 1 ? "" : "s"} did contain builder/component datasources.</div>`
       : `<div class="table-wrap">
     <table>
       <thead>
@@ -239,8 +259,8 @@ td{padding:9px 12px;vertical-align:middle;}
   }
 
   <div class="report-footer">
-    <span>Strapi Datasource Scan &mdash; ${generatedAt}</span>
-    <span>Content: ${bySource.content.found}/${bySource.content.scanned} &middot; PLP: ${bySource.plp.found}/${bySource.plp.scanned} &middot; PDP: ${bySource.pdp.found}/${bySource.pdp.scanned}</span>
+    <span>Datasource Scan &mdash; ${generatedAt}</span>
+    <span>Strapi &mdash; Content: ${bySource.content.found}/${bySource.content.scanned} &middot; PLP: ${bySource.plp.found}/${bySource.plp.scanned} &middot; PDP: ${bySource.pdp.found}/${bySource.pdp.scanned}</span>
   </div>
 
 </div>
@@ -252,15 +272,14 @@ export function generateStrapiReportCSV(
   results: PageResult[],
   sources: Map<string, StrapiUrlSource>
 ): string {
-  const rows = collapse(results, sources).filter((r) => r.found);
+  // CSV mirrors the URL list in the HTML report: Strapi rows only. Builder is
+  // a headline count on the report and doesn't need per-URL export.
+  const rows = collapse(results, sources).filter((r) => r.datasources.some(isStrapi));
   const header = ["url", "source", "datasource_id", "datasource_type", "location"];
   const lines: string[] = [header.map(csvCell).join(",")];
   for (const r of rows) {
-    if (r.datasources.length === 0) {
-      lines.push([r.url, r.source, "", "", ""].map(csvCell).join(","));
-      continue;
-    }
-    for (const d of r.datasources) {
+    const strapiOnly = r.datasources.filter(isStrapi);
+    for (const d of strapiOnly) {
       lines.push(
         [r.url, r.source, d.id, d.type, d.location].map(csvCell).join(",")
       );

@@ -416,11 +416,13 @@ async function auditPage(
       }, pdpChecks).catch(() => ({ checked: pdpChecks, empty: [], productFound: false }));
     }
 
-    // ── Strapi datasource scan (only in strapi mode) ────────────────────
-    // Walk __NEXT_DATA__ and flag every datasource whose type string contains
-    // "strapi" (case-insensitive) — e.g. "strapi/component", "strapi/blog".
-    // The Frontastic build stores the type under either `dataSource` or
-    // `dataSourceType` depending on the version, so we check both.
+    // ── Datasource scan (only in strapi mode) ───────────────────────────
+    // Walk __NEXT_DATA__ and flag every datasource whose type string matches
+    // one of the tracked keywords: "strapi" (any subtype — strapi/component,
+    // strapi/blog, …) and "builder/component" (Frontastic Builder). Both are
+    // returned so the report can headline strapi with URL detail and just
+    // count builder. Frontastic stores the type field under `type`,
+    // `dataSource`, or `dataSourceType` depending on version — check all.
     let strapiCheck: StrapiCheck | undefined;
     if (isStrapiMode) {
       strapiCheck = await page.evaluate((): StrapiCheck => {
@@ -434,8 +436,12 @@ async function auditPage(
           if (!nd) nd = (window as any).__NEXT_DATA__;
           if (!nd) return out;
 
-          const isStrapi = (v: unknown): v is string =>
-            typeof v === "string" && v.toLowerCase().includes("strapi");
+          const KEYWORDS = ["strapi", "builder/component"];
+          const matches = (v: unknown): v is string => {
+            if (typeof v !== "string") return false;
+            const lc = v.toLowerCase();
+            return KEYWORDS.some((k) => lc.includes(k));
+          };
 
           const dsMap =
             nd?.props?.pageProps?.data?.data?.dataSources ??
@@ -444,7 +450,7 @@ async function auditPage(
           if (dsMap && typeof dsMap === "object") {
             for (const [id, entry] of Object.entries<any>(dsMap)) {
               const t = entry?.dataSource ?? entry?.dataSourceType ?? entry?.type;
-              if (isStrapi(t)) {
+              if (matches(t)) {
                 out.datasources.push({ id, type: t as string, location: "dataSources" });
               }
             }
@@ -454,7 +460,7 @@ async function auditPage(
           if (Array.isArray(cfgs)) {
             cfgs.forEach((c: any, i: number) => {
               const t = c?.type ?? c?.dataSource ?? c?.dataSourceType;
-              if (isStrapi(t)) {
+              if (matches(t)) {
                 out.datasources.push({
                   id: c?.dataSourceId ?? c?.name ?? String(i),
                   type: t as string,
