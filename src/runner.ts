@@ -888,9 +888,13 @@ export async function runAudit(
 
       const wasCancelled = !!(signal?.cancelled);
       const allFailed = results.length === 0 || results.every((r) => !!r.error);
+      // Treat any 403 as a failed URL — the WAF blocked us and the audit
+      // result is unreliable. Marking it "failed" surfaces it in the Retest
+      // Failed queue so the user can requeue without hunting through 200s.
+      const any403 = results.some((r) => r.status === 403);
       const progress: AuditProgress = {
         url,
-        status: wasCancelled ? "failed" : allFailed ? "failed" : "done",
+        status: (wasCancelled || allFailed || any403) ? "failed" : "done",
         results,
         screenshots: shots,
       };
