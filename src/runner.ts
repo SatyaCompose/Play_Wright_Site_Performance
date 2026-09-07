@@ -128,25 +128,29 @@ function engineForProfile(
 }
 
 // ── WAF-friendly HTTP headers ─────────────────────────────────────────────
-// Cloudflare and similar WAFs fingerprint requests by the sec-ch-ua family
-// and sec-fetch-* headers. Playwright's default Chromium sends them, but
-// only when the UA is left as Playwright's default. Overriding userAgent
-// (which we do to pin Chrome/141) suppresses the auto-generated hints, so
-// the request looks like "Chrome that forgot to send its client hints" —
-// exactly what the WAF's accept-ch response header flags as suspicious.
-// Re-adding them explicitly for SSR-only modes clears 5xx/403 spikes.
+// Cloudflare fingerprints requests missing the sec-ch-ua client-hint family.
+// Chromium sends these automatically, BUT only when the UA is left as
+// Playwright's default. Overriding userAgent (which we do to pin Chrome/141)
+// suppresses the auto-hints — so the request looks like "Chrome without
+// hints", which the WAF flags via its accept-ch response header.
+//
+// Only include headers that are TRULY constant per browser context.
+// extraHTTPHeaders is applied to EVERY request (navigation, subresources,
+// cross-origin fetches, CORS preflights). Headers like
+// `upgrade-insecure-requests`, `sec-fetch-dest/mode/user`, and `Accept`
+// legitimately vary per request — hardcoding them broke CORS preflight for
+// third-party services (abtasty, cloudflareinsights, Frontastic, Builder)
+// because "upgrade-insecure-requests" was rejected as a disallowed request
+// header.
+//
+// The four kept here are low-entropy client hints; real Chrome sends the
+// same values on every request from the same UA/context, so echoing them
+// on CORS preflights is safe.
 const CHROME_141_CLIENT_HINTS = {
   "Accept-Language": "en-AU,en;q=0.9",
-  Accept:
-    "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8",
   "sec-ch-ua": '"Google Chrome";v="141", "Chromium";v="141", "Not?A_Brand";v="24"',
   "sec-ch-ua-mobile": "?0",
   "sec-ch-ua-platform": '"Windows"',
-  "sec-fetch-dest": "document",
-  "sec-fetch-mode": "navigate",
-  "sec-fetch-site": "none",
-  "sec-fetch-user": "?1",
-  "upgrade-insecure-requests": "1",
 };
 
 // ── Build Playwright newContext() options for a profile ───────────────────
