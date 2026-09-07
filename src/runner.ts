@@ -59,6 +59,36 @@ process.on("SIGTERM", () => { shuttingDown = true; });
 const browserPool = new Map<string, Browser>();
 const browserPending = new Map<string, Promise<Browser>>();
 
+// ── Proxy config from env ─────────────────────────────────────────────────
+// Datacenter IPs (Railway, AWS, DO, GCP, …) hit Cloudflare's bot blocklist
+// hard — every audit URL 403s regardless of headers/retries. Set PROXY_URL
+// to route Playwright traffic through a residential/allowlisted proxy so
+// the WAF sees a trusted IP. Format: http[s]://[user:pass@]host:port
+// Example: PROXY_URL=http://user:pass@brd.superproxy.io:22225
+function parseProxyEnv(): { server: string; username?: string; password?: string } | undefined {
+  const raw = (process.env.PROXY_URL ?? process.env.HTTPS_PROXY ?? process.env.HTTP_PROXY ?? "").trim();
+  if (!raw) return undefined;
+  try {
+    const u = new URL(raw);
+    const server = `${u.protocol}//${u.host}`;
+    const cfg: { server: string; username?: string; password?: string } = { server };
+    // URL parses embedded credentials into .username/.password. Also
+    // fall back to explicit PROXY_USERNAME / PROXY_PASSWORD env vars.
+    const user = u.username || process.env.PROXY_USERNAME;
+    const pass = u.password || process.env.PROXY_PASSWORD;
+    if (user) cfg.username = decodeURIComponent(user);
+    if (pass) cfg.password = decodeURIComponent(pass);
+    return cfg;
+  } catch {
+    console.warn(`  ⚠ PROXY_URL is malformed, ignoring: ${raw}`);
+    return undefined;
+  }
+}
+const PROXY_CONFIG = parseProxyEnv();
+if (PROXY_CONFIG) {
+  console.log(`  🌐 Playwright proxy active: ${PROXY_CONFIG.server}${PROXY_CONFIG.username ? " (auth)" : ""}`);
+}
+
 async function getBrowser(
   engineName: "chromium" | "webkit" | "firefox"
 ): Promise<Browser> {
@@ -77,6 +107,7 @@ async function getBrowser(
         engineName === "chromium"
           ? ["--no-sandbox", "--disable-setuid-sandbox"]
           : [],
+      ...(PROXY_CONFIG ? { proxy: PROXY_CONFIG } : {}),
     })
     .then((browser) => {
       browser.on("disconnected", () => {
