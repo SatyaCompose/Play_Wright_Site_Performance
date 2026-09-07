@@ -412,11 +412,29 @@ wss.on("connection", (ws, req) => {
         };
 
         try {
-          const [contentUrls, plpUrls, pdpUrls] = await Promise.all([
+          const [contentUrls, plpUrlsRaw, pdpUrls] = await Promise.all([
             fetchSitemap(contentUrl, "Content"),
             fetchSitemap(plpUrl, "PLP"),
             fetchPdp(),
           ]);
+
+          // PLP sitemaps list every paginated variant (?p=2, ?p=3, …).
+          // The Strapi datasources on those variants are identical to the
+          // main page — auditing them all is duplicate work. Keep main pages
+          // only, matching how the non-strapi PLP audit's "Main page only"
+          // subpage mode filters.
+          const isMainPageUrl = (u: string): boolean => {
+            try { return !new URL(u).searchParams.has("p"); } catch { return true; }
+          };
+          const plpUrls = plpUrlsRaw.filter(isMainPageUrl);
+          const plpDropped = plpUrlsRaw.length - plpUrls.length;
+          if (plpDropped > 0) {
+            ws.send(JSON.stringify({
+              type: "loading_urls",
+              source: "strapi-mixed",
+              message: `PLP: filtered ${plpDropped.toLocaleString()} paginated variants (?p=…), kept ${plpUrls.length.toLocaleString()} main pages`,
+            }));
+          }
 
           const merged: string[] = [];
           const seen = new Set<string>();
