@@ -421,7 +421,7 @@ async function auditPage(
         try {
           await page.waitForFunction(
             () => !!document.getElementById("__NEXT_DATA__"),
-            { timeout: 12000, polling: 500 }
+            { timeout: 20000, polling: 500 }
           );
         } catch {
           // Challenge never cleared — mark WAF-challenged so aggregator flips
