@@ -1,3 +1,10 @@
+// rebrowser-playwright is an API-compatible fork that patches Playwright's
+// well-known automation fingerprints — navigator.webdriver, CDP-specific
+// Runtime.enable / Console.messageAdded event handlers, missing plugin
+// lineup — that Cloudflare Turnstile and similar WAFs use to detect
+// headless-vs-real-browser. Fixes the fingerprint half of the anti-bot
+// problem; won't help with datacenter-IP blocks (that's the IP-rep half).
+// API surface is identical to `playwright`, so this is a drop-in import.
 import {
   chromium,
   webkit,
@@ -7,7 +14,7 @@ import {
   type BrowserContext,
   type Page,
   type BrowserType,
-} from "playwright";
+} from "rebrowser-playwright";
 import pLimit from "p-limit";
 import * as fs from "fs";
 import * as path from "path";
