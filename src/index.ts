@@ -665,6 +665,54 @@ wss.on("connection", (ws, req) => {
       return;
     }
 
+    // ── Reset everything ──────────────────────────────────────────────
+    // Nuclear option: cancel every session's in-flight audit, clear all
+    // report/URL/progress state, wipe videos on disk, and tear down the
+    // browser pool. Meant for "start over from scratch" — after a stuck
+    // run, when the pool got wedged, or before a fresh clean audit.
+    // Server-wide by design: this tool is single-tenant per install.
+    if (msg.type === "reset_all") {
+      console.log(`\n  [${sessionId.slice(0, 8)}] Reset all triggered — clearing ${sessions.size} session(s)`);
+      // Signal every session to stop first so tasks exit before we
+      // yank the browser pool out from under them.
+      for (const s of sessions.values()) {
+        s.signal.cancelled = true;
+        try { s.signal.aborter?.abort(); } catch {}
+      }
+      // Give in-flight page.close()/context.close() a beat to drain.
+      await new Promise((r) => setTimeout(r, 600));
+      for (const s of sessions.values()) {
+        s.progressMap.clear();
+        s.allUrls = [];
+        s.urlSources.clear();
+        s.auditRunning = false;
+        s.auditDone = false;
+        s.lastReportHtml = "";
+        s.lastProductReportHtml = "";
+        s.lastPdpReportHtml = "";
+        s.lastStrapiReportHtml = "";
+        s.lastStrapiReportCsv = "";
+        s.lastReportTs = "";
+        s.lastHasPdf = false;
+        s.currentSessionVideos = [];
+        s.signal = { cancelled: false };
+        s.lastRunOptions = undefined;
+        clearSessionVideos(s);
+        broadcastToSession(s, { type: "reset_complete" });
+      }
+      // Also blow away any leftover per-session report PDFs in cwd.
+      try {
+        for (const f of fs.readdirSync(process.cwd())) {
+          if (/^(report|product-report|pdp-report|strapi-report)-.*\.pdf$/.test(f)) {
+            try { fs.unlinkSync(path.join(process.cwd(), f)); } catch {}
+          }
+        }
+      } catch {}
+      try { await closeAllBrowsers(); } catch {}
+      console.log(`  [${sessionId.slice(0, 8)}] Reset complete — pool + state cleared\n`);
+      return;
+    }
+
     // ── Start audit ───────────────────────────────────────────────────
     if (msg.type === "start") {
       if (session.auditRunning) {

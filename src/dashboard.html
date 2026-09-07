@@ -2292,6 +2292,7 @@
             <button class="fb" id="stop-btn" onclick="stopAudit()" style="display:none;margin-left:8px;border-color:#f87171;color:#f87171;" title="Stop audit">■ Stop</button>
             <button class="fb" id="force-stop-btn" onclick="forceStopAudit()" style="display:none;margin-left:4px;background:#f87171;border-color:#f87171;color:#fff;font-weight:700" title="Abandon run immediately — no report">✕ Force stop</button>
             <button class="fb" id="retest-failed-btn" onclick="retestFailed()" style="display:none;margin-left:8px;border-color:#f59e0b;color:#f59e0b" title="Re-audit URLs that failed or came back with empty fields">↻ Retest failed <span id="retest-failed-count" style="opacity:.7"></span></button>
+            <button class="fb" onclick="resetAll()" style="margin-left:8px;border-color:#dc2626;color:#dc2626" title="Cancel every audit, wipe all session state, tear down the browser pool. Fresh start.">🗑 Reset all</button>
             <button class="fb" onclick="showConfig()" style="margin-left:4px" title="New run">⚙ Config</button>
         </div>
     </header>
@@ -3028,6 +3029,41 @@
                     updateConfigSummary();
                 }
 
+                // ── Reset complete (server wiped state) ──
+                // Mirror the wipe locally so the UI matches the server's
+                // now-empty session, then drop the user back at Config
+                // ready to start a fresh run.
+                if (m.type === 'reset_complete') {
+                    S.clear();
+                    shots.clear();
+                    selUrl = null; selTab = null;
+                    allUrls = [];
+                    allUrlsRaw = [];
+                    totalUrls = 0;
+                    hasReport = false;
+                    hasPdpReport = false;
+                    hasStrapiReport = false;
+                    hasPdf = false;
+                    reportTs = '';
+                    stopping = false;
+                    stopElapsedTimer();
+                    // Reset all header buttons back to their default hidden state.
+                    ['stop-btn', 'force-stop-btn', 'retest-failed-btn'].forEach(id => {
+                        const el = document.getElementById(id);
+                        if (el) el.style.display = 'none';
+                    });
+                    // Kill any lingering report button we appended dynamically.
+                    document.getElementById('view-report-hdr')?.remove();
+                    document.getElementById('ul').innerHTML = '';
+                    document.getElementById('detail').innerHTML =
+                        '<div class="de"><div class="big">🧹</div><div>State cleared. Configure a fresh audit below.</div></div>';
+                    closeReport();
+                    setLoadStatus('ok', 'Everything reset — start a fresh audit');
+                    updateHdr();
+                    showConfig();
+                    updateConfigSummary();
+                }
+
                 // ── Audit kicked off ──
                 if (m.type === 'start') {
                     if (m.profiles) profiles = m.profiles;
@@ -3220,6 +3256,21 @@
         function retestOne(url) {
             if (!url) return;
             retestUrls([url]);
+        }
+
+        // ── Reset all (destructive) ──────────────────────────────────────
+        // Server-wide wipe: cancels every audit, clears state, tears down
+        // the browser pool, deletes videos + report PDFs. Meant as a
+        // "start-from-scratch" escape hatch when a run is stuck or the
+        // pool got wedged. Guarded by confirm() because it's irreversible.
+        function resetAll() {
+            if (!ws || ws.readyState !== WebSocket.OPEN) return;
+            const running = document.getElementById('stop-btn').style.display !== 'none';
+            const msg = running
+                ? 'An audit is running. Cancel it, wipe all state, and tear down the browser pool?'
+                : 'Wipe all session state (URLs, reports, videos) and tear down the browser pool?';
+            if (!confirm(msg)) return;
+            ws.send(JSON.stringify({ type: 'reset_all' }));
         }
 
         // Hard cancel — server abandons the run immediately, no report.
