@@ -150,12 +150,7 @@ const CHROME_141_CLIENT_HINTS = {
 };
 
 // ── Build Playwright newContext() options for a profile ───────────────────
-function contextOptions(
-  profile: DeviceProfile,
-  videosDir: string,
-  quickMode = false,
-  sendClientHints = false
-) {
+function contextOptions(profile: DeviceProfile, videosDir: string, quickMode = false) {
   // Start from Playwright device descriptor if specified
   const deviceDesc = profile.playwrightDevice
     ? { ...devices[profile.playwrightDevice] }
@@ -178,9 +173,21 @@ function contextOptions(
 
   const viewport = merged.viewport ?? { width: 1440, height: 900 };
 
+  // Any Chromium context that overrides userAgent to Chrome needs explicit
+  // client hints — the UA override suppresses Playwright's auto-generated
+  // sec-ch-ua headers, and Cloudflare/similar WAFs flag "Chrome UA without
+  // matching hints" as suspicious. This applies to every audit mode that
+  // uses a Chrome-UA profile: products, full, lcp, pdp-data, strapi.
+  const overriddenUa: string | undefined = merged.userAgent;
+  const engine = engineForProfile(profile);
+  const needsChromeHints =
+    engine === "chromium" &&
+    typeof overriddenUa === "string" &&
+    /Chrome\/\d+/.test(overriddenUa);
+
   return {
     ...merged,
-    ...(sendClientHints ? { extraHTTPHeaders: CHROME_141_CLIENT_HINTS } : {}),
+    ...(needsChromeHints ? { extraHTTPHeaders: CHROME_141_CLIENT_HINTS } : {}),
     ...(quickMode ? {} : {
       recordVideo: {
         dir: videosDir,
@@ -239,10 +246,11 @@ async function auditPage(
   let context: BrowserContext | null = null;
 
   try {
-    // SSR-only modes talk to production WAFs — send Chrome client hints so
-    // the request doesn't get flagged as "Chrome UA without matching hints".
+    // contextOptions auto-adds Chrome client hints for any Chromium+Chrome-UA
+    // profile — the WAF blocks "Chrome UA without matching sec-ch-ua" regardless
+    // of audit mode, so this covers products / full / lcp / pdp-data / strapi.
     context = await browser.newContext(
-      contextOptions(profile, videosDir, effectiveQuick, isSsrOnlyMode)
+      contextOptions(profile, videosDir, effectiveQuick)
     );
     const page = await context.newPage();
 
@@ -337,17 +345,24 @@ async function auditPage(
 
     // WAF-aware retry: KWH production's Cloudflare rules rate-limit bursts
     // of parallel requests from the same IP with a 403 (bot block) or 503
-    // (challenge), both of which clear on their own within a few seconds.
-    // One backoff+retry catches these without masking real errors (a truly
-    // blocked/broken URL still returns non-2xx after the retry).
-    if (isSsrOnlyMode && (response.status() === 403 || response.status() === 503)) {
-      await page.waitForTimeout(2500 + Math.floor(Math.random() * 1500));
-      try {
-        const retryRes = await page.goto(url, { waitUntil: gotoWait, timeout: gotoTimeout });
-        if (retryRes) response = retryRes;
-      } catch {
-        // Retry navigation itself failed — keep the original response and
-        // let downstream code report the WAF status honestly.
+    // (challenge). Most clear within a couple of seconds; the odd stubborn
+    // one needs a second attempt with a longer backoff (observed: a
+    // one-in-a-hundred PDP still 403s after 3s, passes after 7s).
+    // Backoff schedule (ms, jittered ±1s): 3000, 6000.
+    if (isSsrOnlyMode) {
+      const RETRY_BACKOFFS = [3000, 6000];
+      for (const base of RETRY_BACKOFFS) {
+        const s = response.status();
+        if (s !== 403 && s !== 503) break;
+        await page.waitForTimeout(base + Math.floor(Math.random() * 1000));
+        try {
+          const retryRes = await page.goto(url, { waitUntil: gotoWait, timeout: gotoTimeout });
+          if (retryRes) response = retryRes;
+        } catch {
+          // Retry navigation itself failed — keep the last response and
+          // let downstream code report the WAF status honestly.
+          break;
+        }
       }
     }
     if (!isSsrOnlyMode) {
