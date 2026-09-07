@@ -47,6 +47,11 @@ interface Session {
   lastPdpReportHtml: string;
   lastStrapiReportHtml: string;
   lastStrapiReportCsv: string;
+  // Filesystem-safe Sydney-time stamp assigned when reports are built. Used to
+  // suffix download filenames so a user re-downloading the same report twice
+  // gets the same filename, and successive runs don't overwrite each other in
+  // the user's Downloads folder.
+  lastReportTs: string;
   lastHasPdf: boolean;
   sessionVideosDir: string;
   currentSessionVideos: string[];
@@ -71,6 +76,7 @@ function getOrCreateSession(id: string): Session {
       lastPdpReportHtml: "",
       lastStrapiReportHtml: "",
       lastStrapiReportCsv: "",
+      lastReportTs: "",
       lastHasPdf: false,
       sessionVideosDir: path.join(videosDir, id.slice(0, 8)),
       currentSessionVideos: [],
@@ -86,6 +92,34 @@ function broadcastToSession(session: Session, msg: object) {
   for (const c of session.clients) {
     if (c.readyState === WebSocket.OPEN) c.send(data);
   }
+}
+
+// Filesystem-safe timestamp in Sydney time: "2026-09-07_14-30-45". Colons,
+// slashes, and spaces would be legal on some platforms but break on others,
+// so we replace them with dashes/underscores.
+function nowForFilename(): string {
+  const parts = new Intl.DateTimeFormat("en-AU", {
+    timeZone: "Australia/Sydney",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).formatToParts(new Date());
+  const g = (t: string) => parts.find((p) => p.type === t)?.value ?? "";
+  return `${g("year")}-${g("month")}-${g("day")}_${g("hour")}-${g("minute")}-${g("second")}`;
+}
+
+// Append the given timestamp to a base filename, before its extension:
+//   stampedName("audit-report.html", "2026-09-07_14-30-45")
+//     → "audit-report-2026-09-07_14-30-45.html"
+function stampedName(base: string, ts: string): string {
+  if (!ts) return base;
+  const dot = base.lastIndexOf(".");
+  if (dot <= 0) return `${base}-${ts}`;
+  return `${base.slice(0, dot)}-${ts}${base.slice(dot)}`;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────
@@ -149,12 +183,14 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  const ts = session?.lastReportTs ?? "";
+
   if (rawPath === "/report.html") {
     const html = session?.lastReportHtml ?? "";
     if (!html) { res.writeHead(404); res.end("No report yet"); return; }
     res.writeHead(200, {
       "Content-Type": "text/html; charset=utf-8",
-      "Content-Disposition": "attachment; filename=audit-report.html",
+      "Content-Disposition": `attachment; filename=${stampedName("audit-report.html", ts)}`,
     });
     res.end(html);
     return;
@@ -167,7 +203,7 @@ const httpServer = http.createServer((req, res) => {
     res.writeHead(200, {
       "Content-Type": "application/pdf",
       "Content-Length": stat.size,
-      "Content-Disposition": "attachment; filename=audit-report.pdf",
+      "Content-Disposition": `attachment; filename=${stampedName("audit-report.pdf", ts)}`,
     });
     fs.createReadStream(p).pipe(res);
     return;
@@ -178,7 +214,7 @@ const httpServer = http.createServer((req, res) => {
     if (!html) { res.writeHead(404); res.end("No product report yet"); return; }
     res.writeHead(200, {
       "Content-Type": "text/html; charset=utf-8",
-      "Content-Disposition": "attachment; filename=product-report.html",
+      "Content-Disposition": `attachment; filename=${stampedName("product-report.html", ts)}`,
     });
     res.end(html);
     return;
@@ -191,7 +227,7 @@ const httpServer = http.createServer((req, res) => {
     res.writeHead(200, {
       "Content-Type": "application/pdf",
       "Content-Length": stat.size,
-      "Content-Disposition": "attachment; filename=product-report.pdf",
+      "Content-Disposition": `attachment; filename=${stampedName("product-report.pdf", ts)}`,
     });
     fs.createReadStream(p).pipe(res);
     return;
@@ -202,7 +238,7 @@ const httpServer = http.createServer((req, res) => {
     if (!html) { res.writeHead(404); res.end("No PDP report yet"); return; }
     res.writeHead(200, {
       "Content-Type": "text/html; charset=utf-8",
-      "Content-Disposition": "attachment; filename=pdp-report.html",
+      "Content-Disposition": `attachment; filename=${stampedName("pdp-report.html", ts)}`,
     });
     res.end(html);
     return;
@@ -215,7 +251,7 @@ const httpServer = http.createServer((req, res) => {
     res.writeHead(200, {
       "Content-Type": "application/pdf",
       "Content-Length": stat.size,
-      "Content-Disposition": "attachment; filename=pdp-report.pdf",
+      "Content-Disposition": `attachment; filename=${stampedName("pdp-report.pdf", ts)}`,
     });
     fs.createReadStream(p).pipe(res);
     return;
@@ -226,7 +262,7 @@ const httpServer = http.createServer((req, res) => {
     if (!html) { res.writeHead(404); res.end("No Strapi report yet"); return; }
     res.writeHead(200, {
       "Content-Type": "text/html; charset=utf-8",
-      "Content-Disposition": "attachment; filename=strapi-report.html",
+      "Content-Disposition": `attachment; filename=${stampedName("strapi-report.html", ts)}`,
     });
     res.end(html);
     return;
@@ -237,7 +273,7 @@ const httpServer = http.createServer((req, res) => {
     if (!csv) { res.writeHead(404); res.end("No Strapi report yet"); return; }
     res.writeHead(200, {
       "Content-Type": "text/csv; charset=utf-8",
-      "Content-Disposition": "attachment; filename=strapi-report.csv",
+      "Content-Disposition": `attachment; filename=${stampedName("strapi-report.csv", ts)}`,
     });
     res.end(csv);
     return;
@@ -250,7 +286,7 @@ const httpServer = http.createServer((req, res) => {
     res.writeHead(200, {
       "Content-Type": "application/pdf",
       "Content-Length": stat.size,
-      "Content-Disposition": "attachment; filename=strapi-report.pdf",
+      "Content-Disposition": `attachment; filename=${stampedName("strapi-report.pdf", ts)}`,
     });
     fs.createReadStream(p).pipe(res);
     return;
@@ -319,6 +355,7 @@ wss.on("connection", (ws, req) => {
       hasPdpReport: !!session.lastPdpReportHtml,
       hasStrapiReport: !!session.lastStrapiReportHtml,
       hasPdf: session.lastHasPdf,
+      reportTs: session.lastReportTs,
     })
   );
 
@@ -666,6 +703,7 @@ wss.on("connection", (ws, req) => {
       session.lastPdpReportHtml = "";
       session.lastStrapiReportHtml = "";
       session.lastStrapiReportCsv = "";
+      session.lastReportTs = "";
       session.lastHasPdf = false;
       session.progressMap.clear();
       for (const u of urlsToRun) session.progressMap.set(u, { url: u, status: "pending" });
@@ -742,6 +780,7 @@ wss.on("connection", (ws, req) => {
 
           console.log(`\n\n  [${sessionId.slice(0, 8)}] Generating reports…`);
           const allResults = allProgress.flatMap((p) => p.results ?? []);
+          session.lastReportTs = nowForFilename();
 
           if (auditMode === "pdp-data") {
             session.lastPdpReportHtml = generatePdpReportHTML(allResults, pdpChecks);
@@ -774,6 +813,7 @@ wss.on("connection", (ws, req) => {
             hasPdpReport: auditMode === "pdp-data",
             hasStrapiReport: auditMode === "strapi",
             hasPdf: session.lastHasPdf,
+            reportTs: session.lastReportTs,
           });
           console.log(`  [${sessionId.slice(0, 8)}] Done — ${allProgress.length} URLs · ${session.currentSessionVideos.length} videos`);
         } catch (e: any) {
@@ -868,6 +908,7 @@ wss.on("connection", (ws, req) => {
           // Regenerate report from the merged progress map so retested rows
           // replace their old counterparts in the downloadable HTML/PDF.
           const mergedResults = [...session.progressMap.values()].flatMap((p) => p.results ?? []);
+          session.lastReportTs = nowForFilename();
           if (auditMode === "pdp-data") {
             session.lastPdpReportHtml = generatePdpReportHTML(mergedResults, pdpChecks);
           } else if (auditMode === "strapi") {
@@ -899,6 +940,7 @@ wss.on("connection", (ws, req) => {
             hasPdpReport: auditMode === "pdp-data",
             hasStrapiReport: auditMode === "strapi",
             hasPdf: session.lastHasPdf,
+            reportTs: session.lastReportTs,
             retest: true,
           });
           console.log(`  [${sessionId.slice(0, 8)}] Retest complete — ${urlsToRun.length} URLs`);

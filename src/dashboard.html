@@ -2357,6 +2357,8 @@
         let hasPdpReport = false;
         let hasStrapiReport = false;
         let hasPdf = false;
+        let reportTs = ''; // filesystem-safe Sydney timestamp for report filenames
+
         let stopping = false; // true after Stop clicked, until `done` fires
         let auditMode = 'full'; // 'full' | 'products' | 'lcp' | 'pdp-data' | 'strapi'
         let pdpPageType = 'pdp'; // 'pdp' | 'plp' (plp not yet supported)
@@ -2803,24 +2805,34 @@
             const strapiHtmlBtn = document.getElementById('strapi-html-dl-btn');
             const strapiCsvBtn = document.getElementById('strapi-csv-dl-btn');
 
+            // Append the report timestamp before each extension so downloads
+            // in the user's Downloads folder don't collide between runs and
+            // stay in matching pairs with the server's Content-Disposition.
+            const stamp = (base) => {
+                if (!reportTs) return base;
+                const dot = base.lastIndexOf('.');
+                return dot > 0
+                    ? `${base.slice(0, dot)}-${reportTs}${base.slice(dot)}`
+                    : `${base}-${reportTs}`;
+            };
             htmlBtn.href = `/report.html${q}`;
-            htmlBtn.download = 'audit-report.html';
+            htmlBtn.download = stamp('audit-report.html');
             pdfBtn.href = `/report.pdf${q}`;
-            pdfBtn.download = 'audit-report.pdf';
+            pdfBtn.download = stamp('audit-report.pdf');
             prodPdfBtn.href = `/product-report.pdf${q}`;
-            prodPdfBtn.download = 'product-report.pdf';
+            prodPdfBtn.download = stamp('product-report.pdf');
             prodHtmlBtn.href = `/product-report.html${q}`;
-            prodHtmlBtn.download = 'product-report.html';
+            prodHtmlBtn.download = stamp('product-report.html');
             pdpPdfBtn.href = `/pdp-report.pdf${q}`;
-            pdpPdfBtn.download = 'pdp-report.pdf';
+            pdpPdfBtn.download = stamp('pdp-report.pdf');
             pdpHtmlBtn.href = `/pdp-report.html${q}`;
-            pdpHtmlBtn.download = 'pdp-report.html';
+            pdpHtmlBtn.download = stamp('pdp-report.html');
             strapiPdfBtn.href = `/strapi-report.pdf${q}`;
-            strapiPdfBtn.download = 'strapi-report.pdf';
+            strapiPdfBtn.download = stamp('strapi-report.pdf');
             strapiHtmlBtn.href = `/strapi-report.html${q}`;
-            strapiHtmlBtn.download = 'strapi-report.html';
+            strapiHtmlBtn.download = stamp('strapi-report.html');
             strapiCsvBtn.href = `/strapi-report.csv${q}`;
-            strapiCsvBtn.download = 'strapi-report.csv';
+            strapiCsvBtn.download = stamp('strapi-report.csv');
 
             panel.classList.add('open');
             htmlBtn.style.display = hasReport ? '' : 'none';
@@ -2943,6 +2955,7 @@
                         hasPdpReport = !!m.hasPdpReport;
                         hasStrapiReport = !!m.hasStrapiReport;
                         hasPdf = !!m.hasPdf;
+                        reportTs = m.reportTs ?? '';
                         showReportBtn();
                     }
 
@@ -3094,6 +3107,7 @@
                     hasPdpReport = m.hasPdpReport ?? false;
                     hasStrapiReport = m.hasStrapiReport ?? false;
                     hasPdf = m.hasPdf ?? false;
+                    reportTs = m.reportTs ?? '';
                     const wasForced = !!m.forced;
                     const wasRetest = !!m.retest;
                     stopping = false;
