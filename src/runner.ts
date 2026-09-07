@@ -405,27 +405,27 @@ async function auditPage(
       }
     }
 
-    // Cloudflare "Just a moment..." interstitial: the WAF returns 200 with
-    // a JS-challenge page instead of the real content. Since we allow
-    // scripts to load, the challenge can solve itself in a few seconds —
-    // wait up to 12s for __NEXT_DATA__ to appear (either the challenge
-    // resolves and Next.js hydrates, or navigation replaces the doc).
-    // We track whether we ever saw the challenge, and whether it cleared,
-    // so the aggregator can flip the URL to "failed" honestly.
+    // SSR-only modes: __NEXT_DATA__ is inlined on every real KWH page. Its
+    // absence right after DOMContentLoaded means one of:
+    //   - Cloudflare "Just a moment..." interstitial (challenge JS still to run)
+    //   - Cloudflare bot-block page (no __NEXT_DATA__ ever)
+    //   - Truly non-Next.js page (shouldn't happen on this site)
+    // Previous version keyed off document.title === "Just a moment..." but
+    // the title flickers through empty/loading states during the challenge→
+    // real-page transition, so the check silently missed. Just wait for the
+    // signal we actually care about: __NEXT_DATA__ presence. Up to 12s.
     let wafChallenged = false;
     if (isSsrOnlyMode) {
-      const challenged = await page.evaluate(() =>
-        document.title === "Just a moment..." && !document.getElementById("__NEXT_DATA__")
-      ).catch(() => false);
-      if (challenged) {
+      const hasNextData = await page.evaluate(() => !!document.getElementById("__NEXT_DATA__")).catch(() => false);
+      if (!hasNextData) {
         try {
           await page.waitForFunction(
             () => !!document.getElementById("__NEXT_DATA__"),
             { timeout: 12000, polling: 500 }
           );
         } catch {
-          // Challenge never cleared — mark this result as WAF-challenged
-          // so the URL surfaces as failed in the retest queue.
+          // Challenge never cleared — mark WAF-challenged so aggregator flips
+          // the URL to failed and Retest picks it up.
           wafChallenged = true;
         }
       }
@@ -621,6 +621,15 @@ async function auditPage(
           return out;
         }
       }).catch(() => ({ found: false, datasources: [] as any[], totalSeen: 0 }));
+
+      // Fallback WAF detection: if the walker actually ran but saw zero
+      // datasource entries, the __NEXT_DATA__ tree was empty/skeleton —
+      // real KWH pages always have at least one dataSource. Treat it as a
+      // challenge so retest picks it up rather than reporting a bogus
+      // "NONE MATCHED" on what's really a WAF-blocked page.
+      if (strapiCheck && (strapiCheck.totalSeen ?? 0) === 0) {
+        wafChallenged = true;
+      }
     }
 
     // ── Product count (skipped in LCP-only, PDP-data, and Strapi modes) ─
