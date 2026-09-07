@@ -18,6 +18,7 @@ import type {
   AuditProgress,
   DeviceProfile,
   PdpDataCheck,
+  StrapiCheck,
 } from "./types";
 import { DEVICE_PROFILES } from "./types";
 
@@ -185,14 +186,18 @@ async function auditPage(
   videosDir: string,
   onScreenshot?: (profileId: string, png: string) => void,
   quickMode = false,
-  auditMode: "full" | "products" | "lcp" | "pdp-data" = "full",
+  auditMode: "full" | "products" | "lcp" | "pdp-data" | "strapi" = "full",
   pdpChecks: string[] = []
 ): Promise<PageResult> {
   const isProductsMode = auditMode === "products";
   const isLcpMode = auditMode === "lcp";
   const isPdpDataMode = auditMode === "pdp-data";
-  // Products & PDP-data modes imply quick scan (no video / screenshots / vitals)
-  const effectiveQuick = quickMode || isProductsMode || isPdpDataMode;
+  const isStrapiMode = auditMode === "strapi";
+  // SSR-only modes (pdp-data, strapi) share the same fast path — parse
+  // __NEXT_DATA__ from the initial HTML, no vitals/video/screenshots.
+  const isSsrOnlyMode = isPdpDataMode || isStrapiMode;
+  // Products & SSR-only modes imply quick scan (no video / screenshots / vitals)
+  const effectiveQuick = quickMode || isProductsMode || isSsrOnlyMode;
 
   const engine = engineForProfile(profile);
   const browser = await getBrowser(engine);
@@ -202,12 +207,12 @@ async function auditPage(
     context = await browser.newContext(contextOptions(profile, videosDir, effectiveQuick));
     const page = await context.newPage();
 
-    // ── pdp-data speed boost: block subresources ───────────────────────
+    // ── SSR-only speed boost: block subresources ──────────────────────
     // We only need the HTML document to parse __NEXT_DATA__. Blocking images,
     // stylesheets, media, and fonts cuts bytes/second by ~90% and lets us
     // finish each URL in ~1-2s instead of 6-10s. `document` and `script` are
     // still allowed since Next.js hydration reads inline JSON via them.
-    if (isPdpDataMode) {
+    if (isSsrOnlyMode) {
       await context.route("**/*", (route) => {
         const t = route.request().resourceType();
         if (t === "image" || t === "media" || t === "font" || t === "stylesheet") {
@@ -232,7 +237,7 @@ async function auditPage(
       { status: number; serverTiming?: string; duration: number }
     >();
 
-    if (!isProductsMode && !isPdpDataMode) {
+    if (!isProductsMode && !isSsrOnlyMode) {
       page.on("request", (req) => reqStart.set(req.url(), Date.now()));
 
       page.on("response", async (res) => {
@@ -272,17 +277,17 @@ async function auditPage(
     page.on("pageerror", (err) => errors.push(`[PageError] ${err.message}`));
 
     // Vitals script only needed when measuring LCP/CLS/FCP
-    if (!isProductsMode && !isPdpDataMode) {
+    if (!isProductsMode && !isSsrOnlyMode) {
       await page.addInitScript(VITALS_SCRIPT);
     }
 
-    // pdp-data only needs the SSR HTML — DOMContentLoaded is enough.
+    // SSR-only modes need just the initial HTML — DOMContentLoaded is enough.
     // Other modes still wait for full load to measure vitals / capture video.
-    const gotoWait = isPdpDataMode ? "domcontentloaded" : "load";
-    const gotoTimeout = isPdpDataMode ? 30000 : 60000;
+    const gotoWait = isSsrOnlyMode ? "domcontentloaded" : "load";
+    const gotoTimeout = isSsrOnlyMode ? 30000 : 60000;
     const response = await page.goto(url, { waitUntil: gotoWait, timeout: gotoTimeout });
     if (!response) throw new Error("No response received");
-    if (!isPdpDataMode) {
+    if (!isSsrOnlyMode) {
       try {
         await page.waitForLoadState("networkidle", {
           timeout: isProductsMode ? 1000 : (quickMode ? 3000 : 15000),
@@ -292,7 +297,7 @@ async function auditPage(
       }
     }
 
-    const settlems = isPdpDataMode
+    const settlems = isSsrOnlyMode
       ? 0                              // __NEXT_DATA__ is inlined; no settle needed
       : isProductsMode
         ? 500
@@ -411,9 +416,65 @@ async function auditPage(
       }, pdpChecks).catch(() => ({ checked: pdpChecks, empty: [], productFound: false }));
     }
 
-    // ── Product count (skipped in LCP-only mode and PDP-data mode) ─────
+    // ── Strapi datasource scan (only in strapi mode) ────────────────────
+    // Walk __NEXT_DATA__ and flag every datasource whose type string contains
+    // "strapi" (case-insensitive) — e.g. "strapi/component", "strapi/blog".
+    // The Frontastic build stores the type under either `dataSource` or
+    // `dataSourceType` depending on the version, so we check both.
+    let strapiCheck: StrapiCheck | undefined;
+    if (isStrapiMode) {
+      strapiCheck = await page.evaluate((): StrapiCheck => {
+        const out: StrapiCheck = { found: false, datasources: [] };
+        try {
+          let nd: any = null;
+          const scriptEl = document.getElementById("__NEXT_DATA__");
+          if (scriptEl?.textContent) {
+            try { nd = JSON.parse(scriptEl.textContent); } catch { nd = null; }
+          }
+          if (!nd) nd = (window as any).__NEXT_DATA__;
+          if (!nd) return out;
+
+          const isStrapi = (v: unknown): v is string =>
+            typeof v === "string" && v.toLowerCase().includes("strapi");
+
+          const dsMap =
+            nd?.props?.pageProps?.data?.data?.dataSources ??
+            nd?.props?.pageProps?.data?.dataSources ??
+            null;
+          if (dsMap && typeof dsMap === "object") {
+            for (const [id, entry] of Object.entries<any>(dsMap)) {
+              const t = entry?.dataSource ?? entry?.dataSourceType ?? entry?.type;
+              if (isStrapi(t)) {
+                out.datasources.push({ id, type: t as string, location: "dataSources" });
+              }
+            }
+          }
+
+          const cfgs = nd?.props?.pageProps?.data?.pageFolder?.dataSourceConfigurations;
+          if (Array.isArray(cfgs)) {
+            cfgs.forEach((c: any, i: number) => {
+              const t = c?.type ?? c?.dataSource ?? c?.dataSourceType;
+              if (isStrapi(t)) {
+                out.datasources.push({
+                  id: c?.dataSourceId ?? c?.name ?? String(i),
+                  type: t as string,
+                  location: "pageFolder",
+                });
+              }
+            });
+          }
+
+          out.found = out.datasources.length > 0;
+          return out;
+        } catch {
+          return out;
+        }
+      }).catch(() => ({ found: false, datasources: [] as any[] }));
+    }
+
+    // ── Product count (skipped in LCP-only, PDP-data, and Strapi modes) ─
     let productCount: number | undefined;
-    if (!isLcpMode && !isPdpDataMode) {
+    if (!isLcpMode && !isSsrOnlyMode) {
       const productCountRaw = await page.evaluate((): number | null => {
         try {
           const nd = (window as any).__NEXT_DATA__;
@@ -462,7 +523,7 @@ async function auditPage(
     let vitals: WebVitals = {};
     let apiCalls: ApiCall[] = [];
 
-    if (!isProductsMode && !isPdpDataMode) {
+    if (!isProductsMode && !isSsrOnlyMode) {
       const navTiming = await page.evaluate(() => {
         const nav = performance.getEntriesByType(
           "navigation"
@@ -574,6 +635,7 @@ async function auditPage(
       videoPath,
       productCount,
       pdpDataCheck,
+      strapiCheck,
       auditedAt: new Date().toISOString(),
     };
   } catch (err: any) {
@@ -603,7 +665,7 @@ export async function runAudit(
     onProgress?: (progress: AuditProgress) => void;
     onScreenshot?: (url: string, profileId: string, png: string) => void;
     quickMode?: boolean;
-    auditMode?: "full" | "products" | "lcp" | "pdp-data";
+    auditMode?: "full" | "products" | "lcp" | "pdp-data" | "strapi";
     pdpChecks?: string[];
     signal?: { cancelled: boolean; aborter?: AbortController };
   } = {}
@@ -654,6 +716,7 @@ export async function runAudit(
       // when Chromium ran out of memory).
       const PER_URL_TIMEOUT_MS =
         auditMode === "pdp-data" ? 45000
+        : auditMode === "strapi" ? 45000
         : auditMode === "products" ? 60000
         : 120000;
 

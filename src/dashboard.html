@@ -2058,12 +2058,16 @@
                         <button class="url-chip"        id="am-products" onclick="setAuditMode('products')">📋 PLP · Product count</button>
                         <button class="url-chip active" id="am-full"     onclick="setAuditMode('full')">🌐 Full (LCP + Products)</button>
                         <button class="url-chip"        id="am-lcp"      onclick="setAuditMode('lcp')">⚡ LCP only</button>
+                        <button class="url-chip"        id="am-strapi"   onclick="setAuditMode('strapi')">🧩 Strapi · Datasource scan</button>
                     </div>
                     <div id="products-mode-note" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
                         ⚡ No video · no LCP · ~400 URLs/min · URL count uncapped
                     </div>
                     <div id="pdp-data-mode-note" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
                         ⚡ No video · no LCP · desktop only · flags buy-box fields that came back as hash-only placeholders
+                    </div>
+                    <div id="strapi-mode-note" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;line-height:1.5">
+                        🧩 Scans <code>__NEXT_DATA__</code> for datasources whose type contains "strapi". Report lists only pages where Strapi is found.
                     </div>
 
                     <!-- PDP Data extras -->
@@ -2133,6 +2137,43 @@
                                 <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">siteKeys contains KWH|T</code>,
                                 RRP-channel price &gt; 0.
                                 Requires <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">PROD_CTP_*</code> / <code style="background:var(--s3);padding:1px 6px;border-radius:3px;font-size:10px">STG_CTP_*</code> env vars (see .env.example).
+                            </div>
+                        </div>
+
+                        <!-- Strapi loader — two sitemaps + optional CT PDPs (strapi mode only) -->
+                        <div id="strapi-loader" style="display:none;padding:12px;border:1px solid rgba(124,58,237,.3);border-radius:8px;background:rgba(124,58,237,.05)">
+                            <div style="font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:#7c3aed;font-weight:700;margin-bottom:10px">🧩 Strapi · Multi-source URL loader</div>
+                            <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:10px">
+                                <div>
+                                    <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:4px">Content sitemap URL</label>
+                                    <input id="strapi-content-input" class="cfg-input" type="text" placeholder="https://example.com/sitemap-content-pages.xml">
+                                </div>
+                                <div>
+                                    <label style="font-size:11px;color:var(--muted);font-weight:600;display:block;margin-bottom:4px">PLP sitemap URL</label>
+                                    <input id="strapi-plp-input" class="cfg-input" type="text" placeholder="https://example.com/sitemap-product-list-pages.xml">
+                                </div>
+                            </div>
+                            <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;user-select:none;padding:10px;border:1px dashed rgba(124,58,237,.3);border-radius:6px;background:rgba(255,255,255,.5);margin-bottom:10px">
+                                <input type="checkbox" id="strapi-include-pdp"
+                                    style="width:15px;height:15px;margin-top:2px;flex-shrink:0;accent-color:#7c3aed;cursor:pointer"
+                                    onchange="onStrapiIncludePdpChange()">
+                                <div>
+                                    <div style="font-weight:600;font-size:12px">Include PDPs from Commercetools</div>
+                                    <div style="font-size:11px;color:var(--muted);margin-top:2px">Adds every valid PDP URL from CT to the scan. Slower run, wider coverage.</div>
+                                </div>
+                            </label>
+                            <div id="strapi-ct-env" style="display:none;margin-bottom:10px">
+                                <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:6px">Commercetools environment</div>
+                                <div style="display:flex;gap:6px">
+                                    <button class="url-chip active" id="strapi-ct-prod" onclick="setStrapiCtEnv('production')">🚀 Production</button>
+                                    <button class="url-chip" id="strapi-ct-stg" onclick="setStrapiCtEnv('staging')">🧪 Staging</button>
+                                </div>
+                            </div>
+                            <div class="cfg-input-row">
+                                <button class="load-btn" onclick="loadUrls()" id="strapi-load-btn" style="flex:1">Fetch URLs from all selected sources →</button>
+                            </div>
+                            <div style="font-size:11px;color:var(--muted);margin-top:8px;line-height:1.6">
+                                Each URL is tagged by origin (Content · PLP · PDP) so the report can break down Strapi coverage per source. Providing neither sitemap and unchecking PDPs is not allowed.
                             </div>
                         </div>
 
@@ -2284,6 +2325,9 @@
             <a class="report-dl-btn" id="product-html-dl-btn" style="color:#6b7280">⬇ Product Report HTML</a>
             <a class="report-dl-btn" id="pdp-pdf-dl-btn" style="border-color:rgba(220,38,38,.4);color:#dc2626;background:rgba(220,38,38,.07)">⬇ PDP Report PDF</a>
             <a class="report-dl-btn" id="pdp-html-dl-btn" style="color:#6b7280">⬇ PDP Report HTML</a>
+            <a class="report-dl-btn" id="strapi-pdf-dl-btn" style="border-color:rgba(124,58,237,.4);color:#7c3aed;background:rgba(124,58,237,.07)">⬇ Strapi Report PDF</a>
+            <a class="report-dl-btn" id="strapi-html-dl-btn" style="color:#6b7280">⬇ Strapi Report HTML</a>
+            <a class="report-dl-btn" id="strapi-csv-dl-btn" style="color:#6b7280">⬇ Strapi Report CSV</a>
             <button class="report-close" onclick="closeReport()">✕</button>
         </div>
         <iframe class="report-frame" id="report-frame" src="about:blank"></iframe>
@@ -2311,10 +2355,13 @@
         let elapsedStart = 0;
         let hasReport = false;
         let hasPdpReport = false;
+        let hasStrapiReport = false;
         let hasPdf = false;
         let stopping = false; // true after Stop clicked, until `done` fires
-        let auditMode = 'full'; // 'full' | 'products' | 'lcp' | 'pdp-data'
+        let auditMode = 'full'; // 'full' | 'products' | 'lcp' | 'pdp-data' | 'strapi'
         let pdpPageType = 'pdp'; // 'pdp' | 'plp' (plp not yet supported)
+        let strapiCtEnv = 'production'; // 'production' | 'staging' — CT credentials for the PDP fetch in strapi mode
+        let strapiIncludePdp = false;
 
         // ── Session ID (per-tab, persists across refreshes) ───────────────────────
         let sessionId = sessionStorage.getItem('auditSessionId');
@@ -2393,13 +2440,19 @@
             updateConfigSummary();
         }
 
-        // ── Audit mode (Full / PLP / LCP / PDP) ──────────────────────────────────
+        // ── Audit mode (Full / PLP / LCP / PDP / Strapi) ─────────────────────────
+        // Each mode maps to a source loader kind: 'ct' | 'sitemap' | 'strapi'.
+        const sourceKindFor = m =>
+            m === 'pdp-data' ? 'ct'
+            : m === 'strapi' ? 'strapi'
+            : 'sitemap';
+
         function setAuditMode(mode) {
             const prevMode = auditMode;
-            const crossedCtBoundary = (prevMode === 'pdp-data') !== (mode === 'pdp-data');
+            const crossedSourceBoundary = sourceKindFor(prevMode) !== sourceKindFor(mode);
 
             auditMode = mode;
-            ['full', 'products', 'lcp', 'pdp-data'].forEach(m => {
+            ['full', 'products', 'lcp', 'pdp-data', 'strapi'].forEach(m => {
                 const el = document.getElementById('am-' + m);
                 if (el) el.classList.toggle('active', m === mode);
             });
@@ -2408,18 +2461,21 @@
             if (pdpNote) pdpNote.style.display = mode === 'pdp-data' ? '' : 'none';
             const pdpCfg = document.getElementById('pdp-data-config');
             if (pdpCfg) pdpCfg.style.display = mode === 'pdp-data' ? '' : 'none';
+            const strapiNote = document.getElementById('strapi-mode-note');
+            if (strapiNote) strapiNote.style.display = mode === 'strapi' ? '' : 'none';
             // Quick / high-throughput modes hide the Quick Mode toggle
             const qs = document.getElementById('quick-section');
-            if (qs) qs.style.display = (mode === 'products' || mode === 'pdp-data') ? 'none' : '';
+            if (qs) qs.style.display = (mode === 'products' || mode === 'pdp-data' || mode === 'strapi') ? 'none' : '';
 
             // PLP-specific brand/category filter — only relevant when a sitemap
-            // is loaded AND we're in a sitemap-consuming mode. Hide unconditionally
-            // when PDP mode is picked, since CT provides only PDP URLs.
+            // is loaded AND we're in a sitemap-consuming mode. Hide for PDP mode
+            // (CT-only) and Strapi mode (mixed sources, no per-page filter).
             const pf = document.getElementById('product-filter-section');
-            if (pf && mode === 'pdp-data') pf.style.display = 'none';
+            if (pf && (mode === 'pdp-data' || mode === 'strapi')) pf.style.display = 'none';
 
-            // PDP Data forces desktop-only profile selection
-            if (mode === 'pdp-data' && profiles.length) {
+            // PDP Data & Strapi force desktop-chromium-only — both parse SSR HTML,
+            // multi-engine gives no additional signal but multiplies wall-clock time.
+            if ((mode === 'pdp-data' || mode === 'strapi') && profiles.length) {
                 const desktopIds = profiles.filter(p => p.id.startsWith('desktop-')).map(p => p.id);
                 selectedProfileIds = desktopIds.length ? [desktopIds[0]] : [profiles[0].id];
                 profiles.forEach(p => {
@@ -2428,10 +2484,10 @@
                 });
             }
 
-            // Crossing the CT/sitemap boundary invalidates the loaded URL set —
-            // CT returns PDP URLs, sitemap returns whatever the file lists.
-            // Clear so the user re-loads from the correct source.
-            if (crossedCtBoundary && allUrlsRaw.length > 0) {
+            // Crossing a source-kind boundary invalidates the loaded URL set —
+            // each source returns a different shape (CT PDPs, single sitemap, or
+            // the multi-source Strapi mix). Clear so the user re-loads correctly.
+            if (crossedSourceBoundary && allUrlsRaw.length > 0) {
                 allUrlsRaw = [];
                 allUrls = [];
                 isProductListSitemap = false;
@@ -2470,22 +2526,28 @@
             document.getElementById('ct-env-stg').classList.toggle('active', env === 'staging');
         }
 
-        // Show CT loader for pdp-data mode; show sitemap input for everything else.
-        // Also updates the source-mode badge, tab label, and hint text so the
-        // user can see at a glance which loader is currently active.
+        // Swap between the three loaders (CT / sitemap / strapi) based on audit
+        // mode. Also updates the source-mode badge, tab label, and hint text so
+        // the user can see at a glance which loader is currently active.
         function refreshSourcePane() {
-            const usingCt = auditMode === 'pdp-data';
+            const kind = sourceKindFor(auditMode); // 'ct' | 'sitemap' | 'strapi'
             const ctEl = document.getElementById('ct-loader');
             const smEl = document.getElementById('sitemap-loader');
-            if (ctEl) ctEl.style.display = usingCt ? '' : 'none';
-            if (smEl) smEl.style.display = usingCt ? 'none' : '';
+            const stEl = document.getElementById('strapi-loader');
+            if (ctEl) ctEl.style.display = kind === 'ct' ? '' : 'none';
+            if (smEl) smEl.style.display = kind === 'sitemap' ? '' : 'none';
+            if (stEl) stEl.style.display = kind === 'strapi' ? '' : 'none';
 
             const badge = document.getElementById('src-mode-badge');
             if (badge) {
-                if (usingCt) {
+                if (kind === 'ct') {
                     badge.textContent = 'COMMERCETOOLS';
                     badge.style.background = 'rgba(168,85,247,.15)';
                     badge.style.color = '#a855f7';
+                } else if (kind === 'strapi') {
+                    badge.textContent = 'STRAPI MIX';
+                    badge.style.background = 'rgba(124,58,237,.15)';
+                    badge.style.color = '#7c3aed';
                 } else {
                     badge.textContent = 'SITEMAP';
                     badge.style.background = 'rgba(59,130,246,.15)';
@@ -2494,25 +2556,65 @@
             }
 
             const tabLabel = document.getElementById('tab-sitemap-label');
-            if (tabLabel) tabLabel.textContent = usingCt ? '🛍 Commercetools products' : '📋 Sitemap / URL list';
+            if (tabLabel) tabLabel.textContent =
+                kind === 'ct' ? '🛍 Commercetools products'
+                : kind === 'strapi' ? '🧩 Sitemaps + CT (Strapi scan)'
+                : '📋 Sitemap / URL list';
 
             const hint = document.getElementById('src-mode-hint');
             if (hint) {
-                hint.textContent = usingCt
-                    ? 'PDP Data audits pull URLs from Commercetools — no sitemap URL needed. Change the audit mode below to switch back to a sitemap source.'
-                    : 'Sitemap source active. Switch to PDP Data mode (step 3) to pull URLs from Commercetools instead.';
+                hint.textContent =
+                    kind === 'ct'
+                        ? 'PDP Data audits pull URLs from Commercetools — no sitemap URL needed. Change the audit mode below to switch back to a sitemap source.'
+                        : kind === 'strapi'
+                            ? 'Strapi scan takes content and PLP sitemaps; PDPs from CT are optional. Fetching merges them into one deduped set tagged by origin.'
+                            : 'Sitemap source active. Switch to PDP Data mode (step 3) to pull URLs from Commercetools instead.';
             }
+        }
+
+        function setStrapiCtEnv(env) {
+            strapiCtEnv = env;
+            document.getElementById('strapi-ct-prod').classList.toggle('active', env === 'production');
+            document.getElementById('strapi-ct-stg').classList.toggle('active', env === 'staging');
+        }
+
+        function onStrapiIncludePdpChange() {
+            strapiIncludePdp = !!document.getElementById('strapi-include-pdp')?.checked;
+            const envEl = document.getElementById('strapi-ct-env');
+            if (envEl) envEl.style.display = strapiIncludePdp ? '' : 'none';
         }
 
         function loadUrls() {
             if (!ws || ws.readyState !== WebSocket.OPEN) return;
-            const usingCt = auditMode === 'pdp-data';
-            if (usingCt) {
+            const kind = sourceKindFor(auditMode);
+            if (kind === 'ct') {
                 const label = ctEnv === 'production' ? 'Production' : 'Staging';
                 setLoadStatus('loading', `Fetching product URLs from Commercetools (${label})…`);
                 const btn = document.getElementById('ct-load-btn');
                 if (btn) btn.disabled = true;
                 ws.send(JSON.stringify({ type: 'load_urls', sourceType: 'ct', env: ctEnv }));
+            } else if (kind === 'strapi') {
+                const content = document.getElementById('strapi-content-input').value.trim();
+                const plp = document.getElementById('strapi-plp-input').value.trim();
+                if (!content && !plp && !strapiIncludePdp) {
+                    setLoadStatus('error', 'Provide at least one sitemap URL or enable CT PDPs');
+                    return;
+                }
+                const parts = [];
+                if (content) parts.push('content sitemap');
+                if (plp) parts.push('PLP sitemap');
+                if (strapiIncludePdp) parts.push(`CT PDPs (${strapiCtEnv})`);
+                setLoadStatus('loading', `Fetching ${parts.join(' + ')}…`);
+                const btn = document.getElementById('strapi-load-btn');
+                if (btn) btn.disabled = true;
+                ws.send(JSON.stringify({
+                    type: 'load_urls',
+                    sourceType: 'strapi-mixed',
+                    contentSitemap: content,
+                    plpSitemap: plp,
+                    includePdp: strapiIncludePdp,
+                    ctEnv: strapiCtEnv,
+                }));
             } else {
                 const source = document.getElementById('sitemap-input').value.trim();
                 if (!source) return;
@@ -2592,7 +2694,7 @@
             buildDeviceCards();
             document.getElementById('devices-section').style.display = '';
             document.getElementById('quick-section').style.display =
-                (auditMode === 'products' || auditMode === 'pdp-data') ? 'none' : '';
+                (auditMode === 'products' || auditMode === 'pdp-data' || auditMode === 'strapi') ? 'none' : '';
         }
 
         // ── Build URL chips after sitemap loads ───────────────────────────────────
@@ -2604,7 +2706,7 @@
 
             badge.textContent = total.toLocaleString() + ' total';
 
-            const steps = (auditMode === 'products' || auditMode === 'pdp-data') ? URL_STEPS_PRODUCTS : URL_STEPS_FULL;
+            const steps = (auditMode === 'products' || auditMode === 'pdp-data' || auditMode === 'strapi') ? URL_STEPS_PRODUCTS : URL_STEPS_FULL;
             const available = steps.filter(n => n <= total);
             if (!available.includes(total)) available.push(total);
 
@@ -2684,8 +2786,11 @@
             const frame = document.getElementById('report-frame');
             const q = `?session=${sessionId}`;
 
-            // PDP-data audits produce a different report — preview + download that one instead
-            const previewPath = hasPdpReport ? '/pdp-report.html' : '/report';
+            // Mode-specific reports pick their own preview URL — strapi > pdp > full.
+            const previewPath =
+                hasStrapiReport ? '/strapi-report.html'
+                : hasPdpReport ? '/pdp-report.html'
+                : '/report';
             frame.src = `${previewPath}${q}`;
 
             const htmlBtn = document.getElementById('report-html-dl-btn');
@@ -2694,6 +2799,9 @@
             const prodHtmlBtn = document.getElementById('product-html-dl-btn');
             const pdpPdfBtn = document.getElementById('pdp-pdf-dl-btn');
             const pdpHtmlBtn = document.getElementById('pdp-html-dl-btn');
+            const strapiPdfBtn = document.getElementById('strapi-pdf-dl-btn');
+            const strapiHtmlBtn = document.getElementById('strapi-html-dl-btn');
+            const strapiCsvBtn = document.getElementById('strapi-csv-dl-btn');
 
             htmlBtn.href = `/report.html${q}`;
             htmlBtn.download = 'audit-report.html';
@@ -2707,6 +2815,12 @@
             pdpPdfBtn.download = 'pdp-report.pdf';
             pdpHtmlBtn.href = `/pdp-report.html${q}`;
             pdpHtmlBtn.download = 'pdp-report.html';
+            strapiPdfBtn.href = `/strapi-report.pdf${q}`;
+            strapiPdfBtn.download = 'strapi-report.pdf';
+            strapiHtmlBtn.href = `/strapi-report.html${q}`;
+            strapiHtmlBtn.download = 'strapi-report.html';
+            strapiCsvBtn.href = `/strapi-report.csv${q}`;
+            strapiCsvBtn.download = 'strapi-report.csv';
 
             panel.classList.add('open');
             htmlBtn.style.display = hasReport ? '' : 'none';
@@ -2715,6 +2829,9 @@
             prodHtmlBtn.style.display = hasReport ? '' : 'none';
             pdpPdfBtn.style.display = (hasPdpReport && hasPdf) ? '' : 'none';
             pdpHtmlBtn.style.display = hasPdpReport ? '' : 'none';
+            strapiPdfBtn.style.display = (hasStrapiReport && hasPdf) ? '' : 'none';
+            strapiHtmlBtn.style.display = hasStrapiReport ? '' : 'none';
+            strapiCsvBtn.style.display = hasStrapiReport ? '' : 'none';
         }
         function closeReport() {
             document.getElementById('report-panel').classList.remove('open');
@@ -2759,8 +2876,9 @@
             const manualUrls = getManualUrls();
 
             if (allUrlsRaw.length === 0 && manualUrls.length === 0) {
-                const hint = auditMode === 'pdp-data'
-                    ? 'Fetch URLs from Commercetools or paste URLs first'
+                const hint =
+                    auditMode === 'pdp-data' ? 'Fetch URLs from Commercetools or paste URLs first'
+                    : auditMode === 'strapi' ? 'Fetch URLs from the sitemaps / CT (or paste URLs) first'
                     : 'Load a sitemap or paste URLs first';
                 setLoadStatus('error', hint);
                 switchSource('sitemap');
@@ -2820,9 +2938,10 @@
                         buildDeviceCards();
                     }
                     if (m.urls?.length) { allUrlsRaw = m.urls; allUrls = m.urls; buildUrlChips(); }
-                    if (m.hasReport || m.hasPdpReport) {
+                    if (m.hasReport || m.hasPdpReport || m.hasStrapiReport) {
                         hasReport = !!m.hasReport;
                         hasPdpReport = !!m.hasPdpReport;
+                        hasStrapiReport = !!m.hasStrapiReport;
                         hasPdf = !!m.hasPdf;
                         showReportBtn();
                     }
@@ -2839,13 +2958,14 @@
                     updateConfigSummary();
                 }
 
-                // ── URLs loaded (from CT or sitemap) ──
+                // ── URLs loaded (from CT, sitemap, or strapi-mixed) ──
                 if (m.type === 'urls_loaded') {
                     allUrlsRaw = m.urls ?? [];
                     const src = (m.source ?? '').toString();
                     const fromCt = src.startsWith('commercetools');
+                    const fromStrapiMix = src === 'strapi-mixed';
                     // PLP filters only apply to the KWH product-list sitemap
-                    isProductListSitemap = !fromCt && src.includes('sitemap-product-list-pages.xml');
+                    isProductListSitemap = !fromCt && !fromStrapiMix && src.includes('sitemap-product-list-pages.xml');
                     productListFilter = 'all';
                     subpageMode = 'main';
                     const pf = document.getElementById('product-filter-section');
@@ -2861,14 +2981,20 @@
                     applyProductFilter();
 
                     // Re-enable whichever button was disabled
-                    ['load-btn', 'ct-load-btn'].forEach(id => {
+                    ['load-btn', 'ct-load-btn', 'strapi-load-btn'].forEach(id => {
                         const b = document.getElementById(id);
                         if (b) b.disabled = false;
                     });
 
-                    const msg = fromCt
-                        ? `${allUrlsRaw.length.toLocaleString()} URLs loaded from Commercetools (${m.env === 'staging' ? 'Staging' : 'Production'})`
-                        : `${allUrlsRaw.length.toLocaleString()} URLs loaded`;
+                    let msg;
+                    if (fromCt) {
+                        msg = `${allUrlsRaw.length.toLocaleString()} URLs loaded from Commercetools (${m.env === 'staging' ? 'Staging' : 'Production'})`;
+                    } else if (fromStrapiMix) {
+                        const b = m.breakdown ?? { content: 0, plp: 0, pdp: 0 };
+                        msg = `${allUrlsRaw.length.toLocaleString()} URLs loaded — content: ${b.content.toLocaleString()} · PLP: ${b.plp.toLocaleString()} · PDP: ${b.pdp.toLocaleString()}`;
+                    } else {
+                        msg = `${allUrlsRaw.length.toLocaleString()} URLs loaded`;
+                    }
                     setLoadStatus('ok', msg);
                     buildUrlChips();
                     updateConfigSummary();
@@ -2882,7 +3008,7 @@
                 // ── Server error ──
                 if (m.type === 'error') {
                     setLoadStatus('error', m.message);
-                    ['load-btn', 'ct-load-btn'].forEach(id => {
+                    ['load-btn', 'ct-load-btn', 'strapi-load-btn'].forEach(id => {
                         const b = document.getElementById(id);
                         if (b) b.disabled = false;
                     });
@@ -2966,6 +3092,7 @@
                 if (m.type === 'done') {
                     hasReport = m.hasReport ?? false;
                     hasPdpReport = m.hasPdpReport ?? false;
+                    hasStrapiReport = m.hasStrapiReport ?? false;
                     hasPdf = m.hasPdf ?? false;
                     const wasForced = !!m.forced;
                     const wasRetest = !!m.retest;
@@ -3105,7 +3232,7 @@
         }
 
         function showReportBtn() {
-            if (!hasReport && !hasPdpReport) return;
+            if (!hasReport && !hasPdpReport && !hasStrapiReport) return;
             let btn = document.getElementById('view-report-hdr');
             if (!btn) {
                 btn = document.createElement('button');

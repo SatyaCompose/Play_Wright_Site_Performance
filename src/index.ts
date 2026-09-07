@@ -11,6 +11,7 @@ import { runAudit, closeAllBrowsers } from "./runner";
 import { generateHTMLReport } from "./report";
 import { generateProductReportHTML } from "./product-report";
 import { generatePdpReportHTML } from "./pdp-report";
+import { generateStrapiReportHTML, generateStrapiReportCSV, type StrapiUrlSource } from "./strapi-report";
 import { generatePDF } from "./pdf";
 import type { AuditProgress } from "./types";
 import { DEVICE_PROFILES } from "./types";
@@ -26,7 +27,7 @@ const videosDir = process.env.VIDEOS_DIR ?? "./videos";
 // ── Per-session state ─────────────────────────────────────────────────────
 interface LastRunOptions {
   profileIds: string[];
-  auditMode: "full" | "products" | "lcp" | "pdp-data";
+  auditMode: "full" | "products" | "lcp" | "pdp-data" | "strapi";
   pdpChecks: string[];
   quickMode: boolean;
 }
@@ -37,9 +38,15 @@ interface Session {
   auditDone: boolean;
   auditRunning: boolean;
   allUrls: string[];
+  // For strapi-mixed runs, tracks the origin sitemap/CT for each URL so the
+  // report can group results by content / PLP / PDP without asking the client
+  // to re-send the mapping on each broadcast.
+  urlSources: Map<string, StrapiUrlSource>;
   lastReportHtml: string;
   lastProductReportHtml: string;
   lastPdpReportHtml: string;
+  lastStrapiReportHtml: string;
+  lastStrapiReportCsv: string;
   lastHasPdf: boolean;
   sessionVideosDir: string;
   currentSessionVideos: string[];
@@ -58,9 +65,12 @@ function getOrCreateSession(id: string): Session {
       auditDone: false,
       auditRunning: false,
       allUrls: [],
+      urlSources: new Map(),
       lastReportHtml: "",
       lastProductReportHtml: "",
       lastPdpReportHtml: "",
+      lastStrapiReportHtml: "",
+      lastStrapiReportCsv: "",
       lastHasPdf: false,
       sessionVideosDir: path.join(videosDir, id.slice(0, 8)),
       currentSessionVideos: [],
@@ -211,6 +221,41 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
+  if (rawPath === "/strapi-report.html") {
+    const html = session?.lastStrapiReportHtml ?? "";
+    if (!html) { res.writeHead(404); res.end("No Strapi report yet"); return; }
+    res.writeHead(200, {
+      "Content-Type": "text/html; charset=utf-8",
+      "Content-Disposition": "attachment; filename=strapi-report.html",
+    });
+    res.end(html);
+    return;
+  }
+
+  if (rawPath === "/strapi-report.csv") {
+    const csv = session?.lastStrapiReportCsv ?? "";
+    if (!csv) { res.writeHead(404); res.end("No Strapi report yet"); return; }
+    res.writeHead(200, {
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": "attachment; filename=strapi-report.csv",
+    });
+    res.end(csv);
+    return;
+  }
+
+  if (rawPath === "/strapi-report.pdf") {
+    const p = path.join(process.cwd(), `strapi-report-${sessionId}.pdf`);
+    if (!sessionId || !fs.existsSync(p)) { res.writeHead(404); res.end("No Strapi report PDF yet"); return; }
+    const stat = fs.statSync(p);
+    res.writeHead(200, {
+      "Content-Type": "application/pdf",
+      "Content-Length": stat.size,
+      "Content-Disposition": "attachment; filename=strapi-report.pdf",
+    });
+    fs.createReadStream(p).pipe(res);
+    return;
+  }
+
   // Video streaming + optional download
   if (rawPath.startsWith("/videos/")) {
     const fp = path.join(process.cwd(), rawPath);
@@ -272,6 +317,7 @@ wss.on("connection", (ws, req) => {
       done: session.auditDone,
       hasReport: !!session.lastReportHtml,
       hasPdpReport: !!session.lastPdpReportHtml,
+      hasStrapiReport: !!session.lastStrapiReportHtml,
       hasPdf: session.lastHasPdf,
     })
   );
@@ -290,6 +336,130 @@ wss.on("connection", (ws, req) => {
     //     sitemap index, plain-text URL list, or single page. Used for PLP /
     //     full / lcp modes where the sitemap is the source of truth.
     if (msg.type === "load_urls") {
+      // ── Strapi mode: two sitemaps + optional CT PDPs ───────────────
+      // Fetch all three in parallel, dedupe, tag each URL by origin so the
+      // report can group results without another round-trip. Origin priority
+      // if the same URL appears in two sources: pdp > plp > content (matches
+      // how a KWH URL is more specifically identified by CT than by sitemap).
+      if (msg.sourceType === "strapi-mixed") {
+        const contentUrl: string = (msg.contentSitemap ?? "").trim();
+        const plpUrl: string = (msg.plpSitemap ?? "").trim();
+        const includePdp = !!msg.includePdp;
+        const ctEnv: CTEnv = msg.ctEnv === "staging" ? "staging" : "production";
+
+        if (!contentUrl && !plpUrl && !includePdp) {
+          ws.send(JSON.stringify({ type: "error", message: "Provide at least one sitemap URL or enable CT PDPs" }));
+          return;
+        }
+
+        ws.send(JSON.stringify({ type: "loading_urls", source: "strapi-mixed" }));
+
+        const rewriteToOrigin = (urls: string[], sourceHref: string): string[] => {
+          try {
+            const src = new URL(sourceHref);
+            return urls.map((u) => {
+              try {
+                const p = new URL(u);
+                if (p.origin !== src.origin) {
+                  p.hostname = src.hostname;
+                  p.protocol = src.protocol;
+                  p.port = src.port;
+                  return p.toString();
+                }
+              } catch {}
+              return u;
+            });
+          } catch {
+            return urls;
+          }
+        };
+
+        const fetchSitemap = async (u: string, label: string): Promise<string[]> => {
+          if (!u) return [];
+          try {
+            const timeout = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error(`Timed out fetching ${label} sitemap`)), 180000)
+            );
+            const raw = await Promise.race([
+              getUrlsFromSitemap(u, (m) => {
+                ws.send(JSON.stringify({ type: "loading_urls", source: "strapi-mixed", message: `${label}: ${m}` }));
+              }),
+              timeout,
+            ]);
+            return rewriteToOrigin(raw, u);
+          } catch (e: any) {
+            ws.send(JSON.stringify({ type: "loading_urls", source: "strapi-mixed", message: `${label} failed: ${e.message}` }));
+            return [];
+          }
+        };
+
+        const fetchPdp = async (): Promise<string[]> => {
+          if (!includePdp) return [];
+          try {
+            const timeout = new Promise<never>((_, reject) =>
+              setTimeout(() => reject(new Error("Timed out fetching CT PDPs")), 180000)
+            );
+            return await Promise.race([
+              getCTProductUrls(ctEnv, (m) => {
+                ws.send(JSON.stringify({ type: "loading_urls", source: "strapi-mixed", message: `CT: ${m}` }));
+              }),
+              timeout,
+            ]);
+          } catch (e: any) {
+            ws.send(JSON.stringify({ type: "loading_urls", source: "strapi-mixed", message: `CT PDPs failed: ${e.message}` }));
+            return [];
+          }
+        };
+
+        try {
+          const [contentUrls, plpUrls, pdpUrls] = await Promise.all([
+            fetchSitemap(contentUrl, "Content"),
+            fetchSitemap(plpUrl, "PLP"),
+            fetchPdp(),
+          ]);
+
+          const merged: string[] = [];
+          const seen = new Set<string>();
+          const sources = new Map<string, StrapiUrlSource>();
+          // pdp > plp > content — first seen wins, so iterate priority-first
+          const push = (list: string[], tag: StrapiUrlSource) => {
+            for (const u of list) {
+              if (seen.has(u)) continue;
+              seen.add(u);
+              merged.push(u);
+              sources.set(u, tag);
+            }
+          };
+          push(pdpUrls, "pdp");
+          push(plpUrls, "plp");
+          push(contentUrls, "content");
+
+          session.allUrls = merged;
+          session.urlSources = sources;
+
+          console.log(
+            `  [${sessionId.slice(0, 8)}] Strapi-mixed loaded ${merged.length} URLs ` +
+            `(content=${contentUrls.length}, plp=${plpUrls.length}, pdp=${pdpUrls.length})`
+          );
+
+          broadcastToSession(session, {
+            type: "urls_loaded",
+            urls: session.allUrls,
+            total: session.allUrls.length,
+            source: "strapi-mixed",
+            breakdown: {
+              content: contentUrls.length,
+              plp: plpUrls.length,
+              pdp: pdpUrls.length,
+            },
+          });
+        } catch (e: any) {
+          console.error(`  [${sessionId.slice(0, 8)}] strapi-mixed load error:`, e.message);
+          ws.send(JSON.stringify({ type: "error", message: e.message }));
+        }
+        return;
+      }
+
       const useCt = msg.sourceType === "ct";
 
       if (useCt) {
@@ -309,6 +479,7 @@ wss.on("connection", (ws, req) => {
           // CT is the source of truth for uniqueness — getCTProductUrls already
           // uses a Set. Assign directly.
           session.allUrls = urls;
+          session.urlSources.clear();
           console.log(`  [${sessionId.slice(0, 8)}] Loaded ${session.allUrls.length} URLs from Commercetools (${ctEnv})`);
           broadcastToSession(session, {
             type: "urls_loaded",
@@ -358,6 +529,7 @@ wss.on("connection", (ws, req) => {
         // dedupe here (preserve first-seen order) so a URL isn't audited twice.
         const seen = new Set<string>();
         session.allUrls = [];
+        session.urlSources.clear();
         for (const u of rewritten) {
           if (!seen.has(u)) { seen.add(u); session.allUrls.push(u); }
         }
@@ -429,6 +601,7 @@ wss.on("connection", (ws, req) => {
           total,
           hasReport: false,
           hasPdpReport: false,
+          hasStrapiReport: false,
           hasPdf: false,
           forced: true,
         });
@@ -445,7 +618,7 @@ wss.on("connection", (ws, req) => {
       }
 
       const quickMode: boolean = !!msg.quickMode;
-      const auditMode: "full" | "products" | "lcp" | "pdp-data" = msg.auditMode ?? "full";
+      const auditMode: "full" | "products" | "lcp" | "pdp-data" | "strapi" = msg.auditMode ?? "full";
       const pdpChecks: string[] = Array.isArray(msg.pdpChecks)
         ? msg.pdpChecks.filter((k: unknown): k is string => typeof k === "string")
         : [];
@@ -473,6 +646,8 @@ wss.on("connection", (ws, req) => {
       session.lastReportHtml = "";
       session.lastProductReportHtml = "";
       session.lastPdpReportHtml = "";
+      session.lastStrapiReportHtml = "";
+      session.lastStrapiReportCsv = "";
       session.lastHasPdf = false;
       session.progressMap.clear();
       for (const u of urlsToRun) session.progressMap.set(u, { url: u, status: "pending" });
@@ -492,6 +667,7 @@ wss.on("connection", (ws, req) => {
         try {
           const effectiveConcurrency =
             auditMode === "pdp-data" ? Math.max(concurrency, 25)   // Playwright w/ subresource block + disconnect/timeout guards
+            : auditMode === "strapi" ? Math.max(concurrency, 25)
             : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;
@@ -523,7 +699,7 @@ wss.on("connection", (ws, req) => {
               ).length;
               process.stdout.write(`\r  [${sessionId.slice(0, 8)}] ${done} / ${urlsToRun.length} done   `);
             },
-            onScreenshot: (quickMode || auditMode === "products" || auditMode === "pdp-data") ? undefined : (url, profileId, png) => {
+            onScreenshot: (quickMode || auditMode === "products" || auditMode === "pdp-data" || auditMode === "strapi") ? undefined : (url, profileId, png) => {
               broadcastToSession(session, { type: "screenshot", url, profileId, png });
             },
           });
@@ -551,6 +727,9 @@ wss.on("connection", (ws, req) => {
 
           if (auditMode === "pdp-data") {
             session.lastPdpReportHtml = generatePdpReportHTML(allResults, pdpChecks);
+          } else if (auditMode === "strapi") {
+            session.lastStrapiReportHtml = generateStrapiReportHTML(allResults, session.urlSources);
+            session.lastStrapiReportCsv = generateStrapiReportCSV(allResults, session.urlSources);
           } else {
             session.lastReportHtml = generateHTMLReport(allResults);
             session.lastProductReportHtml = generateProductReportHTML(allResults);
@@ -559,6 +738,8 @@ wss.on("connection", (ws, req) => {
           try {
             if (auditMode === "pdp-data") {
               await generatePDF(session.lastPdpReportHtml, `pdp-report-${sessionId}.pdf`, false, true, "PDP Empty-Data Report");
+            } else if (auditMode === "strapi") {
+              await generatePDF(session.lastStrapiReportHtml, `strapi-report-${sessionId}.pdf`, false, true, "Strapi Datasource Scan");
             } else {
               await generatePDF(session.lastReportHtml, `report-${sessionId}.pdf`, true, false, "Audit Report");
               await generatePDF(session.lastProductReportHtml, `product-report-${sessionId}.pdf`, false, true, "Product Count Report");
@@ -571,8 +752,9 @@ wss.on("connection", (ws, req) => {
           broadcastToSession(session, {
             type: "done",
             total: allProgress.length,
-            hasReport: auditMode !== "pdp-data",
+            hasReport: auditMode !== "pdp-data" && auditMode !== "strapi",
             hasPdpReport: auditMode === "pdp-data",
+            hasStrapiReport: auditMode === "strapi",
             hasPdf: session.lastHasPdf,
           });
           console.log(`  [${sessionId.slice(0, 8)}] Done — ${allProgress.length} URLs · ${session.currentSessionVideos.length} videos`);
@@ -632,6 +814,7 @@ wss.on("connection", (ws, req) => {
         try {
           const effectiveConcurrency =
             auditMode === "pdp-data" ? Math.max(concurrency, 25)
+            : auditMode === "strapi" ? Math.max(concurrency, 25)
             : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;
@@ -656,7 +839,7 @@ wss.on("connection", (ws, req) => {
                 }
               }
             },
-            onScreenshot: (quickMode || auditMode === "products" || auditMode === "pdp-data") ? undefined : (url, profileId, png) => {
+            onScreenshot: (quickMode || auditMode === "products" || auditMode === "pdp-data" || auditMode === "strapi") ? undefined : (url, profileId, png) => {
               broadcastToSession(session, { type: "screenshot", url, profileId, png });
             },
           });
@@ -669,6 +852,9 @@ wss.on("connection", (ws, req) => {
           const mergedResults = [...session.progressMap.values()].flatMap((p) => p.results ?? []);
           if (auditMode === "pdp-data") {
             session.lastPdpReportHtml = generatePdpReportHTML(mergedResults, pdpChecks);
+          } else if (auditMode === "strapi") {
+            session.lastStrapiReportHtml = generateStrapiReportHTML(mergedResults, session.urlSources);
+            session.lastStrapiReportCsv = generateStrapiReportCSV(mergedResults, session.urlSources);
           } else {
             session.lastReportHtml = generateHTMLReport(mergedResults);
             session.lastProductReportHtml = generateProductReportHTML(mergedResults);
@@ -677,6 +863,8 @@ wss.on("connection", (ws, req) => {
           try {
             if (auditMode === "pdp-data") {
               await generatePDF(session.lastPdpReportHtml, `pdp-report-${sessionId}.pdf`, false, true, "PDP Empty-Data Report");
+            } else if (auditMode === "strapi") {
+              await generatePDF(session.lastStrapiReportHtml, `strapi-report-${sessionId}.pdf`, false, true, "Strapi Datasource Scan");
             } else {
               await generatePDF(session.lastReportHtml, `report-${sessionId}.pdf`, true, false, "Audit Report");
               await generatePDF(session.lastProductReportHtml, `product-report-${sessionId}.pdf`, false, true, "Product Count Report");
@@ -689,8 +877,9 @@ wss.on("connection", (ws, req) => {
           broadcastToSession(session, {
             type: "done",
             total: session.progressMap.size,
-            hasReport: auditMode !== "pdp-data",
+            hasReport: auditMode !== "pdp-data" && auditMode !== "strapi",
             hasPdpReport: auditMode === "pdp-data",
+            hasStrapiReport: auditMode === "strapi",
             hasPdf: session.lastHasPdf,
             retest: true,
           });

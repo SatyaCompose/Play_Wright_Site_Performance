@@ -28,6 +28,7 @@ export interface PageResult {
   engine?: string;
   productCount?: number; // null-ish absent means "not measured"; 0 means measured and empty
   pdpDataCheck?: PdpDataCheck; // absent means "not measured" for this mode
+  strapiCheck?: StrapiCheck; // absent means "not measured" for this mode
 }
 
 // Per-URL result for the PDP empty-data check: which requested fields were
@@ -37,6 +38,21 @@ export interface PdpDataCheck {
   checked: string[];
   empty: string[];
   productFound: boolean;
+}
+
+// Per-URL result for the Strapi datasource scan. `found` is true when at
+// least one datasource entry (in __NEXT_DATA__) has a type field containing
+// "strapi". The `datasources` list records each match so the report can name
+// exactly which components were served from Strapi on this page.
+export interface StrapiCheck {
+  found: boolean;
+  datasources: StrapiDatasource[];
+}
+
+export interface StrapiDatasource {
+  id: string;                                    // dsId key in dataSources map, or index
+  type: string;                                  // e.g. "strapi/component", "strapi/blog"
+  location: "dataSources" | "pageFolder";        // which __NEXT_DATA__ subtree it came from
 }
 
 export type AuditStatus = "pending" | "running" | "done" | "failed";
