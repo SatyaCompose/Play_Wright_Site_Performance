@@ -722,8 +722,12 @@ wss.on("connection", (ws, req) => {
       setImmediate(async () => {
         try {
           const effectiveConcurrency =
-            auditMode === "pdp-data" ? Math.max(concurrency, 25)   // Playwright w/ subresource block + disconnect/timeout guards
-            : auditMode === "strapi" ? Math.max(concurrency, 25)
+            // SSR-only modes used to fan out to 25, but KWH's Cloudflare
+            // rules now rate-limit bursts past ~8 parallel requests from
+            // the same IP with a 403. Cap here; the runner also retries
+            // once on 403 to catch stragglers that slip through.
+            auditMode === "pdp-data" ? Math.min(Math.max(concurrency, 8), 8)
+            : auditMode === "strapi" ? Math.min(Math.max(concurrency, 8), 8)
             : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;
@@ -871,8 +875,9 @@ wss.on("connection", (ws, req) => {
       setImmediate(async () => {
         try {
           const effectiveConcurrency =
-            auditMode === "pdp-data" ? Math.max(concurrency, 25)
-            : auditMode === "strapi" ? Math.max(concurrency, 25)
+            // See start-path comment for why SSR-only modes are capped at 8.
+            auditMode === "pdp-data" ? Math.min(Math.max(concurrency, 8), 8)
+            : auditMode === "strapi" ? Math.min(Math.max(concurrency, 8), 8)
             : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;

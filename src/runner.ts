@@ -285,8 +285,19 @@ async function auditPage(
     // Other modes still wait for full load to measure vitals / capture video.
     const gotoWait = isSsrOnlyMode ? "domcontentloaded" : "load";
     const gotoTimeout = isSsrOnlyMode ? 30000 : 60000;
-    const response = await page.goto(url, { waitUntil: gotoWait, timeout: gotoTimeout });
+    let response = await page.goto(url, { waitUntil: gotoWait, timeout: gotoTimeout });
     if (!response) throw new Error("No response received");
+
+    // WAF-aware retry: KWH production's Cloudflare rules rate-limit bursts of
+    // parallel requests from the same IP and hand back a 403 that clears on
+    // its own within a few seconds. One backoff+retry catches these without
+    // masking real 403s (a truly blocked URL still 403s after the retry).
+    // SSR-only modes see this most often because they run at high concurrency.
+    if (response.status() === 403 && isSsrOnlyMode) {
+      await page.waitForTimeout(2500 + Math.floor(Math.random() * 1500));
+      const retryRes = await page.goto(url, { waitUntil: gotoWait, timeout: gotoTimeout });
+      if (retryRes) response = retryRes;
+    }
     if (!isSsrOnlyMode) {
       try {
         await page.waitForLoadState("networkidle", {
