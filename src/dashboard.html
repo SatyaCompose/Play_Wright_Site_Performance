@@ -3021,14 +3021,19 @@
                         closeReport();
                     }
 
+                    // A session is "really done" only if progressMap has at
+                    // least one URL that actually finished (done or failed).
+                    // An all-pending progressMap means a run started but never
+                    // produced results (server crashed mid-flight, still
+                    // shows auditDone=true) — that shouldn't hijack the
+                    // client into a hollow dashboard.
+                    const reallyDone = m.done && (m.progress ?? []).some(
+                        p => p.status === 'done' || p.status === 'failed'
+                    );
                     if (m.running) {
                         hideConfig();
                         if (m.progress?.length) { m.progress.forEach(p => S.set(p.url, p)); totalUrls = m.progress.length; renderAll(); }
-                    } else if (m.done && m.progress?.length) {
-                        // Only honour a "done" session if it actually has
-                        // progress entries — an auditDone flag with an empty
-                        // progressMap means no real audit ran (or state was
-                        // reset). Fall through to Config.
+                    } else if (reallyDone) {
                         hideConfig();
                         m.progress.forEach(p => S.set(p.url, p));
                         totalUrls = m.progress.length;
