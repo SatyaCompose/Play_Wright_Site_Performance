@@ -71,8 +71,9 @@ Play_wright/
 | `PORT` | `7331` | HTTP + WebSocket listen port |
 | `CONCURRENCY` | `3` | Parallel URL audit limit |
 | `VIDEOS_DIR` | `./videos` | Directory for recorded session videos |
+| `CYPRESS_CI_BYPASS_TOKEN` | — | When set, adds `cypress-ci-bypass-token: <value>` to every Playwright request. KWH's Cloudflare WAF skips Bot Management on match. Required for prod audits from datacenter IPs; also removes intermittent challenges locally. |
 
-No API keys or secrets required — this tool audits publicly accessible URLs.
+The bypass token is only needed to skip KWH's Cloudflare Bot Management — for auditing publicly accessible URLs on other sites, none of these secrets apply.
 
 ## Architecture Overview
 

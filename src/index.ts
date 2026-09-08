@@ -793,8 +793,8 @@ wss.on("connection", (ws, req) => {
             // enough 403/503 to make retest useless (the retest hits the
             // same wall). At c=8 with sec-ch-ua headers + retry-on-403,
             // the run is clean and only ~2× slower than an uncapped one.
-            auditMode === "pdp-data" ? Math.min(Math.max(concurrency, 3), 3)
-            : auditMode === "strapi" ? Math.min(Math.max(concurrency, 3), 3)
+            auditMode === "pdp-data" ? Math.max(concurrency, 25)
+            : auditMode === "strapi" ? Math.max(concurrency, 25)
             : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;
@@ -943,8 +943,8 @@ wss.on("connection", (ws, req) => {
         try {
           const effectiveConcurrency =
             // Match start-path: cap SSR-only at 8 to survive WAF fingerprinting.
-            auditMode === "pdp-data" ? Math.min(Math.max(concurrency, 3), 3)
-            : auditMode === "strapi" ? Math.min(Math.max(concurrency, 3), 3)
+            auditMode === "pdp-data" ? Math.max(concurrency, 25)
+            : auditMode === "strapi" ? Math.max(concurrency, 25)
             : auditMode === "products" ? Math.max(concurrency, 20)
             : quickMode ? Math.max(concurrency, 15)
             : concurrency;

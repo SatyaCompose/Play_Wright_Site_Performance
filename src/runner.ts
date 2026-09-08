@@ -182,6 +182,18 @@ const CHROME_141_CLIENT_HINTS = {
   "sec-ch-ua-platform": '"Windows"',
 };
 
+// ── KWH Cloudflare WAF bypass ─────────────────────────────────────────────
+// When CYPRESS_CI_BYPASS_TOKEN is set, every Playwright request carries
+// `cypress-ci-bypass-token: <token>`. KWH's Cloudflare WAF has a rule that
+// skips Bot Management when this header matches — the same token used by
+// Cypress CI. Fixes prod audits from datacenter IPs (Railway/etc) and
+// eliminates the intermittent challenges on residential IPs.
+// Read once at module load. Never printed.
+const KWH_BYPASS_TOKEN = (process.env.CYPRESS_CI_BYPASS_TOKEN ?? "").trim();
+if (KWH_BYPASS_TOKEN) {
+  console.log(`  🔓 KWH WAF bypass active (cypress-ci-bypass-token, ${KWH_BYPASS_TOKEN.length}-char token)`);
+}
+
 // ── Build Playwright newContext() options for a profile ───────────────────
 function contextOptions(profile: DeviceProfile, videosDir: string, quickMode = false) {
   // Start from Playwright device descriptor if specified
@@ -218,9 +230,17 @@ function contextOptions(profile: DeviceProfile, videosDir: string, quickMode = f
     typeof overriddenUa === "string" &&
     /Chrome\/\d+/.test(overriddenUa);
 
+  // Compose extraHTTPHeaders from Chrome hints (when applicable) and the
+  // WAF bypass token (whenever set). Both are constant per context — safe
+  // to send on every request including CORS preflights.
+  const extraHTTPHeaders: Record<string, string> = {};
+  if (needsChromeHints) Object.assign(extraHTTPHeaders, CHROME_141_CLIENT_HINTS);
+  if (KWH_BYPASS_TOKEN) extraHTTPHeaders["cypress-ci-bypass-token"] = KWH_BYPASS_TOKEN;
+  const hasExtraHeaders = Object.keys(extraHTTPHeaders).length > 0;
+
   return {
     ...merged,
-    ...(needsChromeHints ? { extraHTTPHeaders: CHROME_141_CLIENT_HINTS } : {}),
+    ...(hasExtraHeaders ? { extraHTTPHeaders } : {}),
     ...(quickMode ? {} : {
       recordVideo: {
         dir: videosDir,
