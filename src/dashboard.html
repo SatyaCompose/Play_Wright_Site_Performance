@@ -2188,11 +2188,28 @@
                                     <div style="font-size:11px;color:var(--muted);margin-top:2px">Adds every valid PDP URL from CT to the scan. Slower run, wider coverage.</div>
                                 </div>
                             </label>
+                            <label style="display:flex;align-items:flex-start;gap:8px;cursor:pointer;user-select:none;padding:10px;border:1px dashed rgba(37,99,235,.35);border-radius:6px;background:rgba(37,99,235,.05);margin-bottom:10px">
+                                <input type="checkbox" id="strapi-audit-on-staging"
+                                    style="width:15px;height:15px;margin-top:2px;flex-shrink:0;accent-color:#2563eb;cursor:pointer"
+                                    onchange="onStrapiAuditOnStagingChange()">
+                                <div>
+                                    <div style="font-weight:600;font-size:12px">Fetch Production URLs → audit on Staging</div>
+                                    <div style="font-size:11px;color:var(--muted);margin-top:2px">
+                                        Sitemaps and CT PDPs are pulled from Production, but every page is loaded against
+                                        <code style="background:var(--s3);padding:1px 5px;border-radius:3px;font-size:10px">staging.kitchenwarehouse.com.au</code>.
+                                        The report still shows Production URLs so results are comparable.
+                                        Uses <code style="background:var(--s3);padding:1px 5px;border-radius:3px;font-size:10px">STG_CYPRESS_CI_BYPASS_TOKEN</code> automatically.
+                                    </div>
+                                </div>
+                            </label>
                             <div id="strapi-ct-env" style="display:none;margin-bottom:10px">
                                 <div style="font-size:11px;color:var(--muted);font-weight:600;margin-bottom:6px">Commercetools environment</div>
                                 <div style="display:flex;gap:6px">
                                     <button class="url-chip active" id="strapi-ct-prod" onclick="setStrapiCtEnv('production')">🚀 Production</button>
                                     <button class="url-chip" id="strapi-ct-stg" onclick="setStrapiCtEnv('staging')">🧪 Staging</button>
+                                </div>
+                                <div id="strapi-ct-env-locked" style="display:none;font-size:11px;color:var(--muted);margin-top:6px;font-style:italic">
+                                    Locked to Production while “audit on Staging” is enabled.
                                 </div>
                             </div>
                             <div class="cfg-input-row">
@@ -2404,6 +2421,11 @@
         let pdpPageType = 'pdp'; // 'pdp' | 'plp' (plp not yet supported)
         let strapiCtEnv = 'production'; // 'production' | 'staging' — CT credentials for the PDP fetch in strapi mode
         let strapiIncludePdp = false;
+        // "Fetch Production URLs → audit on Staging" toggle (strapi mode only).
+        // When true: URLs are pulled from prod sitemaps and CT prod, but the
+        // server rewrites the nav hostname to staging.kitchenwarehouse.com.au
+        // before page.goto. Reports still show prod URLs for cross-env parity.
+        let strapiAuditOnStaging = false;
 
         // ── Session ID (per-tab, persists across refreshes) ───────────────────────
         let sessionId = sessionStorage.getItem('auditSessionId');
@@ -2624,6 +2646,9 @@
         }
 
         function setStrapiCtEnv(env) {
+            // "Audit on Staging" implies fetching from prod — force prod and
+            // ignore any attempt to flip to staging while it's on.
+            if (strapiAuditOnStaging && env !== 'production') return;
             strapiCtEnv = env;
             document.getElementById('strapi-ct-prod').classList.toggle('active', env === 'production');
             document.getElementById('strapi-ct-stg').classList.toggle('active', env === 'staging');
@@ -2633,6 +2658,24 @@
             strapiIncludePdp = !!document.getElementById('strapi-include-pdp')?.checked;
             const envEl = document.getElementById('strapi-ct-env');
             if (envEl) envEl.style.display = strapiIncludePdp ? '' : 'none';
+        }
+
+        function onStrapiAuditOnStagingChange() {
+            strapiAuditOnStaging = !!document.getElementById('strapi-audit-on-staging')?.checked;
+            // Force CT env to production and disable the staging chip while
+            // the toggle is on — mixing "audit on staging" with a staging CT
+            // pull makes no sense (double-swap, and CT prod is what we want).
+            const prodBtn = document.getElementById('strapi-ct-prod');
+            const stgBtn = document.getElementById('strapi-ct-stg');
+            const lock = document.getElementById('strapi-ct-env-locked');
+            if (strapiAuditOnStaging) {
+                setStrapiCtEnv('production');
+                if (stgBtn) { stgBtn.disabled = true; stgBtn.style.opacity = '.4'; stgBtn.style.pointerEvents = 'none'; }
+                if (lock) lock.style.display = '';
+            } else {
+                if (stgBtn) { stgBtn.disabled = false; stgBtn.style.opacity = ''; stgBtn.style.pointerEvents = ''; }
+                if (lock) lock.style.display = 'none';
+            }
         }
 
         function loadUrls() {
@@ -2655,7 +2698,8 @@
                 if (content) parts.push('content sitemap');
                 if (plp) parts.push('PLP sitemap');
                 if (strapiIncludePdp) parts.push(`CT PDPs (${strapiCtEnv})`);
-                setLoadStatus('loading', `Fetching ${parts.join(' + ')}…`);
+                const suffix = strapiAuditOnStaging ? ' — will audit on staging.kitchenwarehouse.com.au' : '';
+                setLoadStatus('loading', `Fetching ${parts.join(' + ')}${suffix}…`);
                 const btn = document.getElementById('strapi-load-btn');
                 if (btn) btn.disabled = true;
                 ws.send(JSON.stringify({
@@ -2665,6 +2709,7 @@
                     plpSitemap: plp,
                     includePdp: strapiIncludePdp,
                     ctEnv: strapiCtEnv,
+                    auditOnStaging: strapiAuditOnStaging,
                 }));
             } else {
                 const source = document.getElementById('sitemap-input').value.trim();

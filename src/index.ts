@@ -42,6 +42,12 @@ interface Session {
   // report can group results by content / PLP / PDP without asking the client
   // to re-send the mapping on each broadcast.
   urlSources: Map<string, StrapiUrlSource>;
+  // When set, the runner navigates to this hostname instead of the URL's own
+  // hostname. Used by the strapi "fetch prod URLs, audit on staging" toggle:
+  // session.allUrls holds prod URLs (so reports read as prod), but page.goto
+  // targets staging. Cleared on every fresh sitemap/CT load unless the toggle
+  // is on for that load.
+  auditHostOverride: string;
   lastReportHtml: string;
   lastProductReportHtml: string;
   lastPdpReportHtml: string;
@@ -71,6 +77,7 @@ function getOrCreateSession(id: string): Session {
       auditRunning: false,
       allUrls: [],
       urlSources: new Map(),
+      auditHostOverride: "",
       lastReportHtml: "",
       lastProductReportHtml: "",
       lastPdpReportHtml: "",
@@ -401,12 +408,21 @@ wss.on("connection", (ws, req) => {
         const contentUrl: string = (msg.contentSitemap ?? "").trim();
         const plpUrl: string = (msg.plpSitemap ?? "").trim();
         const includePdp = !!msg.includePdp;
-        const ctEnv: CTEnv = msg.ctEnv === "staging" ? "staging" : "production";
+        // "Fetch prod URLs, audit on staging" toggle. When on, we always pull
+        // from prod (both sitemaps and any CT PDPs) and rewrite the nav host
+        // to staging.kitchenwarehouse.com.au at audit time. Reports keep the
+        // prod URLs so they're comparable across environments.
+        const auditOnStaging = !!msg.auditOnStaging;
+        const effectiveCtEnv: CTEnv = auditOnStaging
+          ? "production"
+          : (msg.ctEnv === "staging" ? "staging" : "production");
 
         if (!contentUrl && !plpUrl && !includePdp) {
           ws.send(JSON.stringify({ type: "error", message: "Provide at least one sitemap URL or enable CT PDPs" }));
           return;
         }
+
+        session.auditHostOverride = auditOnStaging ? "staging.kitchenwarehouse.com.au" : "";
 
         ws.send(JSON.stringify({ type: "loading_urls", source: "strapi-mixed" }));
 
@@ -456,7 +472,7 @@ wss.on("connection", (ws, req) => {
               setTimeout(() => reject(new Error("Timed out fetching CT PDPs")), 180000)
             );
             return await Promise.race([
-              getCTProductUrls(ctEnv, (m) => {
+              getCTProductUrls(effectiveCtEnv, (m) => {
                 ws.send(JSON.stringify({ type: "loading_urls", source: "strapi-mixed", message: `CT: ${m}` }));
               }),
               timeout,
@@ -526,6 +542,7 @@ wss.on("connection", (ws, req) => {
               plp: plpUrls.length,
               pdp: pdpUrls.length,
             },
+            auditHost: session.auditHostOverride || undefined,
           });
         } catch (e: any) {
           console.error(`  [${sessionId.slice(0, 8)}] strapi-mixed load error:`, e.message);
@@ -539,6 +556,7 @@ wss.on("connection", (ws, req) => {
       if (useCt) {
         const ctEnv: CTEnv = msg.env === "staging" ? "staging" : "production";
         const source = `commercetools-${ctEnv}`;
+        session.auditHostOverride = "";
         ws.send(JSON.stringify({ type: "loading_urls", source, env: ctEnv }));
         try {
           const timeout = new Promise<never>((_, reject) =>
@@ -575,6 +593,7 @@ wss.on("connection", (ws, req) => {
         ws.send(JSON.stringify({ type: "error", message: "Enter a sitemap URL or page URL" }));
         return;
       }
+      session.auditHostOverride = "";
       ws.send(JSON.stringify({ type: "loading_urls", source }));
       try {
         const timeout = new Promise<never>((_, reject) =>
@@ -806,6 +825,7 @@ wss.on("connection", (ws, req) => {
             quickMode,
             auditMode,
             pdpChecks,
+            auditHost: session.auditHostOverride,
             signal: session.signal,
             onProgress: (progress) => {
               // After cancellation, don't let stale "running" updates from still-
@@ -956,6 +976,7 @@ wss.on("connection", (ws, req) => {
             quickMode,
             auditMode,
             pdpChecks,
+            auditHost: session.auditHostOverride,
             signal: session.signal,
             onProgress: (progress) => {
               if (session.signal.cancelled && progress.status === "running") return;

@@ -299,6 +299,21 @@ function startScreenshotStream(
   };
 }
 
+// Swap only the hostname of `url` for `host`. Used by the "fetch prod URLs,
+// audit on staging" toggle — page.goto() hits the staging host, but the URL
+// we record on PageResult (and therefore on the report) stays as the original
+// prod URL. Silent no-op if either input is invalid.
+function swapHost(url: string, host: string): string {
+  if (!host) return url;
+  try {
+    const u = new URL(url);
+    u.hostname = host;
+    return u.toString();
+  } catch {
+    return url;
+  }
+}
+
 // ── Audit a single URL × profile ─────────────────────────────────────────
 async function auditPage(
   url: string,
@@ -307,7 +322,8 @@ async function auditPage(
   onScreenshot?: (profileId: string, png: string) => void,
   quickMode = false,
   auditMode: "full" | "products" | "lcp" | "pdp-data" | "strapi" = "full",
-  pdpChecks: string[] = []
+  pdpChecks: string[] = [],
+  auditHost: string = ""
 ): Promise<PageResult> {
   const isProductsMode = auditMode === "products";
   const isLcpMode = auditMode === "lcp";
@@ -323,12 +339,18 @@ async function auditPage(
   const browser = await getBrowser(engine);
   let context: BrowserContext | null = null;
 
+  // Nav target — swapped hostname when `auditHost` is set (the "fetch prod,
+  // audit staging" toggle). We keep `url` (the original prod URL) for
+  // PageResult.url and video slug so the report reads as prod. The runner's
+  // WAF-bypass token is picked from `navUrl` so staging URLs get the STG token.
+  const navUrl = swapHost(url, auditHost);
+
   try {
     // contextOptions auto-adds Chrome client hints for any Chromium+Chrome-UA
     // profile — the WAF blocks "Chrome UA without matching sec-ch-ua" regardless
     // of audit mode, so this covers products / full / lcp / pdp-data / strapi.
     context = await browser.newContext(
-      contextOptions(profile, videosDir, effectiveQuick, url)
+      contextOptions(profile, videosDir, effectiveQuick, navUrl)
     );
     const page = await context.newPage();
 
@@ -424,7 +446,7 @@ async function auditPage(
     // Other modes still wait for full load to measure vitals / capture video.
     const gotoWait = isSsrOnlyMode ? "domcontentloaded" : "load";
     const gotoTimeout = isSsrOnlyMode ? 30000 : 60000;
-    let response = await page.goto(url, { waitUntil: gotoWait, timeout: gotoTimeout });
+    let response = await page.goto(navUrl, { waitUntil: gotoWait, timeout: gotoTimeout });
     if (!response) throw new Error("No response received");
 
     // WAF-aware retry: KWH production's Cloudflare rules rate-limit bursts
@@ -440,7 +462,7 @@ async function auditPage(
         if (s !== 403 && s !== 503) break;
         await page.waitForTimeout(base + Math.floor(Math.random() * 1000));
         try {
-          const retryRes = await page.goto(url, { waitUntil: gotoWait, timeout: gotoTimeout });
+          const retryRes = await page.goto(navUrl, { waitUntil: gotoWait, timeout: gotoTimeout });
           if (retryRes) response = retryRes;
         } catch {
           // Retry navigation itself failed — keep the last response and
@@ -873,6 +895,11 @@ export async function runAudit(
     quickMode?: boolean;
     auditMode?: "full" | "products" | "lcp" | "pdp-data" | "strapi";
     pdpChecks?: string[];
+    // Hostname the runner actually navigates to. When set, page.goto() targets
+    // this host instead of the URL's own hostname — used by the strapi "fetch
+    // prod URLs, audit on staging" toggle. PageResult.url stays as the
+    // original (prod) URL so the report reads as prod.
+    auditHost?: string;
     signal?: { cancelled: boolean; aborter?: AbortController };
   } = {}
 ): Promise<AuditProgress[]> {
@@ -885,6 +912,7 @@ export async function runAudit(
     quickMode = false,
     auditMode = "full",
     pdpChecks = [],
+    auditHost = "",
     signal,
   } = options;
 
@@ -949,7 +977,8 @@ export async function runAudit(
             : undefined,
           quickMode,
           auditMode,
-          pdpChecks
+          pdpChecks,
+          auditHost
         );
         const timeoutPromise = new Promise<PageResult>((resolve) => {
           setTimeout(() => {
