@@ -3003,13 +3003,22 @@
                         buildDeviceCards();
                     }
                     if (m.urls?.length) { allUrlsRaw = m.urls; allUrls = m.urls; buildUrlChips(); }
-                    if (m.hasReport || m.hasPdpReport || m.hasStrapiReport) {
-                        hasReport = !!m.hasReport;
-                        hasPdpReport = !!m.hasPdpReport;
-                        hasStrapiReport = !!m.hasStrapiReport;
-                        hasPdf = !!m.hasPdf;
-                        reportTs = m.reportTs ?? '';
+                    // Always mirror server state onto client — even when server
+                    // has no reports we need to CLEAR stale local flags from a
+                    // prior in-tab session (otherwise "View report" button
+                    // lingers, report panel can auto-open with empty iframe).
+                    hasReport = !!m.hasReport;
+                    hasPdpReport = !!m.hasPdpReport;
+                    hasStrapiReport = !!m.hasStrapiReport;
+                    hasPdf = !!m.hasPdf;
+                    reportTs = m.reportTs ?? '';
+                    if (hasReport || hasPdpReport || hasStrapiReport) {
                         showReportBtn();
+                    } else {
+                        // Drop any previously-injected header button and force-
+                        // close the panel if it was left open from a prior run.
+                        document.getElementById('view-report-hdr')?.remove();
+                        closeReport();
                     }
 
                     if (m.running) {
@@ -3019,6 +3028,17 @@
                         hideConfig();
                         if (m.progress?.length) { m.progress.forEach(p => S.set(p.url, p)); totalUrls = m.progress.length; renderAll(); }
                     } else {
+                        // Fresh (or reset) server session → land on Config so
+                        // the user can kick off a new audit rather than
+                        // staring at an empty done-dashboard.
+                        S.clear();
+                        shots.clear();
+                        selUrl = null; selTab = null;
+                        totalUrls = 0;
+                        document.getElementById('ul').innerHTML = '';
+                        document.getElementById('detail').innerHTML =
+                            '<div class="de"><div class="big">📡</div><div>Configure a fresh audit below.</div></div>';
+                        updateHdr();
                         showConfig();
                     }
                     updateConfigSummary();
