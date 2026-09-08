@@ -3024,9 +3024,15 @@
                     if (m.running) {
                         hideConfig();
                         if (m.progress?.length) { m.progress.forEach(p => S.set(p.url, p)); totalUrls = m.progress.length; renderAll(); }
-                    } else if (m.done) {
+                    } else if (m.done && m.progress?.length) {
+                        // Only honour a "done" session if it actually has
+                        // progress entries — an auditDone flag with an empty
+                        // progressMap means no real audit ran (or state was
+                        // reset). Fall through to Config.
                         hideConfig();
-                        if (m.progress?.length) { m.progress.forEach(p => S.set(p.url, p)); totalUrls = m.progress.length; renderAll(); }
+                        m.progress.forEach(p => S.set(p.url, p));
+                        totalUrls = m.progress.length;
+                        renderAll();
                     } else {
                         // Fresh (or reset) server session → land on Config so
                         // the user can kick off a new audit rather than
@@ -3211,6 +3217,12 @@
 
                 // ── Done ──
                 if (m.type === 'done') {
+                    // Zero-URL done from the server is meaningless — it means
+                    // no audit ever ran (stale session, force-stop with nothing
+                    // in flight, or a resume-with-empty-state edge case). Don't
+                    // let it overwrite the UI with a misleading "Audit complete
+                    // — 0 URLs" splash + View Report button pointing at nothing.
+                    if ((m.total ?? 0) === 0 && !m.forced) return;
                     hasReport = m.hasReport ?? false;
                     hasPdpReport = m.hasPdpReport ?? false;
                     hasStrapiReport = m.hasStrapiReport ?? false;
