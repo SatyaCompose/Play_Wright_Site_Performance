@@ -1,10 +1,10 @@
-// rebrowser-playwright is an API-compatible fork that patches Playwright's
-// well-known automation fingerprints — navigator.webdriver, CDP-specific
-// Runtime.enable / Console.messageAdded event handlers, missing plugin
-// lineup — that Cloudflare Turnstile and similar WAFs use to detect
-// headless-vs-real-browser. Fixes the fingerprint half of the anti-bot
-// problem; won't help with datacenter-IP blocks (that's the IP-rep half).
-// API surface is identical to `playwright`, so this is a drop-in import.
+// We use stock `playwright` (not rebrowser-playwright) because CYPRESS_CI_
+// BYPASS_TOKEN handles the Cloudflare Bot Management side, and rebrowser's
+// CDP patches introduced a real regression: page.evaluate() threw
+// "Execution context was destroyed, most likely because of a navigation"
+// on Next.js SSR pages, causing every URL to be reported as WAF-challenged
+// with an empty datasource list. Stock Playwright + client hints + bypass
+// token is enough for KWH's stack.
 import {
   chromium,
   webkit,
@@ -14,7 +14,7 @@ import {
   type BrowserContext,
   type Page,
   type BrowserType,
-} from "rebrowser-playwright";
+} from "playwright";
 import pLimit from "p-limit";
 import * as fs from "fs";
 import * as path from "path";
@@ -183,19 +183,42 @@ const CHROME_141_CLIENT_HINTS = {
 };
 
 // ── KWH Cloudflare WAF bypass ─────────────────────────────────────────────
-// When CYPRESS_CI_BYPASS_TOKEN is set, every Playwright request carries
-// `cypress-ci-bypass-token: <token>`. KWH's Cloudflare WAF has a rule that
-// skips Bot Management when this header matches — the same token used by
-// Cypress CI. Fixes prod audits from datacenter IPs (Railway/etc) and
-// eliminates the intermittent challenges on residential IPs.
-// Read once at module load. Never printed.
-const KWH_BYPASS_TOKEN = (process.env.CYPRESS_CI_BYPASS_TOKEN ?? "").trim();
-if (KWH_BYPASS_TOKEN) {
-  console.log(`  🔓 KWH WAF bypass active (cypress-ci-bypass-token, ${KWH_BYPASS_TOKEN.length}-char token)`);
+// KWH's WAF has an env-scoped bypass: staging and production each accept a
+// distinct `cypress-ci-bypass-token` value (same token Cypress CI uses).
+// Env vars follow the existing PROD_* / STG_* convention (see ct.ts). Which
+// token gets sent is decided per-request from the target hostname:
+//   staging.kitchenwarehouse.com.au         → STG_CYPRESS_CI_BYPASS_TOKEN
+//   www.kitchenwarehouse.com.au (or bare)   → PROD_CYPRESS_CI_BYPASS_TOKEN
+// Read once at module load; never printed.
+const STG_BYPASS_TOKEN = (process.env.STG_CYPRESS_CI_BYPASS_TOKEN ?? "").trim();
+const PROD_BYPASS_TOKEN = (process.env.PROD_CYPRESS_CI_BYPASS_TOKEN ?? "").trim();
+{
+  const active: string[] = [];
+  if (STG_BYPASS_TOKEN) active.push(`STG:${STG_BYPASS_TOKEN.length}ch`);
+  if (PROD_BYPASS_TOKEN) active.push(`PROD:${PROD_BYPASS_TOKEN.length}ch`);
+  if (active.length) console.log(`  🔓 KWH WAF bypass tokens loaded (${active.join(", ")})`);
+}
+
+function bypassTokenFor(url: string): string {
+  try {
+    const host = new URL(url).hostname.toLowerCase();
+    if (host.startsWith("staging.") || host.startsWith("stg.") || host.includes(".staging.")) {
+      return STG_BYPASS_TOKEN;
+    }
+    if (host === "kitchenwarehouse.com.au" || host === "www.kitchenwarehouse.com.au") {
+      return PROD_BYPASS_TOKEN;
+    }
+  } catch {}
+  return "";
 }
 
 // ── Build Playwright newContext() options for a profile ───────────────────
-function contextOptions(profile: DeviceProfile, videosDir: string, quickMode = false) {
+function contextOptions(
+  profile: DeviceProfile,
+  videosDir: string,
+  quickMode = false,
+  targetUrl = ""
+) {
   // Start from Playwright device descriptor if specified
   const deviceDesc = profile.playwrightDevice
     ? { ...devices[profile.playwrightDevice] }
@@ -231,11 +254,13 @@ function contextOptions(profile: DeviceProfile, videosDir: string, quickMode = f
     /Chrome\/\d+/.test(overriddenUa);
 
   // Compose extraHTTPHeaders from Chrome hints (when applicable) and the
-  // WAF bypass token (whenever set). Both are constant per context — safe
-  // to send on every request including CORS preflights.
+  // env-specific WAF bypass token (matched from targetUrl hostname). Both
+  // are constant per context — safe to send on every request including
+  // CORS preflights.
   const extraHTTPHeaders: Record<string, string> = {};
   if (needsChromeHints) Object.assign(extraHTTPHeaders, CHROME_141_CLIENT_HINTS);
-  if (KWH_BYPASS_TOKEN) extraHTTPHeaders["cypress-ci-bypass-token"] = KWH_BYPASS_TOKEN;
+  const token = bypassTokenFor(targetUrl);
+  if (token) extraHTTPHeaders["cypress-ci-bypass-token"] = token;
   const hasExtraHeaders = Object.keys(extraHTTPHeaders).length > 0;
 
   return {
@@ -303,7 +328,7 @@ async function auditPage(
     // profile — the WAF blocks "Chrome UA without matching sec-ch-ua" regardless
     // of audit mode, so this covers products / full / lcp / pdp-data / strapi.
     context = await browser.newContext(
-      contextOptions(profile, videosDir, effectiveQuick)
+      contextOptions(profile, videosDir, effectiveQuick, url)
     );
     const page = await context.newPage();
 
