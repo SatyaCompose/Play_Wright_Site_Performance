@@ -14,6 +14,10 @@ A web-based site audit tool that measures Core Web Vitals and network performanc
 - **Report generation**: Filterable HTML reports with per-device tabs plus optional PDF export
 - **Sitemap support**: Loads URLs from `sitemap.xml`, sitemap index files, plain text lists, or manually entered URLs
 - **Configurable concurrency**: Run multiple page audits in parallel
+- **CMS validation modes**:
+  - `pdp-data` — scans `__NEXT_DATA__` for PDP fields that are hash-only or visually empty (KWH content QA)
+  - `strapi` — scans `__NEXT_DATA__` for datasources whose type contains `strapi` or `builder/component`; URL set is a merge of Content sitemap + PLP sitemap + optional Commercetools PDPs, tagged by origin
+- **Prod-vs-staging comparison**: In `strapi` mode, tick "Fetch Production URLs → audit on Staging". The runner navigates to `staging.kitchenwarehouse.com.au` but the report keeps the Production URL, so results are directly comparable to a Production baseline. The correct WAF bypass token per environment is applied automatically.
 
 ---
 
@@ -54,17 +58,48 @@ A web-based site audit tool that measures Core Web Vitals and network performanc
 
 ---
 
+## Audit Modes
+
+| Mode | What it does | URL source | Report |
+|------|-------------|-----------|--------|
+| `full` | Vitals + API calls + product count + video + screenshots | Sitemap or manual | `/report.html` + `/report.pdf` |
+| `products` | Product count only | Sitemap | Product-count report |
+| `lcp` | Vitals + API calls | Sitemap or manual | `/report.html` |
+| `pdp-data` | `__NEXT_DATA__` product-field emptiness check | Commercetools (STG/PROD) | `/pdp-report.html` |
+| `strapi` | `__NEXT_DATA__` datasource-type scan for `strapi` and `builder/component` | Content sitemap + PLP sitemap + optional CT PDPs | `/strapi-report.html` + `/strapi-report.csv` |
+
+### Strapi mode — audit on Staging with Production URLs
+
+The Strapi loader has a **"Fetch Production URLs → audit on Staging"** checkbox. When enabled:
+
+1. Sitemaps and CT PDPs are pulled from Production (CT env auto-locks to Production).
+2. The runner rewrites the nav hostname to `staging.kitchenwarehouse.com.au` at audit time — every `page.goto` targets staging.
+3. `PageResult.url` (and therefore the report) still shows the Production URL, so the output is directly diffable against a Production baseline run.
+4. The WAF bypass token is chosen per-request from the nav hostname, so staging automatically gets `STG_CYPRESS_CI_BYPASS_TOKEN`.
+
+Typical workflow: run once with the toggle off (Production audit) and once with it on (Staging audit against the same Production URL set), then diff the two `strapi-report.csv` files. Any URL whose Strapi/Builder columns flip is a real environment delta.
+
+---
+
 ## Project Structure
 
 ```
 src/
-├── index.ts        # HTTP + WebSocket server, routing, report orchestration, graceful shutdown
-├── runner.ts       # Core audit logic: browser pool, page auditing, vitals, video management
-├── types.ts        # TypeScript interfaces and device profile definitions
-├── sitemap.ts      # URL loading from sitemap.xml, sitemap index, text lists, or single URLs
-├── report.ts       # HTML report generation with grading, tables, device tabs, video embeds
-├── pdf.ts          # PDF report generation via Puppeteer
-└── dashboard.html  # Interactive frontend UI (served at /)
+├── index.ts          # HTTP + WebSocket server, routing, session state, report orchestration
+├── runner.ts         # Core audit logic: browser pool, page auditing, vitals, video, auditHost override
+├── types.ts          # TypeScript interfaces and device profile definitions
+├── sitemap.ts        # URL loading from sitemap.xml, sitemap index, text lists, or single URLs
+├── ct.ts             # Commercetools GraphQL client — fetches valid PDP URLs (STG/PROD credentials)
+├── report.ts         # HTML report generation with grading, tables, device tabs, video embeds
+├── product-report.ts # Product-count HTML report generator
+├── pdp-report.ts     # PDP empty-data check report generator
+├── strapi-report.ts  # Strapi/Builder datasource scan HTML + CSV report generator
+├── pdf.ts            # PDF report generation via headless Chromium
+└── dashboard.html    # Interactive frontend UI (served at /)
+
+.claude/
+├── agents/           # Subagents (backend-engineer, strapi-validator, debugger, …)
+└── commands/         # Slash commands (/validate-strapi-datasources)
 ```
 
 ---
@@ -145,6 +180,9 @@ npm start [concurrency] [port]
 | `CONCURRENCY` | `3` | Number of parallel page audits |
 | `VIDEOS_DIR` | `/app/videos` | Directory for video recordings |
 | `NODE_ENV` | `production` | Runtime environment |
+| `STG_CYPRESS_CI_BYPASS_TOKEN` | — | KWH staging WAF bypass token — sent on every request to `staging.kitchenwarehouse.com.au`. Required when the strapi "audit on Staging" toggle is on. |
+| `PROD_CYPRESS_CI_BYPASS_TOKEN` | — | KWH production WAF bypass token — sent on every request to `www.kitchenwarehouse.com.au`. Required for prod audits from datacenter IPs. |
+| `STG_CTP_*` / `PROD_CTP_*` | — | Commercetools credential sets used by the CT PDP loader and the `pdp-data` mode. See `.env.example`. |
 
 ---
 

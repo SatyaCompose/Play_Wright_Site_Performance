@@ -41,14 +41,20 @@ npm start            # node dist/index.js
 ```
 Play_wright/
 ├── src/
-│   ├── index.ts          # HTTP server + WebSocket + session management
-│   ├── runner.ts         # Playwright browser pool + auditPage() + runAudit()
-│   ├── types.ts          # Shared types (PageResult, WebVitals, DeviceProfile) + DEVICE_PROFILES
+│   ├── index.ts          # HTTP server + WebSocket + session management (incl. Session.auditHostOverride)
+│   ├── runner.ts         # Playwright browser pool + auditPage() + runAudit() (incl. auditHost option)
+│   ├── types.ts          # Shared types (PageResult, WebVitals, DeviceProfile, StrapiCheck, PdpDataCheck)
 │   ├── sitemap.ts        # Fetch URLs from sitemap XML or plain-text list
+│   ├── ct.ts             # Commercetools GraphQL client — fetches valid PDP URLs (STG/PROD)
 │   ├── report.ts         # Generate full HTML audit report (pure function)
 │   ├── product-report.ts # Generate product-count HTML report (pure function)
+│   ├── pdp-report.ts     # Generate PDP empty-data check HTML report
+│   ├── strapi-report.ts  # Generate Strapi/Builder datasource scan HTML + CSV report
 │   ├── pdf.ts            # Render HTML to PDF via headless Playwright
 │   └── dashboard.html    # Single-file vanilla JS dashboard UI
+├── .claude/
+│   ├── agents/           # Subagents (backend-engineer, strapi-validator, debugger, …)
+│   └── commands/         # Slash commands (/validate-strapi-datasources)
 ├── dist/                 # Compiled output (tsc)
 ├── videos/               # Recorded audit videos (runtime, gitignored)
 ├── tsconfig.json         # strict: true, CommonJS, Node16 module resolution
@@ -110,8 +116,19 @@ Browser (WebSocket) ──→ index.ts (HTTP + WS server)
 | `full` | Vitals + API calls + product count + video + screenshots | — | Default (3) |
 | `products` | Product count only | Vitals, API calls, video, screenshots | Bumped to 20+ |
 | `lcp` | Vitals + API calls | Product count | Default |
+| `pdp-data` | `__NEXT_DATA__` product-field emptiness (hash-only / visually empty HTML) | Vitals, video, product count | Bumped to 25+ |
+| `strapi` | Datasource types in `__NEXT_DATA__` — matches `strapi` and `builder/component` | Vitals, video, product count | Bumped to 25+ |
 
-`quickMode` skips video recording and reduces settle time (500ms → 600ms) for faster batch runs.
+`quickMode` skips video recording and reduces settle time (500ms → 600ms) for faster batch runs. `pdp-data` and `strapi` are SSR-only — they parse the initial HTML `__NEXT_DATA__` blob without waiting for CSR hydration.
+
+### Strapi mode — "fetch Production URLs → audit on Staging"
+
+The Strapi loader has a checkbox that pulls URLs from Production sitemaps (and, optionally, from Commercetools Production PDPs) but rewrites the nav hostname to `staging.kitchenwarehouse.com.au` at audit time. `PageResult.url` stays as the original Production URL so the report reads as prod and can be diffed against a Production baseline run.
+
+- Session field: `Session.auditHostOverride` (set on strapi-mixed load when `auditOnStaging: true`)
+- Runner option: `runAudit({ auditHost })` → `auditPage()` uses `page.goto(swapHost(url, auditHost))`
+- WAF token: resolved per-request from the nav host, so the STG token is used automatically
+- CT env: force-locked to Production while the toggle is on
 
 ## Device Profiles
 
@@ -187,3 +204,13 @@ Product count detection skips video, screenshots, and Web Vitals — it only eva
 | node | HTTP server, WebSocket, file system, process management |
 | eslint | Code quality checks |
 | prettier | Formatting |
+
+## Agent / Command Usage Guide
+
+| Type | Name | Use When |
+|------|------|----------|
+| Agent | `backend-engineer` | Modifying `runner.ts`, `index.ts`, session state, audit modes |
+| Agent | `strapi-validator` | Interpreting a Strapi datasource report; diffing prod-vs-staging runs |
+| Agent | `debugger` | Runtime errors, WAF challenges, video-save races, WebSocket disconnects |
+| Agent | `frontend-engineer` | Dashboard UI, audit-mode picker, live progress rendering |
+| Command | `/validate-strapi-datasources [content-sitemap] [plp-sitemap]` | End-to-end Strapi validation run (fetch prod → audit staging) |

@@ -16,10 +16,13 @@ You are a senior TypeScript/Node.js engineer specializing in the site-audit tool
 src/
 ├── index.ts          # HTTP server + WebSocket server + session management
 ├── runner.ts         # Core audit engine — Playwright browser pool + page auditing
-├── types.ts          # Shared types: PageResult, WebVitals, DeviceProfile, AuditProgress
+├── types.ts          # Shared types: PageResult, WebVitals, DeviceProfile, AuditProgress, StrapiCheck, PdpDataCheck
 ├── sitemap.ts        # Sitemap XML and URL-list fetching (axios + xml2js)
-├── report.ts         # HTML audit report generator
+├── ct.ts             # Commercetools GraphQL client — fetches valid PDP URLs (STG/PROD credentials)
+├── report.ts         # HTML audit report generator (full / lcp modes)
 ├── product-report.ts # Product-count HTML report generator
+├── pdp-report.ts     # PDP empty-data check HTML report generator
+├── strapi-report.ts  # Strapi/Builder datasource scan HTML + CSV report generator
 ├── pdf.ts            # PDF generation via headless Chromium
 └── dashboard.html    # Single-page dashboard UI (vanilla HTML/CSS/JS)
 ```
@@ -56,6 +59,14 @@ Browser (WebSocket) → index.ts → runAudit() in runner.ts
 - `"full"` — Web Vitals + API calls + product count + video recording + screenshots
 - `"products"` — product count only (no video, no vitals, minimal wait time)
 - `"lcp"` — Web Vitals + API calls, skips product count evaluation
+- `"pdp-data"` — SSR-only, parses `__NEXT_DATA__` to find PDP fields that are hash-only / visually empty; URLs pulled from Commercetools
+- `"strapi"` — SSR-only, scans `__NEXT_DATA__` for datasources whose type includes `strapi` or `builder/component`; URL set is a merge of Content + PLP sitemaps + optional CT PDPs, tagged by origin
+
+### Strapi mode — audit-host override ("fetch prod, audit staging")
+- `runAudit({ auditHost })` — when set, `auditPage()` calls `page.goto(swapHost(url, auditHost))` but `PageResult.url` stays as the original URL. Reports therefore keep the prod URL even though the request landed on staging.
+- The WAF bypass token in `runner.ts` (`bypassTokenFor`) is chosen from the nav URL's hostname, so a rewritten `staging.kitchenwarehouse.com.au` URL automatically uses `STG_CYPRESS_CI_BYPASS_TOKEN`.
+- The override lives on `Session.auditHostOverride` in `index.ts`, set by the strapi loader when `auditOnStaging: true` and cleared on every fresh sitemap/CT load.
+- CT PDPs are force-pulled from prod (`effectiveCtEnv = "production"`) while the toggle is on — mixing "audit on staging" with a staging CT pull would double-swap.
 
 ### DeviceProfiles (`types.ts`)
 Four profiles: `desktop-chrome`, `desktop-safari`, `mobile-ios`, `mobile-android`
