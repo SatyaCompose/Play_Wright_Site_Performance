@@ -433,7 +433,7 @@ async function auditPage(
     // Previous version keyed off document.title === "Just a moment..." but
     // the title flickers through empty/loading states during the challenge→
     // real-page transition, so the check silently missed. Just wait for the
-    // signal we actually care about: __NEXT_DATA__ presence. Up to 12s.
+    // signal we actually care about: __NEXT_DATA__ presence. Up to 20s.
     let wafChallenged = false;
     if (isSsrOnlyMode) {
       const hasNextData = await page.evaluate(() => !!document.getElementById("__NEXT_DATA__")).catch(() => false);

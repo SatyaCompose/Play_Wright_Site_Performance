@@ -789,10 +789,10 @@ wss.on("connection", (ws, req) => {
       setImmediate(async () => {
         try {
           const effectiveConcurrency =
-            // SSR-only modes cap at 8. At c=25 KWH's Cloudflare sends
-            // enough 403/503 to make retest useless (the retest hits the
-            // same wall). At c=8 with sec-ch-ua headers + retry-on-403,
-            // the run is clean and only ~2× slower than an uncapped one.
+            // SSR-only modes fan out to 25 — safe when the WAF is trusting
+            // us (residential IP or CYPRESS_CI_BYPASS_TOKEN set). Runner
+            // still retries on 403/503 for the occasional blip, and the
+            // challenge-wait catches Turnstile pages that arrive as 200.
             auditMode === "pdp-data" ? Math.max(concurrency, 25)
             : auditMode === "strapi" ? Math.max(concurrency, 25)
             : auditMode === "products" ? Math.max(concurrency, 20)
@@ -942,7 +942,7 @@ wss.on("connection", (ws, req) => {
       setImmediate(async () => {
         try {
           const effectiveConcurrency =
-            // Match start-path: cap SSR-only at 8 to survive WAF fingerprinting.
+            // Match start-path — same concurrency ladder.
             auditMode === "pdp-data" ? Math.max(concurrency, 25)
             : auditMode === "strapi" ? Math.max(concurrency, 25)
             : auditMode === "products" ? Math.max(concurrency, 20)
