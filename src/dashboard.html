@@ -2515,6 +2515,27 @@
             : m === 'strapi' ? 'strapi'
             : 'sitemap';
 
+        function isSingleDeviceMode(mode) {
+            return mode === 'products' || mode === 'pdp-data' || mode === 'strapi';
+        }
+
+        function syncDeviceCards() {
+            profiles.forEach(p => {
+                const card = document.getElementById('dc-' + p.id);
+                if (card) card.classList.toggle('active', selectedProfileIds.includes(p.id));
+            });
+        }
+
+        // Pin to desktop Chrome (fallback: first desktop chromium, then first profile).
+        function pinSingleDevice() {
+            if (!profiles.length) return;
+            const pick = profiles.find(p => p.id === 'desktop-chrome')
+                || profiles.find(p => p.id.startsWith('desktop-') && (p.engine ?? 'chromium') === 'chromium')
+                || profiles[0];
+            selectedProfileIds = [pick.id];
+            syncDeviceCards();
+        }
+
         function setAuditMode(mode) {
             const prevMode = auditMode;
             const crossedSourceBoundary = sourceKindFor(prevMode) !== sourceKindFor(mode);
@@ -2545,17 +2566,17 @@
             // the device picker — all three read SSR-inlined data, so multi-device
             // parallelism gives no additional signal and just multiplies wall-clock
             // time (and multiplies the WAF's per-URL fingerprint burden).
-            const singleDeviceMode = mode === 'pdp-data' || mode === 'strapi' || mode === 'products';
-            if (singleDeviceMode && profiles.length) {
-                const desktopIds = profiles.filter(p => p.id.startsWith('desktop-')).map(p => p.id);
-                selectedProfileIds = desktopIds.length ? [desktopIds[0]] : [profiles[0].id];
-                profiles.forEach(p => {
-                    const card = document.getElementById('dc-' + p.id);
-                    if (card) card.classList.toggle('active', selectedProfileIds.includes(p.id));
-                });
+            const singleDeviceMode = isSingleDeviceMode(mode);
+            if (singleDeviceMode) {
+                pinSingleDevice();
+            } else if (isSingleDeviceMode(prevMode) && profiles.length) {
+                // Leaving a single-device mode: restart the picker at all devices.
+                selectedProfileIds = profiles.map(p => p.id);
+                syncDeviceCards();
             }
             const devSec = document.getElementById('devices-section');
-            if (devSec && singleDeviceMode) devSec.style.display = 'none';
+            if (devSec) devSec.style.display = singleDeviceMode ? 'none' : '';
+            if (typeof updateConfigSummary === 'function') updateConfigSummary();
 
             // Crossing a source-kind boundary invalidates the loaded URL set —
             // each source returns a different shape (CT PDPs, single sitemap, or
@@ -2789,10 +2810,10 @@
         function showDevicesSection() {
             buildDeviceCards();
             // Single-device modes (products, pdp-data, strapi) hide the device
-            // picker entirely — the single desktop-chromium profile is already
-            // pinned by setAuditMode().
-            const singleDeviceMode =
-                auditMode === 'products' || auditMode === 'pdp-data' || auditMode === 'strapi';
+            // picker entirely; buildDeviceCards() selects every profile, so
+            // re-pin desktop Chrome here.
+            const singleDeviceMode = isSingleDeviceMode(auditMode);
+            if (singleDeviceMode) pinSingleDevice();
             document.getElementById('devices-section').style.display = singleDeviceMode ? 'none' : '';
             document.getElementById('quick-section').style.display = singleDeviceMode ? 'none' : '';
         }
@@ -3046,6 +3067,7 @@
                             if (!p.engine) p.engine = (p.id.includes('safari') || p.id.includes('ios')) ? 'webkit' : 'chromium';
                         });
                         buildDeviceCards();
+                        if (isSingleDeviceMode(auditMode)) pinSingleDevice();
                     }
                     if (m.urls?.length) { allUrlsRaw = m.urls; allUrls = m.urls; buildUrlChips(); }
                     // Always mirror server state onto client — even when server

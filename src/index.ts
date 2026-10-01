@@ -765,7 +765,12 @@ wss.on("connection", (ws, req) => {
         : [];
       const selectedProfileIds: string[] = msg.profileIds ?? DEVICE_PROFILES.map((p) => p.id);
       const urlCount: number = msg.urlCount ?? session.allUrls.length;
-      const selectedProfiles = DEVICE_PROFILES.filter((p) => selectedProfileIds.includes(p.id));
+      // Products / pdp-data / strapi read SSR data only — always desktop Chrome,
+      // regardless of what the client sent.
+      const singleDeviceMode = auditMode === "products" || auditMode === "pdp-data" || auditMode === "strapi";
+      const selectedProfiles = DEVICE_PROFILES.filter((p) =>
+        singleDeviceMode ? p.id === "desktop-chrome" : selectedProfileIds.includes(p.id),
+      );
 
       const manualUrls: string[] = (msg.manualUrls ?? [])
         .map((u: string) => u.trim())
