@@ -63,7 +63,7 @@ function apiRows(calls: ApiCall[]): string {
         : "";
       return `<tr>
       <td style="width:52px">${type}</td>
-      <td style="font-family:monospace;font-size:10px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(c.url)}">${escHtml(c.url)}</td>
+      <td class="url-wrap" style="font-family:monospace;font-size:10px;max-width:400px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escHtml(c.url)}">${escHtml(c.url)}</td>
       <td style="width:60px;text-align:center">${st}</td>
       <td style="width:80px;text-align:right;font-family:monospace;color:${durColor}">${fmt(dur)}</td>
       <td style="width:180px;font-size:9px">${st_txt}</td>
@@ -269,7 +269,7 @@ function urlGroupCard(group: UrlGroup, groupIdx: number): string {
     <!-- Card header -->
     <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid #2a2d38">
       <span style="font-size:10px;font-family:monospace;color:#6b7280;background:#22242c;padding:2px 7px;border-radius:3px">#${groupIdx + 1}</span>
-      <a href="${url}" target="_blank" rel="noopener" style="color:#e2e4f0;font-family:monospace;font-size:12px;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${url}">${url}</a>
+      <a class="url-wrap" href="${url}" target="_blank" rel="noopener" style="color:#e2e4f0;font-family:monospace;font-size:12px;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${url}">${url}</a>
       ${productCount !== undefined ? `<span style="font-family:monospace;font-size:10px;color:#7c6dff;background:rgba(124,109,255,.1);border:1px solid rgba(124,109,255,.25);padding:2px 8px;border-radius:4px;flex-shrink:0">📦 ${productCount.toLocaleString()}</span>` : ""}
       ${firstStatus ? `<span style="padding:2px 8px;border-radius:4px;font-family:monospace;font-size:10px;font-weight:700;${firstStatus >= 400 ? "background:rgba(255,78,66,.1);color:#ff4e42;border:1px solid rgba(255,78,66,.25)" : "background:rgba(12,206,107,.1);color:#0cce6b;border:1px solid rgba(12,206,107,.25)"}">${firstStatus}</span>` : ""}
       <span style="font-size:11px;color:#6b7280;font-family:monospace;flex-shrink:0">${new Date(results[0]?.auditedAt).toLocaleTimeString()}</span>
@@ -435,6 +435,7 @@ a{color:var(--accent);}
   .overview-table tr.zero-sep{page-break-after:avoid;}
   .filter-bar,.fbtn{display:none;}
   .hdr a[download]{display:none;}
+  .url-wrap{max-width:none !important;min-width:0 !important;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;overflow-wrap:anywhere;word-break:break-all;}
 }
 </style>
 </head>

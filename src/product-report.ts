@@ -238,6 +238,8 @@ tbody tr.failed-row td{opacity:.6;}
   table thead{display:table-header-group;}
   tr{page-break-inside:avoid;}
   .sep-row{page-break-after:avoid;}
+  .col-url{max-width:none;}
+  .url-text{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;overflow-wrap:anywhere;word-break:break-all;}
 }
 </style>
 </head>
