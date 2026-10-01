@@ -17,7 +17,7 @@ function grade(metric: string, val: number): "good" | "ni" | "poor" {
   return val <= good ? "good" : val <= warn ? "ni" : "poor";
 }
 
-const GRADE_COLOR = { good: "#0cce6b", ni: "#ffa400", poor: "#ff4e42" };
+const GRADE_COLOR = { good: "#059669", ni: "#b45309", poor: "#dc2626" };
 const GRADE_BG = {
   good: "rgba(12,206,107,.1)",
   ni: "rgba(255,164,0,.1)",
@@ -50,14 +50,14 @@ function apiRows(calls: ApiCall[]): string {
     .map((c) => {
       const type =
         c.type === "ssr"
-          ? `<span style="background:rgba(108,99,255,.15);color:#7c6dff;border:1px solid rgba(108,99,255,.3);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">SSR</span>`
-          : `<span style="background:rgba(255,164,0,.1);color:#ffa400;border:1px solid rgba(255,164,0,.25);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">CSR</span>`;
+          ? `<span style="background:rgba(37,99,235,.15);color:#2563eb;border:1px solid rgba(37,99,235,.3);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">SSR</span>`
+          : `<span style="background:rgba(255,164,0,.1);color:#b45309;border:1px solid rgba(255,164,0,.25);padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700">CSR</span>`;
       const st = c.status
-        ? `<span style="color:${c.status >= 400 ? "#ff4e42" : "#0cce6b"};font-family:monospace;font-size:10px">${c.status}</span>`
+        ? `<span style="color:${c.status >= 400 ? "#dc2626" : "#059669"};font-family:monospace;font-size:10px">${c.status}</span>`
         : `<span style="color:#6b7280">–</span>`;
       const dur = c.duration;
       const durColor =
-        dur <= 300 ? "#0cce6b" : dur <= 1000 ? "#ffa400" : "#ff4e42";
+        dur <= 300 ? "#059669" : dur <= 1000 ? "#b45309" : "#dc2626";
       const st_txt = c.serverTiming
         ? `<div style="font-size:9px;color:#6b7280;font-family:monospace">${escHtml(c.serverTiming)}</div>`
         : "";
@@ -126,7 +126,7 @@ function deviceCard(r: PageResult, idx: number, tabId: string): string {
     .map(({ label, metric, val, fv }) => {
       const g = val !== undefined ? grade(metric, val) : null;
       const c = g ? GRADE_COLOR[g] : "#6b7280";
-      return `<div style="background:#18191f;border:1px solid #2a2d38;border-radius:8px;padding:12px 10px;min-width:0">
+      return `<div style="background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px;padding:12px 10px;min-width:0">
       <div style="font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#6b7280;margin-bottom:4px">${label}</div>
       <div style="font-family:monospace;font-size:18px;font-weight:700;color:${c};line-height:1">${fv}</div>
       ${g ? `<div style="font-size:9px;color:${c};margin-top:4px;font-weight:600;text-transform:uppercase">${GRADE_LABEL[g]}</div>` : ""}
@@ -135,16 +135,16 @@ function deviceCard(r: PageResult, idx: number, tabId: string): string {
     .join("");
 
   const productTileHtml = r.productCount !== undefined
-    ? `<div style="background:#18191f;border:1px solid rgba(124,109,255,.3);border-radius:8px;padding:12px 10px;min-width:0">
+    ? `<div style="background:#f3f4f6;border:1px solid rgba(37,99,235,.3);border-radius:8px;padding:12px 10px;min-width:0">
       <div style="font-size:9px;text-transform:uppercase;letter-spacing:.1em;color:#6b7280;margin-bottom:4px">Products</div>
-      <div style="font-family:monospace;font-size:18px;font-weight:700;color:#7c6dff;line-height:1">${r.productCount.toLocaleString()}</div>
-      <div style="font-size:9px;color:#7c6dff;margin-top:4px;font-weight:600;text-transform:uppercase">Loaded</div>
+      <div style="font-family:monospace;font-size:18px;font-weight:700;color:#2563eb;line-height:1">${r.productCount.toLocaleString()}</div>
+      <div style="font-size:9px;color:#2563eb;margin-top:4px;font-weight:600;text-transform:uppercase">Loaded</div>
     </div>`
     : "";
 
   return `
   <div class="dcard" id="dc-${tabId}" style="display:${idx === 0 ? "block" : "none"}">
-    ${r.error ? `<div style="background:rgba(255,78,66,.08);border:1px solid rgba(255,78,66,.25);border-radius:8px;padding:10px 14px;color:#ff4e42;font-size:12px;margin-bottom:14px;font-family:monospace">⚠ ${escHtml(r.error)}</div>` : ""}
+    ${r.error ? `<div style="background:rgba(255,78,66,.08);border:1px solid rgba(255,78,66,.25);border-radius:8px;padding:10px 14px;color:#dc2626;font-size:12px;margin-bottom:14px;font-family:monospace">⚠ ${escHtml(r.error)}</div>` : ""}
 
     <div style="display:grid;grid-template-columns:repeat(${r.productCount !== undefined ? 6 : 5},1fr);gap:8px;margin-bottom:16px">
       ${vitalsHtml}${productTileHtml}
@@ -155,13 +155,13 @@ function deviceCard(r: PageResult, idx: number, tabId: string): string {
         ? `
     <div style="margin-bottom:16px">
       <details>
-        <summary style="cursor:pointer;font-size:12px;color:#7c6dff;padding:8px 0;user-select:none;
+        <summary style="cursor:pointer;font-size:12px;color:#2563eb;padding:8px 0;user-select:none;
           display:flex;align-items:center;gap:10px;list-style:none">
           <span>🎬 Page Recording — ${p?.label ?? ""}</span>
           <a href="${videoDlSrc}" download="${videoFileName}"
             onclick="event.stopPropagation()"
-            style="margin-left:auto;font-size:10px;color:#7c6dff;
-              border:1px solid rgba(124,109,255,.3);background:rgba(124,109,255,.1);
+            style="margin-left:auto;font-size:10px;color:#2563eb;
+              border:1px solid rgba(37,99,235,.3);background:rgba(37,99,235,.1);
               padding:2px 8px;border-radius:4px;text-decoration:none;font-weight:600">
             ⬇ Download
           </a>
@@ -180,7 +180,7 @@ function deviceCard(r: PageResult, idx: number, tabId: string): string {
         ? `
     <div style="margin-bottom:16px">
       <div style="display:flex;justify-content:space-between;align-items:center;
-        padding:8px 12px;background:#18191f;border:1px solid #2a2d38;border-radius:8px 8px 0 0;
+        padding:8px 12px;background:#f3f4f6;border:1px solid #e5e7eb;border-radius:8px 8px 0 0;
         font-size:12px;font-weight:600">
         <span>API Calls (${r.apiCalls.length})</span>
         <span style="font-family:monospace;font-size:10px;color:#6b7280">
@@ -189,9 +189,9 @@ function deviceCard(r: PageResult, idx: number, tabId: string): string {
           ${csr.length ? `CSR: ${csr.length}${avgCsr ? ` · avg ${fmt(avgCsr)}` : ""}` : ""}
         </span>
       </div>
-      <div style="border:1px solid #2a2d38;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
+      <div style="border:1px solid #e5e7eb;border-top:none;border-radius:0 0 8px 8px;overflow:hidden">
         <table style="width:100%;border-collapse:collapse;table-layout:fixed">
-          <thead><tr style="background:#18191f">
+          <thead><tr style="background:#f3f4f6">
             <th style="padding:6px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;text-align:left;width:52px">Type</th>
             <th style="padding:6px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;text-align:left">URL</th>
             <th style="padding:6px 10px;font-size:9px;text-transform:uppercase;letter-spacing:.07em;color:#6b7280;text-align:center;width:60px">Status</th>
@@ -210,11 +210,11 @@ function deviceCard(r: PageResult, idx: number, tabId: string): string {
         ? `
     <div>
       <div style="padding:8px 12px;background:rgba(255,78,66,.08);border:1px solid rgba(255,78,66,.3);
-        border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#ff4e42">
+        border-radius:8px 8px 0 0;font-size:12px;font-weight:600;color:#dc2626">
         Console Errors (${r.errors.length})
       </div>
       <div style="border:1px solid rgba(255,78,66,.2);border-top:none;border-radius:0 0 8px 8px">
-        ${r.errors.map((e) => `<div style="padding:5px 12px;font-family:monospace;font-size:10px;color:#ff8080;border-bottom:1px solid rgba(255,78,66,.1)">${escHtml(e)}</div>`).join("")}
+        ${r.errors.map((e) => `<div style="padding:5px 12px;font-family:monospace;font-size:10px;color:#dc2626;border-bottom:1px solid rgba(255,78,66,.1)">${escHtml(e)}</div>`).join("")}
       </div>
     </div>`
         : ""
@@ -240,8 +240,8 @@ function urlGroupCard(group: UrlGroup, groupIdx: number): string {
       return `<button onclick="switchTab('${tabGroupId}',${i},${results.length})"
       id="tab-${tabGroupId}-${i}"
       style="padding:7px 14px;font-size:11px;font-weight:600;cursor:pointer;border:none;
-        border-bottom:2px solid ${active ? "#7c6dff" : "transparent"};
-        color:${active ? "#7c6dff" : "#6b7280"};background:transparent;
+        border-bottom:2px solid ${active ? "#2563eb" : "transparent"};
+        color:${active ? "#2563eb" : "#6b7280"};background:transparent;
         transition:all .15s;white-space:nowrap">
       ${p?.icon ?? ""} ${p?.label ?? `Device ${i + 1}`}${dot}
     </button>`;
@@ -258,25 +258,25 @@ function urlGroupCard(group: UrlGroup, groupIdx: number): string {
             <td style="padding:8px 10px;font-family:monospace;font-size:11px;color:${gradeColor("cls", v.cls)}">${fmtCls(v.cls)}</td>
             <td style="padding:8px 10px;font-family:monospace;font-size:11px;color:${gradeColor("ttfb", v.ttfb)}">${fmt(v.ttfb)}</td>`;
     })
-    .join("<td style='padding:8px 10px;color:#2a2d38'>|</td>");
+    .join("<td style='padding:8px 10px;color:#e5e7eb'>|</td>");
 
   const firstStatus = results[0]?.status;
   const hasError = results.some((r) => !!r.error);
   const productCount = results.find((r) => r.productCount !== undefined)?.productCount;
 
   return `
-  <div class="url-card" id="ug-${groupIdx}" style="background:#111216;border:1px solid ${hasError ? "rgba(255,78,66,.4)" : "#2a2d38"};border-radius:12px;margin-bottom:16px;overflow:hidden">
+  <div class="url-card" id="ug-${groupIdx}" style="background:#f9fafb;border:1px solid ${hasError ? "rgba(255,78,66,.4)" : "#e5e7eb"};border-radius:12px;margin-bottom:16px;overflow:hidden">
     <!-- Card header -->
-    <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid #2a2d38">
-      <span style="font-size:10px;font-family:monospace;color:#6b7280;background:#22242c;padding:2px 7px;border-radius:3px">#${groupIdx + 1}</span>
-      <a class="url-wrap" href="${url}" target="_blank" rel="noopener" style="color:#e2e4f0;font-family:monospace;font-size:12px;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${url}">${url}</a>
-      ${productCount !== undefined ? `<span style="font-family:monospace;font-size:10px;color:#7c6dff;background:rgba(124,109,255,.1);border:1px solid rgba(124,109,255,.25);padding:2px 8px;border-radius:4px;flex-shrink:0">📦 ${productCount.toLocaleString()}</span>` : ""}
-      ${firstStatus ? `<span style="padding:2px 8px;border-radius:4px;font-family:monospace;font-size:10px;font-weight:700;${firstStatus >= 400 ? "background:rgba(255,78,66,.1);color:#ff4e42;border:1px solid rgba(255,78,66,.25)" : "background:rgba(12,206,107,.1);color:#0cce6b;border:1px solid rgba(12,206,107,.25)"}">${firstStatus}</span>` : ""}
+    <div style="display:flex;align-items:center;gap:10px;padding:13px 18px;border-bottom:1px solid #e5e7eb">
+      <span style="font-size:10px;font-family:monospace;color:#6b7280;background:#f3f4f6;padding:2px 7px;border-radius:3px">#${groupIdx + 1}</span>
+      <a class="url-wrap" href="${url}" target="_blank" rel="noopener" style="color:#111827;font-family:monospace;font-size:12px;text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${url}">${url}</a>
+      ${productCount !== undefined ? `<span style="font-family:monospace;font-size:10px;color:#2563eb;background:rgba(37,99,235,.1);border:1px solid rgba(37,99,235,.25);padding:2px 8px;border-radius:4px;flex-shrink:0">📦 ${productCount.toLocaleString()}</span>` : ""}
+      ${firstStatus ? `<span style="padding:2px 8px;border-radius:4px;font-family:monospace;font-size:10px;font-weight:700;${firstStatus >= 400 ? "background:rgba(255,78,66,.1);color:#dc2626;border:1px solid rgba(255,78,66,.25)" : "background:rgba(12,206,107,.1);color:#059669;border:1px solid rgba(12,206,107,.25)"}">${firstStatus}</span>` : ""}
       <span style="font-size:11px;color:#6b7280;font-family:monospace;flex-shrink:0">${new Date(results[0]?.auditedAt).toLocaleTimeString()}</span>
     </div>
 
     <!-- Device tabs -->
-    <div style="display:flex;border-bottom:1px solid #2a2d38;background:#0a0b0e;overflow-x:auto">
+    <div style="display:flex;border-bottom:1px solid #e5e7eb;background:#f3f4f6;overflow-x:auto">
       ${tabsHtml}
     </div>
 
@@ -356,13 +356,13 @@ export function generateHTMLReport(results: PageResult[]): string {
   const devHeaders = devices
     .map(
       (d) =>
-        `<th colspan="3" style="padding:8px 10px;text-align:center;background:#111216;border-left:1px solid #2a2d38">${d.icon} ${d.label}</th>`,
+        `<th colspan="3" style="padding:8px 10px;text-align:center;background:#f9fafb;border-left:1px solid #e5e7eb">${d.icon} ${d.label}</th>`,
     )
     .join("");
   const devSubHeaders = devices
     .map(
       () =>
-        `<th style="padding:6px 10px;text-align:left;background:#111216;border-left:1px solid #2a2d38;font-size:9px;width:80px">LCP</th>
+        `<th style="padding:6px 10px;text-align:left;background:#f9fafb;border-left:1px solid #e5e7eb;font-size:9px;width:80px">LCP</th>
      <th style="padding:6px 10px;text-align:left;font-size:9px;width:70px">CLS</th>
      <th style="padding:6px 10px;text-align:left;font-size:9px;width:70px">TTFB</th>`,
     )
@@ -389,9 +389,9 @@ export function generateHTMLReport(results: PageResult[]): string {
 <title>Site Audit Report</title>
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
 <style>
-:root{--bg:#09090c;--s1:#111216;--s2:#18191f;--s3:#22242c;--border:#2a2d38;--text:#e2e4f0;--muted:#6b7280;--accent:#7c6dff;}
+:root{--bg:#ffffff;--s1:#f9fafb;--s2:#f3f4f6;--s3:#e5e7eb;--border:#e5e7eb;--text:#111827;--muted:#6b7280;--accent:#2563eb;}
 *{box-sizing:border-box;margin:0;padding:0;}
-body{background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;font-size:14px;line-height:1.6;}
+body{-webkit-print-color-adjust:exact;print-color-adjust:exact;background:var(--bg);color:var(--text);font-family:'Syne',sans-serif;font-size:14px;line-height:1.6;}
 a{color:var(--accent);}
 .container{max-width:1400px;margin:0 auto;padding:0 32px 80px;}
 /* Header */
@@ -404,7 +404,7 @@ a{color:var(--accent);}
 .tile .tl{font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted);}
 .tile .tv{font-size:30px;font-weight:800;font-family:'JetBrains Mono',monospace;margin:6px 0 2px;}
 .tile .ts{font-size:11px;color:var(--muted);}
-.tile.pass .tv{color:#0cce6b;} .tile.fail .tv{color:#ff4e42;} .tile.ssr .tv{color:#7c6dff;} .tile.csr .tv{color:#ffa400;}
+.tile.pass .tv{color:#059669;} .tile.fail .tv{color:#dc2626;} .tile.ssr .tv{color:#2563eb;} .tile.csr .tv{color:#b45309;}
 /* CWV band */
 .cwv-band{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:28px;}
 .cwv{flex:1;min-width:160px;background:var(--s1);border:1px solid var(--border);border-radius:10px;padding:16px;}
@@ -417,9 +417,9 @@ a{color:var(--accent);}
 .overview-wrap{overflow-x:auto;margin-bottom:28px;border:1px solid var(--border);border-radius:10px;}
 .overview-table{width:100%;border-collapse:collapse;font-size:12px;}
 .overview-table th{background:var(--s2);padding:8px 10px;text-align:left;color:var(--muted);font-size:10px;text-transform:uppercase;letter-spacing:.07em;white-space:nowrap;}
-.overview-table td{padding:8px 10px;border-bottom:1px solid rgba(42,45,56,.5);}
+.overview-table td{padding:8px 10px;border-bottom:1px solid #e5e7eb;}
 .overview-table tr:last-child td{border-bottom:none;}
-.overview-table tr:hover td{background:rgba(255,255,255,.02);}
+.overview-table tr:hover td{background:rgba(0,0,0,.03);}
 .overview-table td a{color:var(--accent);font-family:'JetBrains Mono',monospace;font-size:11px;text-decoration:none;}
 .overview-table td a:hover{text-decoration:underline;}
 /* Filter */
@@ -447,7 +447,7 @@ a{color:var(--accent);}
       <div class="meta">Generated at ${new Date().toLocaleString()} · ${total} URLs audited · ${totalResults} page-device combinations · Devices: ${devices.map((d) => d.icon + " " + d.label).join(", ")}</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;padding-top:4px;flex-shrink:0">
-      <a href="/report.pdf" download="audit-report.pdf" style="${dlBtnStyle} rgba(124,109,255,.3);background:rgba(124,109,255,.1);color:#7c6dff">⬇ PDF</a>
+      <a href="/report.pdf" download="audit-report.pdf" style="${dlBtnStyle} rgba(37,99,235,.3);background:rgba(37,99,235,.1);color:#2563eb">⬇ PDF</a>
       <a href="/report.html" download="audit-report.html" style="${dlBtnStyle} var(--border);background:var(--s2);color:var(--muted)">⬇ HTML</a>
     </div>
   </div>
@@ -509,7 +509,7 @@ a{color:var(--accent);}
           <th style="min-width:300px">URL</th>
           ${devHeaders}
           <th>Status</th>
-          ${hasAnyProductCount ? `<th style="color:#7c6dff">Products</th>` : ""}
+          ${hasAnyProductCount ? `<th style="color:#2563eb">Products</th>` : ""}
         </tr>
         <tr>
           <th></th>
@@ -526,7 +526,7 @@ a{color:var(--accent);}
             const isZeroProduct = pc === 0;
             const prevPc = i > 0 ? getProductCount(sortedGroups[i - 1]) : undefined;
             const separatorRow = isZeroProduct && prevPc !== 0
-              ? `<tr class="zero-sep"><td colspan="${1 + devices.length * 3 + 1 + (hasAnyProductCount ? 1 : 0)}" style="padding:6px 10px;background:#111216;border-top:2px solid #2a2d38;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6b7280">0 Products — for reference</td></tr>`
+              ? `<tr class="zero-sep"><td colspan="${1 + devices.length * 3 + 1 + (hasAnyProductCount ? 1 : 0)}" style="padding:6px 10px;background:#f9fafb;border-top:2px solid #e5e7eb;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#6b7280">0 Products — for reference</td></tr>`
               : "";
             return `${separatorRow}<tr style="${isZeroProduct ? "opacity:0.6" : ""}">
             <td><a href="#ug-${groups.indexOf(g)}" title="${g.url}">${g.url.length > 70 ? "…" + g.url.slice(-67) : g.url}</a></td>
@@ -537,13 +537,13 @@ a{color:var(--accent);}
                 const lcpG2 = v.lcp ? grade("lcp", v.lcp) : null;
                 const clsG2 = v.cls !== undefined ? grade("cls", v.cls) : null;
                 const ttfbG2 = v.ttfb ? grade("ttfb", v.ttfb) : null;
-                return `<td style="border-left:1px solid #2a2d38;color:${lcpG2 ? GRADE_COLOR[lcpG2] : "#6b7280"};font-family:monospace;font-size:11px">${fmt(v.lcp)}</td>
+                return `<td style="border-left:1px solid #e5e7eb;color:${lcpG2 ? GRADE_COLOR[lcpG2] : "#6b7280"};font-family:monospace;font-size:11px">${fmt(v.lcp)}</td>
                       <td style="color:${clsG2 ? GRADE_COLOR[clsG2] : "#6b7280"};font-family:monospace;font-size:11px">${fmtCls(v.cls)}</td>
                       <td style="color:${ttfbG2 ? GRADE_COLOR[ttfbG2] : "#6b7280"};font-family:monospace;font-size:11px">${fmt(v.ttfb)}</td>`;
               })
               .join("")}
-            <td>${firstStatus ? `<span style="padding:2px 7px;border-radius:4px;font-family:monospace;font-size:10px;font-weight:700;${firstStatus >= 400 ? "background:rgba(255,78,66,.1);color:#ff4e42;border:1px solid rgba(255,78,66,.25)" : "background:rgba(12,206,107,.1);color:#0cce6b;border:1px solid rgba(12,206,107,.25)"}">${firstStatus}</span>` : ""}</td>
-            ${hasAnyProductCount ? `<td style="font-family:monospace;font-size:11px;color:#7c6dff">${pc !== undefined ? pc.toLocaleString() : "–"}</td>` : ""}
+            <td>${firstStatus ? `<span style="padding:2px 7px;border-radius:4px;font-family:monospace;font-size:10px;font-weight:700;${firstStatus >= 400 ? "background:rgba(255,78,66,.1);color:#dc2626;border:1px solid rgba(255,78,66,.25)" : "background:rgba(12,206,107,.1);color:#059669;border:1px solid rgba(12,206,107,.25)"}">${firstStatus}</span>` : ""}</td>
+            ${hasAnyProductCount ? `<td style="font-family:monospace;font-size:11px;color:#2563eb">${pc !== undefined ? pc.toLocaleString() : "–"}</td>` : ""}
           </tr>`;
           })
           .join("")}
@@ -573,8 +573,8 @@ function switchTab(groupId, idx, total) {
     const tab   = document.getElementById('tab-' + groupId + '-' + i);
     if (panel) panel.style.display = i === idx ? 'block' : 'none';
     if (tab) {
-      tab.style.borderBottomColor = i === idx ? '#7c6dff' : 'transparent';
-      tab.style.color = i === idx ? '#7c6dff' : '#6b7280';
+      tab.style.borderBottomColor = i === idx ? '#2563eb' : 'transparent';
+      tab.style.color = i === idx ? '#2563eb' : '#6b7280';
     }
   }
 }
