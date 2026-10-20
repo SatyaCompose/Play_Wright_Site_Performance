@@ -734,7 +734,12 @@ async function auditPage(
         }
       }).catch(() => null);
 
-      productCount = productCountRaw !== null ? productCountRaw : undefined;
+      productCount =
+        productCountRaw !== null
+          ? productCountRaw
+          : response.status() === 404
+            ? 0
+            : undefined;
     }
 
     // Final screenshot
