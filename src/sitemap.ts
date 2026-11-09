@@ -1,6 +1,13 @@
 import axios from "axios";
 import pLimit from "p-limit";
+import https from "https";
 import { bypassTokenFor } from "./runner";
+
+// One keep-alive connection per host. KWH's Cloudflare issues a managed
+// challenge to every additional TLS connection from the same IP (the bypass
+// token does not exempt it), while any number of requests over one reused
+// connection pass. maxSockets is per-origin, so other hosts are unaffected.
+const httpsAgent = new https.Agent({ keepAlive: true, maxSockets: 1 });
 
 /**
  * Fetch URLs from either:
@@ -50,6 +57,7 @@ async function fetchText(
   const hasBasic = !!(auth?.username && auth?.password);
   const bypass = bypassTokenFor(url);
   const { data, headers, status } = await axios.get(url, {
+    httpsAgent,
     // Cloudflare occasionally challenges a first request even with the
     // bypass token; one retry after a short pause clears it.
     validateStatus: (st) => st < 400 || (st === 403 && retry),
@@ -107,9 +115,7 @@ export async function getUrlsFromSitemap(
 
     // Cap parallel child fetches — hammering a host with 50+ concurrent GETs
     // often makes them slower (or gets rate-limited) than 6 in flight.
-    // KWH's Cloudflare challenges concurrent requests from one IP even with
-    // the bypass token, while sequential requests pass — so go one at a time there.
-    const limit = pLimit(bypassTokenFor(url) ? 1 : 6);
+    const limit = pLimit(6);
     let done = 0;
     const nested = await Promise.all(
       childUrls.map((u) =>
