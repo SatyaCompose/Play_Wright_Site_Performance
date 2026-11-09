@@ -199,7 +199,7 @@ const PROD_BYPASS_TOKEN = (process.env.PROD_CYPRESS_CI_BYPASS_TOKEN ?? "").trim(
   if (active.length) console.log(`  🔓 KWH WAF bypass tokens loaded (${active.join(", ")})`);
 }
 
-function bypassTokenFor(url: string): string {
+export function bypassTokenFor(url: string): string {
   try {
     const host = new URL(url).hostname.toLowerCase();
     if (host.startsWith("staging.") || host.startsWith("stg.") || host.includes(".staging.")) {

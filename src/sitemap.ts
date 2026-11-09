@@ -1,5 +1,6 @@
 import axios from "axios";
 import pLimit from "p-limit";
+import { bypassTokenFor } from "./runner";
 
 /**
  * Fetch URLs from either:
@@ -46,6 +47,7 @@ async function fetchText(
   auth?: HttpAuth
 ): Promise<{ body: string; contentType: string }> {
   const hasBasic = !!(auth?.username && auth?.password);
+  const bypass = bypassTokenFor(url);
   const { data, headers } = await axios.get(url, {
     timeout: 45000,
     responseType: "text",
@@ -57,6 +59,7 @@ async function fetchText(
       "Accept-Encoding": "gzip, deflate, br",
       Accept: "application/xml, text/xml, text/plain, */*",
       ...(auth?.cookie ? { Cookie: auth.cookie } : {}),
+      ...(bypass ? { "cypress-ci-bypass-token": bypass } : {}),
     },
   });
   return { body: String(data), contentType: headers["content-type"] ?? "" };
@@ -102,7 +105,7 @@ export async function getUrlsFromSitemap(
       childUrls.map((u) =>
         limit(async () => {
           try {
-            const urls = await getUrlsFromSitemap(u);
+            const urls = await getUrlsFromSitemap(u, undefined, auth);
             done++;
             onProgress?.(`Fetched ${done}/${childUrls.length} child sitemaps`);
             return urls;
