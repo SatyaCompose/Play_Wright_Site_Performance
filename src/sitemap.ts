@@ -44,11 +44,15 @@ export interface HttpAuth {
 
 async function fetchText(
   url: string,
-  auth?: HttpAuth
+  auth?: HttpAuth,
+  retry = true
 ): Promise<{ body: string; contentType: string }> {
   const hasBasic = !!(auth?.username && auth?.password);
   const bypass = bypassTokenFor(url);
-  const { data, headers } = await axios.get(url, {
+  const { data, headers, status } = await axios.get(url, {
+    // Cloudflare occasionally challenges a first request even with the
+    // bypass token; one retry after a short pause clears it.
+    validateStatus: (st) => st < 400 || (st === 403 && retry),
     timeout: 45000,
     responseType: "text",
     maxContentLength: Infinity,
@@ -62,6 +66,10 @@ async function fetchText(
       ...(bypass ? { "cypress-ci-bypass-token": bypass } : {}),
     },
   });
+  if (status === 403) {
+    await new Promise((r) => setTimeout(r, 1500));
+    return fetchText(url, auth, false);
+  }
   return { body: String(data), contentType: headers["content-type"] ?? "" };
 }
 
