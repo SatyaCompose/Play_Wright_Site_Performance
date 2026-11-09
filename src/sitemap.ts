@@ -107,7 +107,9 @@ export async function getUrlsFromSitemap(
 
     // Cap parallel child fetches — hammering a host with 50+ concurrent GETs
     // often makes them slower (or gets rate-limited) than 6 in flight.
-    const limit = pLimit(6);
+    // KWH's Cloudflare challenges concurrent requests from one IP even with
+    // the bypass token, while sequential requests pass — so go one at a time there.
+    const limit = pLimit(bypassTokenFor(url) ? 1 : 6);
     let done = 0;
     const nested = await Promise.all(
       childUrls.map((u) =>
