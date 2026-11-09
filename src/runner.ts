@@ -734,12 +734,11 @@ async function auditPage(
         }
       }).catch(() => null);
 
-      productCount =
-        productCountRaw !== null
-          ? productCountRaw
-          : response.status() === 404
-            ? 0
-            : undefined;
+      // A 404 (direct or after redirect) is reported as "Not Found" via
+      // `status`, never as a zero-product page — the report and dashboard
+      // key off the HTTP status so a missing page is not mistaken for an
+      // empty listing.
+      productCount = productCountRaw !== null ? productCountRaw : undefined;
     }
 
     // Final screenshot

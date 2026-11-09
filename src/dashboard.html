@@ -2361,7 +2361,8 @@
                 <button class="fb" onclick="setFilter('running',this)">Live</button>
                 <button class="fb" onclick="setFilter('poor',this)">Poor</button>
                 <button class="fb" onclick="setFilter('failed',this)">Failed</button>
-                <button class="fb" onclick="setFilter('zeroproducts',this)" title="Pages with 0 products loaded">0 Products</button>
+                <button class="fb" onclick="setFilter('zeroproducts',this)" title="Pages that loaded (HTTP 200) with 0 products">0 Products</button>
+                <button class="fb" onclick="setFilter('notfound',this)" title="Pages that returned HTTP 404 (direct or after redirect)">Not Found</button>
             </div>
             <div class="ul" id="ul"></div>
         </div>
@@ -2443,6 +2444,9 @@
         const lcpG = ms => !ms ? 'poor' : ms <= 2500 ? 'good' : ms <= 4000 ? 'warn' : 'poor';
         const bestLcp = p => { const l = (p.results ?? []).map(r => r.vitals?.lcp).filter(Boolean); return l.length ? Math.min(...l) : undefined; };
         const bestProductCount = p => { for (const r of (p.results ?? [])) { if (r.productCount !== undefined) return r.productCount; } return undefined; };
+        // True when any profile saw an HTTP 404 (direct or after a redirect).
+        // Such pages are "Not Found", never "0 products".
+        const isNotFound = p => (p.results ?? []).some(r => r.status === 404);
         // Returns the pdpDataCheck result from the first result that has one, or null
         // if this URL wasn't audited in PDP-data mode.
         const bestPdpCheck = p => { for (const r of (p.results ?? [])) { if (r.pdpDataCheck) return r.pdpDataCheck; } return null; };
@@ -3479,9 +3483,12 @@
             const lcp = bestLcp(p);
             const lc = lcp ? gcol(lcpG(lcp)) : 'var(--muted)';
             const pc = bestProductCount(p);
-            const pcHtml = pc !== undefined
-                ? `<span style="font-family:var(--mono);font-size:9px;flex-shrink:0;color:${pc === 0 ? 'var(--poor)' : 'var(--muted)'}" title="Product count">${pc === 0 ? '⚠ 0p' : pc + 'p'}</span>`
-                : '';
+            const notFound = isNotFound(p);
+            const pcHtml = notFound
+                ? `<span style="font-family:var(--mono);font-size:9px;flex-shrink:0;color:var(--warn)" title="Page not found (HTTP 404)">✗ 404</span>`
+                : pc !== undefined
+                    ? `<span style="font-family:var(--mono);font-size:9px;flex-shrink:0;color:${pc === 0 ? 'var(--poor)' : 'var(--muted)'}" title="Product count">${pc === 0 ? '⚠ 0p' : pc + 'p'}</span>`
+                    : '';
             // PDP-data mode indicator: red for errors, amber for warnings only, green tick otherwise
             const pdpCheck = bestPdpCheck(p);
             let pdpHtml = '';
@@ -3554,7 +3561,8 @@
                 if (filterMode === 'running') mf = p.status === 'running';
                 if (filterMode === 'failed') mf = p.status === 'failed';
                 if (filterMode === 'poor') { const l = bestLcp(p); mf = (!!l && l > 4000) || p.status === 'failed'; }
-                if (filterMode === 'zeroproducts') { const pc = bestProductCount(p); mf = pc === 0; }
+                if (filterMode === 'zeroproducts') { const pc = bestProductCount(p); mf = pc === 0 && !isNotFound(p); }
+                if (filterMode === 'notfound') mf = isNotFound(p);
                 row.style.display = ms && mf ? '' : 'none';
             });
         }
@@ -3893,7 +3901,9 @@
                     return `<div class="vc"><div class="vl">${it.l}</div><div class="vv" style="color:${c}">${it.f(it.v)}</div><div class="vs">${it.s}</div>${gr ? `<div class="vgrade g${gr[0]}">${gr}</div>` : ''}</div>`;
                 }).join('');
                 const pc = activeResult.productCount;
-                const pcCard = pc !== undefined ? (() => {
+                const pcCard = activeResult.status === 404
+                    ? `<div class="vc"><div class="vl">Products</div><div class="vv" style="color:var(--warn)">404</div><div class="vs">Page not found — not a listing</div><div class="vgrade gw">not found</div></div>`
+                    : pc !== undefined ? (() => {
                     const c = pc === 0 ? 'var(--poor)' : pc < 4 ? 'var(--warn)' : 'var(--good)';
                     const gr = pc === 0 ? 'poor' : pc < 4 ? 'warn' : 'good';
                     return `<div class="vc"><div class="vl">Products</div><div class="vv" style="color:${c}">${pc}</div><div class="vs">Loaded product cards</div><div class="vgrade g${gr[0]}">${gr}</div></div>`;

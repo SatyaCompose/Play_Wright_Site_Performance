@@ -17,14 +17,25 @@ export function generateProductReportHTML(results: PageResult[]): string {
     const existing = urlMap.get(r.url);
     if (!existing) {
       urlMap.set(r.url, { url: r.url, productCount: r.productCount, status: r.status });
-    } else if (existing.productCount === undefined && r.productCount !== undefined) {
-      existing.productCount = r.productCount;
+    } else {
+      if (existing.productCount === undefined && r.productCount !== undefined) {
+        existing.productCount = r.productCount;
+      }
+      if (existing.status === undefined && r.status !== undefined) {
+        existing.status = r.status;
+      }
     }
   }
 
+  // A page that answered 404 (directly or after a redirect) is "Not Found" —
+  // it is neither a zero-product listing nor a page missing its list tastic.
+  const isNotFound = (u: UrlProductData) => u.status === 404;
+
   const allUrls = [...urlMap.values()];
-  const measured = allUrls.filter((u) => u.productCount !== undefined);
-  const failed = allUrls.filter((u) => u.productCount === undefined);
+  const notFound = allUrls.filter(isNotFound);
+  const reachable = allUrls.filter((u) => !isNotFound(u));
+  const measured = reachable.filter((u) => u.productCount !== undefined);
+  const failed = reachable.filter((u) => u.productCount === undefined);
   const withProducts = measured.filter((u) => u.productCount! > 0);
   const zeroProducts = measured.filter((u) => u.productCount === 0);
   const totalProducts = withProducts.reduce((s, u) => s + u.productCount!, 0);
@@ -70,7 +81,7 @@ export function generateProductReportHTML(results: PageResult[]): string {
       </tr>`);
   });
 
-  // Append failed URLs at the bottom
+  // Append failed URLs after the measured ones
   if (failed.length > 0) {
     rowParts.push(
       `<tr class="sep-row sep-row-failed"><td colspan="4">Pages Without Product List &mdash; No List Tastic Detected</td></tr>`
@@ -87,6 +98,28 @@ export function generateProductReportHTML(results: PageResult[]): string {
           </td>
           <td class="col-badge">
             <span class="badge badge-failed">No List</span>
+          </td>
+        </tr>`);
+    });
+  }
+
+  // Not-found pages go last — the URL no longer resolves to a page at all
+  if (notFound.length > 0) {
+    rowParts.push(
+      `<tr class="sep-row sep-row-notfound"><td colspan="4">Pages Not Found &mdash; HTTP 404 (direct or after redirect)</td></tr>`
+    );
+    notFound.forEach((u, i) => {
+      rowParts.push(`
+        <tr class="notfound-row">
+          <td class="col-num">${sorted.length + failed.length + i + 1}</td>
+          <td class="col-url">
+            <span class="url-text" title="${escHtml(u.url)}">${escHtml(u.url)}</span>
+          </td>
+          <td class="col-count">
+            <span class="count-val failed-dash">&mdash;</span>
+          </td>
+          <td class="col-badge">
+            <span class="badge badge-notfound">Not Found &middot; 404</span>
           </td>
         </tr>`);
     });
@@ -140,7 +173,7 @@ body{
 .report-meta strong{color:#374151;font-weight:600;}
 
 /* ── Summary cards ── */
-.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:40px;}
+.summary{display:grid;grid-template-columns:repeat(6,1fr);gap:14px;margin-bottom:40px;}
 .card{border:1px solid #e5e7eb;border-radius:8px;padding:18px 20px;background:#f9fafb;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .card-label{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.09em;color:#6b7280;margin-bottom:10px;}
 .card-value{font-size:27px;font-weight:700;letter-spacing:-1px;line-height:1;color:#111827;}
@@ -148,6 +181,7 @@ body{
 .card.c-blue .card-value{color:#2563eb;}
 .card.c-green .card-value{color:#059669;}
 .card.c-red .card-value{color:#dc2626;}
+.card.c-amber .card-value{color:#b45309;}
 
 /* ── Section title ── */
 .section-title{
@@ -201,6 +235,8 @@ td{padding:9px 12px;vertical-align:middle;}
 .badge-ok{background:#dcfce7;color:#15803d;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .badge-zero{background:#fee2e2;color:#dc2626;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
 .badge-failed{background:#f3f4f6;color:#6b7280;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+.badge-notfound{background:#fef3c7;color:#b45309;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+tbody tr.notfound-row td{opacity:.7;}
 .count-val.failed-dash{font-size:13px;font-weight:500;color:#d1d5db;}
 tbody tr.failed-row td{opacity:.6;}
 
@@ -221,6 +257,12 @@ tbody tr.failed-row td{opacity:.6;}
   color:#6b7280;
   border-top:1px solid #e5e7eb;
   border-bottom:1px solid #e5e7eb;
+}
+.sep-row-notfound td{
+  background:#fffbeb;
+  color:#b45309;
+  border-top:1px solid #fde68a;
+  border-bottom:1px solid #fde68a;
 }
 
 /* ── Footer ── */
@@ -255,7 +297,7 @@ tbody tr.failed-row td{opacity:.6;}
     </div>
     <div class="report-meta">
       <div>Generated <strong>${generatedAt}</strong></div>
-      <div>${allUrls.length.toLocaleString()} URLs &middot; ${failed.length > 0 ? `${failed.length} without product list` : 'all have product list'}</div>
+      <div>${allUrls.length.toLocaleString()} URLs &middot; ${failed.length > 0 ? `${failed.length} without product list` : 'all have product list'}${notFound.length > 0 ? ` &middot; ${notFound.length} not found` : ''}</div>
     </div>
   </div>
 
@@ -285,6 +327,11 @@ tbody tr.failed-row td{opacity:.6;}
       <div class="card-value" style="color:#9ca3af">${failed.length.toLocaleString()}</div>
       <div class="card-note">no list tastic</div>
     </div>
+    <div class="card c-amber">
+      <div class="card-label">Not Found</div>
+      <div class="card-value">${notFound.length.toLocaleString()}</div>
+      <div class="card-note">HTTP 404</div>
+    </div>
   </div>
 
   <div class="section-title">All URLs &mdash; sorted by product count</div>
@@ -306,7 +353,7 @@ tbody tr.failed-row td{opacity:.6;}
 
   <div class="report-footer">
     <span>Product Count Report &mdash; ${generatedAt}</span>
-    <span>${withProducts.length} with products &middot; ${zeroProducts.length} empty &middot; ${failed.length} no product list</span>
+    <span>${withProducts.length} with products &middot; ${zeroProducts.length} empty &middot; ${failed.length} no product list &middot; ${notFound.length} not found</span>
   </div>
 
 </div>
