@@ -3020,9 +3020,10 @@
                 return;
             }
 
-            // When a product-list filter is active, send the exact filtered URL list
-            // as manualUrls so the server doesn't slice from its own unfiltered list.
-            const isFiltered = !isManual && isProductListSitemap && productListFilter !== 'all';
+            // PLP sitemaps are always client-filtered (brand/category AND main-page/subpage),
+            // so send the exact URL list — the server's own list is unfiltered and slicing
+            // it by count audits ?p= subpages instead of the URLs shown here.
+            const isFiltered = !isManual && isProductListSitemap;
             const auditUrls = isManual ? [] : getFilteredAuditUrls();
 
             const quickMode = document.getElementById('quick-mode')?.checked ?? false;

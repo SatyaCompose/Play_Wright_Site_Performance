@@ -1,4 +1,5 @@
 import type { PageResult } from "./types";
+import { KWH_BRAND_HEADER, KWH_BRAND_STYLE } from "./brand";
 
 function escHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -284,10 +285,12 @@ tbody tr.failed-row td{opacity:.6;}
   .url-text{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;overflow-wrap:anywhere;word-break:break-all;}
 }
 </style>
+${KWH_BRAND_STYLE}
 </head>
 <body>
 <div class="page">
 
+  ${KWH_BRAND_HEADER}
   <div class="accent-bar"></div>
 
   <div class="report-header">

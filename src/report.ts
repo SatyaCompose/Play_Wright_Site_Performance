@@ -1,4 +1,5 @@
 import type { PageResult, ApiCall, DeviceProfile } from "./types.js";
+import { KWH_BRAND_HEADER, KWH_BRAND_STYLE } from "./brand.js";
 
 function escHtml(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -387,7 +388,7 @@ export function generateHTMLReport(results: PageResult[]): string {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Site Audit Report</title>
-<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root{--bg:#ffffff;--s1:#f9fafb;--s2:#f3f4f6;--s3:#e5e7eb;--border:#e5e7eb;--text:#111827;--muted:#6b7280;--accent:#2563eb;}
 *{box-sizing:border-box;margin:0;padding:0;}
@@ -438,16 +439,18 @@ a{color:var(--accent);}
   .url-wrap{max-width:none !important;min-width:0 !important;white-space:normal !important;overflow:visible !important;text-overflow:clip !important;overflow-wrap:anywhere;word-break:break-all;}
 }
 </style>
+${KWH_BRAND_STYLE}
 </head>
 <body>
 <div class="hdr">
   <div class="container" style="padding-bottom:0;margin-bottom:0;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
     <div>
-      <h1>⚡ Site Audit Report</h1>
+      ${KWH_BRAND_HEADER}
+      <h1>Site Audit Report</h1>
       <div class="meta">Generated at ${new Date().toLocaleString()} · ${total} URLs audited · ${totalResults} page-device combinations · Devices: ${devices.map((d) => d.icon + " " + d.label).join(", ")}</div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;padding-top:4px;flex-shrink:0">
-      <a href="/report.pdf" download="audit-report.pdf" style="${dlBtnStyle} rgba(37,99,235,.3);background:rgba(37,99,235,.1);color:#2563eb">⬇ PDF</a>
+      <a href="/report.pdf" download="audit-report.pdf" class="kwh-dl" style="${dlBtnStyle}">⬇ PDF</a>
       <a href="/report.html" download="audit-report.html" style="${dlBtnStyle} var(--border);background:var(--s2);color:var(--muted)">⬇ HTML</a>
     </div>
   </div>

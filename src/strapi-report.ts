@@ -1,4 +1,5 @@
 import type { PageResult, StrapiDatasource } from "./types";
+import { KWH_BRAND_HEADER, KWH_BRAND_STYLE } from "./brand";
 
 export type StrapiUrlSource = "content" | "plp" | "pdp";
 
@@ -203,10 +204,12 @@ td{padding:9px 12px;vertical-align:middle;}
   .url-text{white-space:normal !important;overflow:visible !important;text-overflow:clip !important;overflow-wrap:anywhere;word-break:break-all;}
 }
 </style>
+${KWH_BRAND_STYLE}
 </head>
 <body>
 <div class="page">
 
+  ${KWH_BRAND_HEADER}
   <div class="accent-bar"></div>
 
   <div class="report-header">
