@@ -8,6 +8,7 @@ import "dotenv/config";
 import { getCTProductUrls, type CTEnv } from "./ct";
 import { getUrlsFromSitemap } from "./sitemap";
 import { runAudit, closeAllBrowsers } from "./runner";
+import { LOGO_SRC, FAVICON_SRC } from "./brand";
 import { generateHTMLReport } from "./report";
 import { generateProductReportHTML } from "./product-report";
 import { generatePdpReportHTML } from "./pdp-report";
@@ -169,15 +170,9 @@ const dashboardHtml = fs.readFileSync(
   path.join(__dirname, "dashboard.html"),
   "utf-8"
 );
-// Read logo once at boot — it's a tiny static asset served alongside the
-// dashboard and used as the SVG favicon.
-const logoSvg = (() => {
-  try {
-    return fs.readFileSync(path.join(__dirname, "logo.svg"), "utf-8");
-  } catch {
-    return "";
-  }
-})();
+const dataUri = (u: string) => Buffer.from(u.slice(u.indexOf(",") + 1), "base64");
+const kwhLogoPng = dataUri(LOGO_SRC);
+const kwhFavicon = dataUri(FAVICON_SRC);
 
 const httpServer = http.createServer((req, res) => {
   const [rawPath, rawQuery] = (req.url ?? "/").split("?");
@@ -191,13 +186,10 @@ const httpServer = http.createServer((req, res) => {
     return;
   }
 
-  if (rawPath === "/logo.svg") {
-    if (!logoSvg) { res.writeHead(404); res.end("logo missing"); return; }
-    res.writeHead(200, {
-      "Content-Type": "image/svg+xml; charset=utf-8",
-      "Cache-Control": "public, max-age=86400",
-    });
-    res.end(logoSvg);
+  if (rawPath === "/kwh-logo.png" || rawPath === "/favicon.ico") {
+    const isIco = rawPath === "/favicon.ico";
+    res.writeHead(200, { "Content-Type": isIco ? "image/x-icon" : "image/png", "Cache-Control": "public, max-age=86400" });
+    res.end(isIco ? kwhFavicon : kwhLogoPng);
     return;
   }
 
@@ -708,18 +700,16 @@ wss.on("connection", (ws, req) => {
     // report/URL/progress state, wipe videos on disk, and tear down the
     // browser pool. Meant for "start over from scratch" — after a stuck
     // run, when the pool got wedged, or before a fresh clean audit.
-    // Server-wide by design: this tool is single-tenant per install.
+    // Scoped to the calling session so a reset in one tab never kills another
+    // tab's running audit. The shared browser pool is only torn down when no
+    // other session is mid-audit.
     if (msg.type === "reset_all") {
-      console.log(`\n  [${sessionId.slice(0, 8)}] Reset all triggered — clearing ${sessions.size} session(s)`);
-      // Signal every session to stop first so tasks exit before we
-      // yank the browser pool out from under them.
-      for (const s of sessions.values()) {
-        s.signal.cancelled = true;
-        try { s.signal.aborter?.abort(); } catch {}
-      }
+      console.log(`\n  [${sessionId.slice(0, 8)}] Reset triggered — clearing this session`);
+      session.signal.cancelled = true;
+      try { session.signal.aborter?.abort(); } catch {}
       // Give in-flight page.close()/context.close() a beat to drain.
       await new Promise((r) => setTimeout(r, 600));
-      for (const s of sessions.values()) {
+      for (const s of [session]) {
         s.progressMap.clear();
         s.allUrls = [];
         s.urlSources.clear();
@@ -738,16 +728,13 @@ wss.on("connection", (ws, req) => {
         clearSessionVideos(s);
         broadcastToSession(s, { type: "reset_complete" });
       }
-      // Also blow away any leftover per-session report PDFs in cwd.
-      try {
-        for (const f of fs.readdirSync(process.cwd())) {
-          if (/^(report|product-report|pdp-report|strapi-report)-.*\.pdf$/.test(f)) {
-            try { fs.unlinkSync(path.join(process.cwd(), f)); } catch {}
-          }
-        }
-      } catch {}
-      try { await closeAllBrowsers(); } catch {}
-      console.log(`  [${sessionId.slice(0, 8)}] Reset complete — pool + state cleared\n`);
+      // Remove this session's report PDFs from cwd.
+      for (const prefix of ["report", "product-report", "pdp-report", "strapi-report"]) {
+        try { fs.unlinkSync(path.join(process.cwd(), `${prefix}-${sessionId}.pdf`)); } catch {}
+      }
+      const othersRunning = [...sessions.values()].some((s) => s !== session && s.auditRunning);
+      if (!othersRunning) { try { await closeAllBrowsers(); } catch {} }
+      console.log(`  [${sessionId.slice(0, 8)}] Reset complete — session cleared${othersRunning ? " (pool kept: other session running)" : " + pool torn down"}\n`);
       return;
     }
 
